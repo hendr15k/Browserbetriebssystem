@@ -188,14 +188,15 @@ function openApp(appName, arg = null) {
                 <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
                     Open <input type="file" id="paint-input-${windowId}" style="display: none;" onchange="openPaintFile('${windowId}')" accept="image/*">
                 </label>
-                <button onclick="savePaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer; font-weight: bold;">Save</button>
+                <button onclick="savePaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer; font-weight: bold;">Download</button>
+                <button onclick="savePaintToSystem('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer; font-weight: bold;">Save</button>
             </div>
             <div style="flex: 1; overflow: hidden; background: white; position: relative; cursor: crosshair;">
                 <canvas id="paint-canvas-${windowId}" style="display: block;"></canvas>
             </div>
         `;
         // Defer initialization to after append
-        setTimeout(() => initPaint(windowId), 0);
+        setTimeout(() => initPaint(windowId, arg), 0);
     }
 
     win.innerHTML = `
@@ -370,7 +371,7 @@ function handleTerminalCommand(cmd, outputDiv) {
     const args = parts.slice(1);
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], touch [file], rm [file], about, reboot';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], about, reboot';
     } else if (command === 'date') {
         response = new Date().toString();
     } else if (command === 'clear') {
@@ -388,6 +389,23 @@ function handleTerminalCommand(cmd, outputDiv) {
             if (fileSystem[filename] !== undefined) {
                 // Handle newlines for display
                 response = fileSystem[filename];
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
+    } else if (command === 'open') {
+        if (args.length === 0) {
+            response = 'Usage: open [filename]';
+        } else {
+            const filename = args[0];
+            if (fileSystem[filename] !== undefined) {
+                if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
+                    openApp('paint', filename);
+                    response = `Opening ${filename} in Paint...`;
+                } else {
+                    openApp('notepad', filename);
+                    response = `Opening ${filename} in Notepad...`;
+                }
             } else {
                 response = `File not found: ${filename}`;
             }
@@ -471,7 +489,7 @@ function calcInput(windowId, value) {
 }
 
 // Paint Logic
-function initPaint(windowId) {
+function initPaint(windowId, filename = null) {
     const canvas = document.getElementById(`paint-canvas-${windowId}`);
     const container = canvas.parentElement;
 
@@ -480,6 +498,16 @@ function initPaint(windowId) {
     canvas.height = container.clientHeight;
 
     const ctx = canvas.getContext('2d');
+
+    if (filename && fileSystem[filename]) {
+        const img = new Image();
+        img.onload = function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, Math.min(img.width, canvas.width), Math.min(img.height, canvas.height));
+        };
+        img.src = fileSystem[filename];
+    }
+
     let painting = false;
 
     // Handle resizing (basic)
@@ -532,6 +560,18 @@ function savePaint(windowId) {
     link.download = 'my-drawing.png';
     link.href = canvas.toDataURL();
     link.click();
+}
+
+function savePaintToSystem(windowId) {
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    const dataURL = canvas.toDataURL();
+    const filename = prompt("Enter filename to save (e.g., drawing.png):", "drawing.png");
+
+    if (filename) {
+        fileSystem[filename] = dataURL;
+        saveFileSystem();
+        alert(`Image "${filename}" saved to system.`);
+    }
 }
 
 function openPaintFile(windowId) {
@@ -596,7 +636,7 @@ function renderFileExplorer(windowId) {
 
         fileDiv.onclick = () => {
              if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
-                 alert("Opening images from Explorer not yet supported.");
+                 openApp('paint', filename);
              } else {
                  openApp('notepad', filename);
              }
