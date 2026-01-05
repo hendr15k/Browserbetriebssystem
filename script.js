@@ -69,7 +69,15 @@ function openApp(appName) {
         `;
     } else if (appName === 'notepad') {
         title = "Notepad";
-        content = '<textarea class="notepad-area"></textarea>';
+        content = `
+            <div class="notepad-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc; display: flex; gap: 5px;">
+                <button onclick="saveNotepad('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Save</button>
+                <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
+                    Open <input type="file" id="notepad-input-${windowId}" style="display: none;" onchange="openNotepadFile('${windowId}')">
+                </label>
+            </div>
+            <textarea class="notepad-area" id="notepad-area-${windowId}"></textarea>
+        `;
     } else if (appName === 'about') {
         title = "About";
         content = `
@@ -120,6 +128,25 @@ function openApp(appName) {
                 <div id="snake-score-${windowId}" style="color: white; margin-top: 5px;">Score: 0</div>
             </div>
         `;
+    } else if (appName === 'paint') {
+        title = "Paint";
+        win.classList.add('paint-window');
+        content = `
+            <div class="paint-toolbar" style="padding: 5px; background: #eee; display: flex; gap: 5px; align-items: center; border-bottom: 1px solid #ccc;">
+                <label style="font-size: 12px;">Color:</label>
+                <input type="color" id="paint-color-${windowId}" value="#000000" style="height: 25px; cursor: pointer;">
+                <label style="font-size: 12px;">Size:</label>
+                <input type="range" id="paint-size-${windowId}" min="1" max="50" value="5" style="width: 80px; cursor: pointer;">
+                <div style="flex: 1;"></div>
+                <button onclick="clearPaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Clear</button>
+                <button onclick="savePaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer; font-weight: bold;">Save</button>
+            </div>
+            <div style="flex: 1; overflow: hidden; background: white; position: relative; cursor: crosshair;">
+                <canvas id="paint-canvas-${windowId}" style="display: block;"></canvas>
+            </div>
+        `;
+        // Defer initialization to after append
+        setTimeout(() => initPaint(windowId), 0);
     }
 
     win.innerHTML = `
@@ -363,6 +390,99 @@ function calcInput(windowId, value) {
         } else {
             display.textContent += value;
         }
+    }
+}
+
+// Paint Logic
+function initPaint(windowId) {
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    const container = canvas.parentElement;
+
+    // Resize canvas to fit container
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+
+    const ctx = canvas.getContext('2d');
+    let painting = false;
+
+    // Handle resizing (basic)
+    // For a real app, we might want to preserve content on resize,
+    // but for simplicity, we'll just let it be fixed size or crop.
+
+    function startPosition(e) {
+        painting = true;
+        drawPaint(e);
+    }
+
+    function endPosition() {
+        painting = false;
+        ctx.beginPath();
+    }
+
+    function drawPaint(e) {
+        if (!painting) return;
+
+        // Calculate mouse position relative to canvas
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        ctx.lineWidth = document.getElementById(`paint-size-${windowId}`).value;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = document.getElementById(`paint-color-${windowId}`).value;
+
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+    }
+
+    canvas.addEventListener('mousedown', startPosition);
+    canvas.addEventListener('mouseup', endPosition);
+    canvas.addEventListener('mousemove', drawPaint);
+    canvas.addEventListener('mouseleave', endPosition);
+}
+
+function clearPaint(windowId) {
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function savePaint(windowId) {
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    const link = document.createElement('a');
+    link.download = 'my-drawing.png';
+    link.href = canvas.toDataURL();
+    link.click();
+}
+
+// Notepad Logic
+function saveNotepad(windowId) {
+    const textarea = document.getElementById(`notepad-area-${windowId}`);
+    const text = textarea.value;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.download = 'document.txt';
+    link.href = url;
+    link.click();
+
+    // Cleanup
+    URL.revokeObjectURL(url);
+}
+
+function openNotepadFile(windowId) {
+    const input = document.getElementById(`notepad-input-${windowId}`);
+    const textarea = document.getElementById(`notepad-area-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            textarea.value = e.target.result;
+        };
+        reader.readAsText(input.files[0]);
     }
 }
 
