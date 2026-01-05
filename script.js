@@ -123,29 +123,35 @@ function openApp(appName, arg = null) {
         win.classList.add('calculator-window');
         // Simple Calculator Layout
         content = `
-            <div class="calc-display" id="calc-display-${windowId}">0</div>
-            <div class="calc-buttons">
-                <button class="calc-btn clear" onclick="calcInput('${windowId}', 'C')">C</button>
-                <button class="calc-btn operator" onclick="calcInput('${windowId}', '/')">/</button>
-                <button class="calc-btn operator" onclick="calcInput('${windowId}', '*')">*</button>
-                <button class="calc-btn operator" onclick="calcInput('${windowId}', '-')">-</button>
+            <div class="calc-main">
+                <div class="calc-display" id="calc-display-${windowId}">0</div>
+                <div class="calc-buttons">
+                    <button class="calc-btn clear" onclick="calcInput('${windowId}', 'C')">C</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '/')">/</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '*')">*</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '-')">-</button>
 
-                <button class="calc-btn" onclick="calcInput('${windowId}', '7')">7</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '8')">8</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '9')">9</button>
-                <button class="calc-btn operator" onclick="calcInput('${windowId}', '+')">+</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '7')">7</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '8')">8</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '9')">9</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '+')">+</button>
 
-                <button class="calc-btn" onclick="calcInput('${windowId}', '4')">4</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '5')">5</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '6')">6</button>
-                <button class="calc-btn equals" style="grid-row: span 2" onclick="calcInput('${windowId}', '=')">=</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '4')">4</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '5')">5</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '6')">6</button>
+                    <button class="calc-btn equals" style="grid-row: span 2" onclick="calcInput('${windowId}', '=')">=</button>
 
-                <button class="calc-btn" onclick="calcInput('${windowId}', '1')">1</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '2')">2</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '3')">3</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '1')">1</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '2')">2</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '3')">3</button>
 
-                <button class="calc-btn" style="grid-column: span 2" onclick="calcInput('${windowId}', '0')">0</button>
-                <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
+                    <button class="calc-btn" style="grid-column: span 2" onclick="calcInput('${windowId}', '0')">0</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
+                </div>
+            </div>
+            <div class="calc-history" id="calc-history-${windowId}">
+                <div class="history-title">History</div>
+                <div class="history-list"></div>
             </div>
         `;
     } else if (appName === 'snake') {
@@ -177,6 +183,14 @@ function openApp(appName, arg = null) {
                 </div>
             </div>
         `;
+    } else if (appName === 'speak') {
+        title = "Speak";
+        content = `
+            <div style="padding: 10px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
+                <textarea id="speak-text-${windowId}" style="flex-grow: 1; margin-bottom: 10px; resize: none; padding: 5px; font-family: sans-serif;" placeholder="Type text here..."></textarea>
+                <button onclick="speakText('${windowId}')" style="padding: 10px; cursor: pointer; font-weight: bold;">Speak</button>
+            </div>
+        `;
     } else if (appName === 'paint') {
         title = "Paint";
         win.classList.add('paint-window');
@@ -184,8 +198,20 @@ function openApp(appName, arg = null) {
             <div class="paint-toolbar" style="padding: 5px; background: #eee; display: flex; gap: 5px; align-items: center; border-bottom: 1px solid #ccc;">
                 <label style="font-size: 12px;">Color:</label>
                 <input type="color" id="paint-color-${windowId}" value="#000000" style="height: 25px; cursor: pointer;">
+
+                <div class="paint-palette">
+                    <div class="palette-color" style="background-color: #000000;" onclick="setPaintColor('${windowId}', '#000000')"></div>
+                    <div class="palette-color" style="background-color: #ff0000;" onclick="setPaintColor('${windowId}', '#ff0000')"></div>
+                    <div class="palette-color" style="background-color: #00ff00;" onclick="setPaintColor('${windowId}', '#00ff00')"></div>
+                    <div class="palette-color" style="background-color: #0000ff;" onclick="setPaintColor('${windowId}', '#0000ff')"></div>
+                    <div class="palette-color" style="background-color: #ffff00;" onclick="setPaintColor('${windowId}', '#ffff00')"></div>
+                </div>
+
                 <label style="font-size: 12px;">Size:</label>
                 <input type="range" id="paint-size-${windowId}" min="1" max="50" value="5" style="width: 80px; cursor: pointer;">
+
+                <button onclick="setPaintColor('${windowId}', '#ffffff')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Eraser</button>
+
                 <div style="flex: 1;"></div>
                 <button onclick="clearPaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Clear</button>
                 <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
@@ -374,7 +400,7 @@ function handleTerminalCommand(cmd, outputDiv) {
     const args = parts.slice(1);
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], about, reboot';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], about, reboot, whoami, pwd, history';
     } else if (command === 'date') {
         response = new Date().toString();
     } else if (command === 'clear') {
@@ -444,10 +470,26 @@ function handleTerminalCommand(cmd, outputDiv) {
         response = 'Opened About window.';
     } else if (command === 'reboot') {
         location.reload();
+    } else if (command === 'whoami') {
+        response = 'user';
+    } else if (command === 'pwd') {
+        response = '/home/user';
+    } else if (command === 'history') {
+        // We need to track history first.
+        // For now, let's just show a placeholder or implement simple tracking
+        // But since we didn't add history tracking array, let's just say "Not implemented yet" or try to implement it now.
+        // Actually, let's implement a simple history array.
+        if (!window.terminalHistory) window.terminalHistory = [];
+        response = window.terminalHistory.join('\n');
     } else if (command === '') {
         response = '';
     } else {
         response = `Command not found: ${command}`;
+    }
+
+    if (cmd.trim() !== '') {
+        if (!window.terminalHistory) window.terminalHistory = [];
+        window.terminalHistory.push(cmd);
     }
 
     if (response) {
@@ -464,6 +506,7 @@ function handleTerminalCommand(cmd, outputDiv) {
 // Calculator Logic
 function calcInput(windowId, value) {
     const display = document.getElementById(`calc-display-${windowId}`);
+    const historyList = document.querySelector(`#calc-history-${windowId} .history-list`);
     if (!display) return;
 
     let currentText = display.textContent;
@@ -475,7 +518,17 @@ function calcInput(windowId, value) {
             // Safety check: only allow numbers and operators
             if (/^[0-9+\-/*.]+$/.test(currentText)) {
                 // eslint-disable-next-line no-eval
-                display.textContent = eval(currentText);
+                const result = eval(currentText);
+                display.textContent = result;
+
+                // Add to history
+                if (historyList) {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.innerHTML = `<span class="expr">${currentText} =</span><span class="res">${result}</span>`;
+                    historyList.prepend(historyItem);
+                }
+
             } else {
                 display.textContent = 'Error';
             }
@@ -563,6 +616,10 @@ function initPaint(windowId, filename = null) {
     canvas.addEventListener('touchstart', handleTouch(startPosition));
     canvas.addEventListener('touchend', handleTouch(endPosition));
     canvas.addEventListener('touchmove', handleTouch(drawPaint));
+}
+
+function setPaintColor(windowId, color) {
+    document.getElementById(`paint-color-${windowId}`).value = color;
 }
 
 function clearPaint(windowId) {
@@ -923,6 +980,15 @@ function loadFileSystem() {
         } catch (e) {
             console.error('Failed to load file system:', e);
         }
+    }
+}
+
+// Speak App Logic
+function speakText(windowId) {
+    const text = document.getElementById(`speak-text-${windowId}`).value;
+    if (text) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
     }
 }
 
