@@ -464,3 +464,35 @@ body {
     resize: none;
     outline: none;
 }
+
+/* Resize Handles */
+.resize-handle {
+    position: absolute;
+    background: transparent;
+    z-index: 1000;
+}
+
+.resize-r {
+    top: 0;
+    right: 0;
+    bottom: 5px;
+    width: 5px;
+    cursor: e-resize;
+}
+
+.resize-b {
+    bottom: 0;
+    left: 0;
+    right: 5px;
+    height: 5px;
+    cursor: s-resize;
+}
+
+.resize-br {
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    cursor: se-resize;
+    z-index: 1001;
+}
