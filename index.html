@@ -21,6 +21,10 @@
             <div class="icon-img" style="background-color: #0078d7; color: white;">?</div>
             <div class="icon-label">About</div>
         </div>
+        <div class="icon" onclick="openApp('calculator')">
+            <div class="icon-img" style="background-color: #27ae60; color: white;">+ -</div>
+            <div class="icon-label">Calculator</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -31,6 +35,10 @@
         <div class="start-item" onclick="openApp('notepad'); toggleStartMenu()">
             <div class="start-icon" style="background: white; color: black; border: 1px solid #ccc;">Txt</div>
             <span>Notepad</span>
+        </div>
+        <div class="start-item" onclick="openApp('calculator'); toggleStartMenu()">
+            <div class="start-icon" style="background: #27ae60; color: white;">=</div>
+            <span>Calculator</span>
         </div>
         <div class="start-item" onclick="openApp('about'); toggleStartMenu()">
             <div class="start-icon" style="background: #0078d7; color: white;">?</div>

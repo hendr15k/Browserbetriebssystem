@@ -80,12 +80,43 @@ function openApp(appName) {
                 <button onclick="closeWindow('${windowId}')">OK</button>
             </div>
         `;
+    } else if (appName === 'calculator') {
+        title = "Calculator";
+        win.classList.add('calculator-window');
+        // Simple Calculator Layout
+        content = `
+            <div class="calc-display" id="calc-display-${windowId}">0</div>
+            <div class="calc-buttons">
+                <button class="calc-btn clear" onclick="calcInput('${windowId}', 'C')">C</button>
+                <button class="calc-btn operator" onclick="calcInput('${windowId}', '/')">/</button>
+                <button class="calc-btn operator" onclick="calcInput('${windowId}', '*')">*</button>
+                <button class="calc-btn operator" onclick="calcInput('${windowId}', '-')">-</button>
+
+                <button class="calc-btn" onclick="calcInput('${windowId}', '7')">7</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '8')">8</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '9')">9</button>
+                <button class="calc-btn operator" onclick="calcInput('${windowId}', '+')">+</button>
+
+                <button class="calc-btn" onclick="calcInput('${windowId}', '4')">4</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '5')">5</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '6')">6</button>
+                <button class="calc-btn equals" style="grid-row: span 2" onclick="calcInput('${windowId}', '=')">=</button>
+
+                <button class="calc-btn" onclick="calcInput('${windowId}', '1')">1</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '2')">2</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '3')">3</button>
+
+                <button class="calc-btn" style="grid-column: span 2" onclick="calcInput('${windowId}', '0')">0</button>
+                <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
+            </div>
+        `;
     }
 
     win.innerHTML = `
         <div class="title-bar" onmousedown="startDrag(event, '${windowId}')">
             <div class="title-bar-text">${title}</div>
             <div class="title-bar-controls">
+                <button class="window-button minimize-button" onclick="minimizeWindow('${windowId}')">_</button>
                 <button class="window-button close-button" onclick="closeWindow('${windowId}')">X</button>
             </div>
         </div>
@@ -103,7 +134,20 @@ function openApp(appName) {
     taskbarItem.className = 'taskbar-item active';
     taskbarItem.id = `taskbar-${windowId}`;
     taskbarItem.textContent = title;
-    taskbarItem.onclick = () => focusWindow(windowId);
+
+    // Updated click logic: toggle minimize/restore
+    taskbarItem.onclick = () => {
+        const w = document.getElementById(windowId);
+        if (w.style.display === 'none') {
+            minimizeWindow(windowId); // Restores it
+        } else {
+            if (w.classList.contains('inactive')) {
+                focusWindow(windowId);
+            } else {
+                minimizeWindow(windowId);
+            }
+        }
+    };
     taskbarApps.appendChild(taskbarItem);
 
     // App specific init
@@ -225,4 +269,51 @@ function handleTerminalCommand(cmd, outputDiv) {
     }
 
     outputDiv.scrollTop = outputDiv.scrollHeight;
+}
+
+// Calculator Logic
+function calcInput(windowId, value) {
+    const display = document.getElementById(`calc-display-${windowId}`);
+    if (!display) return;
+
+    let currentText = display.textContent;
+
+    if (value === 'C') {
+        display.textContent = '0';
+    } else if (value === '=') {
+        try {
+            // Safety check: only allow numbers and operators
+            if (/^[0-9+\-/*.]+$/.test(currentText)) {
+                // eslint-disable-next-line no-eval
+                display.textContent = eval(currentText);
+            } else {
+                display.textContent = 'Error';
+            }
+        } catch (e) {
+            display.textContent = 'Error';
+        }
+    } else {
+        if (currentText === '0' && value !== '.') {
+            display.textContent = value;
+        } else {
+            display.textContent += value;
+        }
+    }
+}
+
+function minimizeWindow(windowId) {
+    const win = document.getElementById(windowId);
+    const taskbarItem = document.getElementById(`taskbar-${windowId}`);
+
+    if (win.style.display === 'none') {
+        // Restore
+        win.style.display = 'flex';
+        focusWindow(windowId);
+    } else {
+        // Minimize
+        win.style.display = 'none';
+        if (taskbarItem) {
+            taskbarItem.classList.remove('active');
+        }
+    }
 }
