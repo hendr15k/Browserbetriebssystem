@@ -41,6 +41,10 @@
             <div class="icon-img" style="background-color: #777; color: white;">⚙</div>
             <div class="icon-label">Settings</div>
         </div>
+        <div class="icon" onclick="openApp('speak')">
+            <div class="icon-img" style="background-color: #e91e63; color: white;">🔊</div>
+            <div class="icon-label">Speak</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -75,6 +79,10 @@
         <div class="start-item" onclick="openApp('about'); toggleStartMenu()">
             <div class="start-icon" style="background: #0078d7; color: white;">?</div>
             <span>About</span>
+        </div>
+        <div class="start-item" onclick="openApp('speak'); toggleStartMenu()">
+            <div class="start-icon" style="background: #e91e63; color: white;">🔊</div>
+            <span>Speak</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
