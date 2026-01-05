@@ -8,6 +8,22 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// Settings Logic
+function setBackground(bg) {
+    document.getElementById('desktop').style.background = bg;
+    document.getElementById('desktop').style.backgroundSize = 'cover';
+    localStorage.setItem('desktopBackground', bg);
+}
+
+// Load Settings
+window.addEventListener('load', () => {
+    const savedBg = localStorage.getItem('desktopBackground');
+    if (savedBg) {
+        document.getElementById('desktop').style.background = savedBg;
+        document.getElementById('desktop').style.backgroundSize = 'cover';
+    }
+});
+
 // Start Menu Logic
 function toggleStartMenu() {
     const menu = document.getElementById('start-menu');
@@ -128,6 +144,25 @@ function openApp(appName) {
                 <div id="snake-score-${windowId}" style="color: white; margin-top: 5px;">Score: 0</div>
             </div>
         `;
+    } else if (appName === 'settings') {
+        title = "Settings";
+        content = `
+            <div style="padding: 20px;">
+                <h3>Desktop Background</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div onclick="setBackground('linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)')"
+                         style="width: 100px; height: 80px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                    <div onclick="setBackground('linear-gradient(to right, #8e2de2, #4a00e0')"
+                         style="width: 100px; height: 80px; background: linear-gradient(to right, #8e2de2, #4a00e0); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                    <div onclick="setBackground('linear-gradient(to right, #f12711, #f5af19)')"
+                         style="width: 100px; height: 80px; background: linear-gradient(to right, #f12711, #f5af19); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                    <div onclick="setBackground('#222')"
+                         style="width: 100px; height: 80px; background: #222; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                    <div onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')"
+                         style="width: 100px; height: 80px; background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                </div>
+            </div>
+        `;
     } else if (appName === 'paint') {
         title = "Paint";
         win.classList.add('paint-window');
@@ -139,6 +174,9 @@ function openApp(appName) {
                 <input type="range" id="paint-size-${windowId}" min="1" max="50" value="5" style="width: 80px; cursor: pointer;">
                 <div style="flex: 1;"></div>
                 <button onclick="clearPaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Clear</button>
+                <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
+                    Open <input type="file" id="paint-input-${windowId}" style="display: none;" onchange="openPaintFile('${windowId}')" accept="image/*">
+                </label>
                 <button onclick="savePaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer; font-weight: bold;">Save</button>
             </div>
             <div style="flex: 1; overflow: hidden; background: white; position: relative; cursor: crosshair;">
@@ -201,6 +239,21 @@ function openApp(appName) {
 
         // Focus input when clicking anywhere in terminal
         win.querySelector('.window-content').addEventListener('click', () => input.focus());
+    } else if (appName === 'calculator') {
+        // Add keyboard support for calculator
+        win.tabIndex = 0; // Make window focusable
+        win.addEventListener('keydown', (e) => {
+            const key = e.key;
+            if (/[0-9+\-/*.]/.test(key)) {
+                calcInput(windowId, key);
+            } else if (key === 'Enter' || key === '=') {
+                calcInput(windowId, '=');
+            } else if (key === 'Escape' || key === 'Delete' || key === 'Backspace') {
+                calcInput(windowId, 'C');
+            }
+        });
+        // Focus the window initially to capture keys
+        setTimeout(() => win.focus(), 10);
     }
 }
 
@@ -455,6 +508,27 @@ function savePaint(windowId) {
     link.download = 'my-drawing.png';
     link.href = canvas.toDataURL();
     link.click();
+}
+
+function openPaintFile(windowId) {
+    const input = document.getElementById(`paint-input-${windowId}`);
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    const ctx = canvas.getContext('2d');
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                // Clear and draw image.
+                // We could scale it or just draw it. Let's just draw it.
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, Math.min(img.width, canvas.width), Math.min(img.height, canvas.height));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
 }
 
 // Notepad Logic
