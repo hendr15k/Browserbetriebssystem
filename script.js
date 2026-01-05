@@ -55,7 +55,7 @@ document.addEventListener('click', function(e) {
 let zIndex = 100;
 let windowCount = 0;
 
-function openApp(appName) {
+function openApp(appName, arg = null) {
     const windowId = `window-${windowCount++}`;
     const windowArea = document.getElementById('window-area');
 
@@ -88,12 +88,23 @@ function openApp(appName) {
         content = `
             <div class="notepad-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc; display: flex; gap: 5px;">
                 <button onclick="saveNotepad('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Save</button>
+                <button onclick="downloadNotepad('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Download</button>
                 <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
                     Open <input type="file" id="notepad-input-${windowId}" style="display: none;" onchange="openNotepadFile('${windowId}')">
                 </label>
             </div>
             <textarea class="notepad-area" id="notepad-area-${windowId}"></textarea>
         `;
+    } else if (appName === 'file-explorer') {
+        title = "File Explorer";
+        content = `
+            <div class="explorer-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc;">
+                <button onclick="renderFileExplorer('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Refresh</button>
+            </div>
+            <div id="explorer-content-${windowId}" style="padding: 10px; display: flex; flex-wrap: wrap; gap: 15px; overflow-y: auto; height: 100%; align-content: flex-start; background: white;">
+            </div>
+        `;
+        setTimeout(() => renderFileExplorer(windowId), 0);
     } else if (appName === 'about') {
         title = "About";
         content = `
@@ -199,6 +210,9 @@ function openApp(appName) {
         <div class="window-content" onclick="focusWindow('${windowId}')">
             ${content}
         </div>
+        <div class="resize-handle resize-r" onmousedown="startResize(event, '${windowId}', 'r')"></div>
+        <div class="resize-handle resize-b" onmousedown="startResize(event, '${windowId}', 'b')"></div>
+        <div class="resize-handle resize-br" onmousedown="startResize(event, '${windowId}', 'br')"></div>
     `;
 
     windowArea.appendChild(win);
@@ -227,6 +241,14 @@ function openApp(appName) {
     taskbarApps.appendChild(taskbarItem);
 
     // App specific init
+    if (appName === 'notepad' && arg) {
+        const ta = document.getElementById(`notepad-area-${windowId}`);
+        if (fileSystem[arg] !== undefined) {
+            ta.value = fileSystem[arg];
+            ta.dataset.filename = arg;
+        }
+    }
+
     if (appName === 'terminal') {
         const input = win.querySelector('.terminal-input');
         input.addEventListener('keydown', function(e) {
@@ -377,6 +399,7 @@ function handleTerminalCommand(cmd, outputDiv) {
             const filename = args[0];
             if (!fileSystem[filename]) {
                 fileSystem[filename] = '';
+                saveFileSystem();
                 response = `Created file: ${filename}`;
             } else {
                 response = `File already exists: ${filename}`;
@@ -389,6 +412,7 @@ function handleTerminalCommand(cmd, outputDiv) {
             const filename = args[0];
             if (fileSystem[filename] !== undefined) {
                 delete fileSystem[filename];
+                saveFileSystem();
                 response = `Removed file: ${filename}`;
             } else {
                 response = `File not found: ${filename}`;
@@ -531,8 +555,72 @@ function openPaintFile(windowId) {
     }
 }
 
+// File Explorer Logic
+function renderFileExplorer(windowId) {
+    const container = document.getElementById(`explorer-content-${windowId}`);
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    Object.keys(fileSystem).forEach(filename => {
+        const fileDiv = document.createElement('div');
+        fileDiv.style.width = '60px';
+        fileDiv.style.textAlign = 'center';
+        fileDiv.style.cursor = 'pointer';
+        fileDiv.style.display = 'flex';
+        fileDiv.style.flexDirection = 'column';
+        fileDiv.style.alignItems = 'center';
+        fileDiv.style.padding = '5px';
+        fileDiv.style.borderRadius = '5px';
+
+        // Icon based on extension
+        let iconChar = '📄';
+        if (filename.endsWith('.png') || filename.endsWith('.jpg')) iconChar = '🖼️';
+
+        const iconDiv = document.createElement('div');
+        iconDiv.style.fontSize = '30px';
+        iconDiv.textContent = iconChar;
+
+        const nameDiv = document.createElement('div');
+        nameDiv.style.fontSize = '11px';
+        nameDiv.style.wordBreak = 'break-all';
+        nameDiv.style.marginTop = '2px';
+        nameDiv.style.lineHeight = '1.2';
+        nameDiv.textContent = filename;
+
+        fileDiv.appendChild(iconDiv);
+        fileDiv.appendChild(nameDiv);
+
+        fileDiv.onmouseover = () => fileDiv.style.backgroundColor = '#e0e0e0';
+        fileDiv.onmouseout = () => fileDiv.style.backgroundColor = 'transparent';
+
+        fileDiv.onclick = () => {
+             if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
+                 alert("Opening images from Explorer not yet supported.");
+             } else {
+                 openApp('notepad', filename);
+             }
+        };
+
+        container.appendChild(fileDiv);
+    });
+}
+
 // Notepad Logic
 function saveNotepad(windowId) {
+    const textarea = document.getElementById(`notepad-area-${windowId}`);
+    const text = textarea.value;
+    const defaultName = textarea.dataset.filename || "document.txt";
+
+    const filename = prompt("Enter filename to save (e.g., notes.txt):", defaultName);
+    if (filename) {
+        fileSystem[filename] = text;
+        saveFileSystem();
+        alert(`File "${filename}" saved to system.`);
+    }
+}
+
+function downloadNotepad(windowId) {
     const textarea = document.getElementById(`notepad-area-${windowId}`);
     const text = textarea.value;
     const blob = new Blob([text], { type: 'text/plain' });
@@ -717,3 +805,69 @@ function minimizeWindow(windowId) {
         }
     }
 }
+
+// Resize Logic
+let isResizing = false;
+let currentResizeWindow = null;
+let resizeDir = '';
+let resizeOffset = { x: 0, y: 0 };
+let originalSize = { w: 0, h: 0 };
+let originalPos = { x: 0, y: 0 };
+
+function startResize(e, windowId, direction) {
+    e.stopPropagation(); // Prevent drag start
+    isResizing = true;
+    currentResizeWindow = document.getElementById(windowId);
+    resizeDir = direction;
+    resizeOffset.x = e.clientX;
+    resizeOffset.y = e.clientY;
+
+    const rect = currentResizeWindow.getBoundingClientRect();
+    originalSize.w = rect.width;
+    originalSize.h = rect.height;
+    originalPos.x = rect.left;
+    originalPos.y = rect.top;
+
+    document.addEventListener('mousemove', resize);
+    document.addEventListener('mouseup', stopResize);
+}
+
+function resize(e) {
+    if (!isResizing || !currentResizeWindow) return;
+
+    const dx = e.clientX - resizeOffset.x;
+    const dy = e.clientY - resizeOffset.y;
+
+    if (resizeDir === 'r' || resizeDir === 'br') {
+        currentResizeWindow.style.width = `${Math.max(200, originalSize.w + dx)}px`;
+    }
+    if (resizeDir === 'b' || resizeDir === 'br') {
+        currentResizeWindow.style.height = `${Math.max(150, originalSize.h + dy)}px`;
+    }
+}
+
+function stopResize() {
+    isResizing = false;
+    currentResizeWindow = null;
+    document.removeEventListener('mousemove', resize);
+    document.removeEventListener('mouseup', stopResize);
+}
+
+// File System Persistence
+function saveFileSystem() {
+    localStorage.setItem('webos-filesystem', JSON.stringify(fileSystem));
+}
+
+function loadFileSystem() {
+    const saved = localStorage.getItem('webos-filesystem');
+    if (saved) {
+        try {
+            Object.assign(fileSystem, JSON.parse(saved));
+        } catch (e) {
+            console.error('Failed to load file system:', e);
+        }
+    }
+}
+
+// Initialize FileSystem
+loadFileSystem();
