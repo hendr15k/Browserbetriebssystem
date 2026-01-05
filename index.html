@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebOS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="desktop">
+        <!-- Desktop Icons -->
+        <div class="icon" onclick="openApp('terminal')">
+            <div class="icon-img" style="background-color: #333; color: white;">&gt;_</div>
+            <div class="icon-label">Terminal</div>
+        </div>
+        <div class="icon" onclick="openApp('notepad')">
+            <div class="icon-img" style="background-color: #fff; color: black; border: 1px solid #ccc;">Txt</div>
+            <div class="icon-label">Notepad</div>
+        </div>
+        <div class="icon" onclick="openApp('about')">
+            <div class="icon-img" style="background-color: #0078d7; color: white;">?</div>
+            <div class="icon-label">About</div>
+        </div>
+    </div>
+
+    <div id="start-menu">
+        <div class="start-item" onclick="openApp('terminal'); toggleStartMenu()">
+            <div class="start-icon" style="background: #333; color: white;">&gt;_</div>
+            <span>Terminal</span>
+        </div>
+        <div class="start-item" onclick="openApp('notepad'); toggleStartMenu()">
+            <div class="start-icon" style="background: white; color: black; border: 1px solid #ccc;">Txt</div>
+            <span>Notepad</span>
+        </div>
+        <div class="start-item" onclick="openApp('about'); toggleStartMenu()">
+            <div class="start-icon" style="background: #0078d7; color: white;">?</div>
+            <span>About</span>
+        </div>
+        <div class="start-divider"></div>
+        <div class="start-item" onclick="location.reload()">
+            <div class="start-icon" style="background: #e81123; color: white;">R</div>
+            <span>Restart</span>
+        </div>
+    </div>
+
+    <div id="taskbar">
+        <button id="start-button" onclick="toggleStartMenu()">Start</button>
+        <div id="taskbar-apps"></div>
+        <div id="clock">00:00</div>
+    </div>
+
+    <!-- Application Templates (Hidden by default, cloned when opened) -->
+    <!-- I'll add these in a later step, or maybe the plan step 4 says "Add HTML structure",
+         but it might be easier to have a container for windows here. -->
+    <div id="window-area"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
