@@ -383,3 +383,84 @@ body {
 .minimize-button:hover {
     background-color: rgba(255,255,255,0.2);
 }
+
+/* Paint Styles */
+.paint-window .window-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.paint-toolbar {
+    background: #f0f0f0;
+    padding: 5px;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+}
+
+.paint-toolbar button {
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.paint-toolbar button:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.paint-toolbar button:active {
+    background: #ccc;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Notepad Toolbar Styles */
+.notepad-toolbar {
+    padding: 5px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 5px;
+}
+
+.notepad-toolbar button {
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.notepad-toolbar button:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.notepad-toolbar label {
+    font-size: 12px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    display: inline-block;
+}
+
+.notepad-toolbar label:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.notepad-area {
+    border: none;
+    padding: 5px;
+    box-sizing: border-box;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+}
