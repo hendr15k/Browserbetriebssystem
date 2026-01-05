@@ -61,6 +61,9 @@ function openApp(appName, arg = null) {
 
     const win = document.createElement('div');
     win.className = 'window';
+    if (window.innerWidth <= 768) {
+        win.classList.add('maximized');
+    }
     win.id = windowId;
     win.style.zIndex = ++zIndex;
 
@@ -529,8 +532,10 @@ function initPaint(windowId, filename = null) {
 
         // Calculate mouse position relative to canvas
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
 
         ctx.lineWidth = document.getElementById(`paint-size-${windowId}`).value;
         ctx.lineCap = 'round';
@@ -542,10 +547,22 @@ function initPaint(windowId, filename = null) {
         ctx.moveTo(x, y);
     }
 
+    function handleTouch(handler) {
+        return function(e) {
+            e.preventDefault();
+            handler(e);
+        };
+    }
+
     canvas.addEventListener('mousedown', startPosition);
     canvas.addEventListener('mouseup', endPosition);
     canvas.addEventListener('mousemove', drawPaint);
     canvas.addEventListener('mouseleave', endPosition);
+
+    // Touch support
+    canvas.addEventListener('touchstart', handleTouch(startPosition));
+    canvas.addEventListener('touchend', handleTouch(endPosition));
+    canvas.addEventListener('touchmove', handleTouch(drawPaint));
 }
 
 function clearPaint(windowId) {
