@@ -110,6 +110,16 @@ function openApp(appName) {
                 <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
             </div>
         `;
+    } else if (appName === 'snake') {
+        title = "Snake";
+        win.classList.add('snake-window');
+        content = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #222;">
+                <canvas id="snake-canvas-${windowId}" width="400" height="300" style="border: 2px solid #555; background: black;"></canvas>
+                <button onclick="startSnake('${windowId}')" style="margin-top: 10px; padding: 5px 15px; cursor: pointer;">Start Game</button>
+                <div id="snake-score-${windowId}" style="color: white; margin-top: 5px;">Score: 0</div>
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -117,6 +127,7 @@ function openApp(appName) {
             <div class="title-bar-text">${title}</div>
             <div class="title-bar-controls">
                 <button class="window-button minimize-button" onclick="minimizeWindow('${windowId}')">_</button>
+                <button class="window-button maximize-button" onclick="maximizeWindow('${windowId}')">□</button>
                 <button class="window-button close-button" onclick="closeWindow('${windowId}')">X</button>
             </div>
         </div>
@@ -167,6 +178,12 @@ function openApp(appName) {
 }
 
 function closeWindow(windowId) {
+    // Cleanup Snake game if active
+    if (snakeGames[windowId]) {
+        clearInterval(snakeGames[windowId].interval);
+        delete snakeGames[windowId];
+    }
+
     const win = document.getElementById(windowId);
     if (win) {
         win.remove();
@@ -233,6 +250,12 @@ function stopDrag() {
     document.removeEventListener('mouseup', stopDrag);
 }
 
+// File System (InMemory)
+const fileSystem = {
+    'readme.txt': 'Welcome to WebOS! This is a simple browser-based OS.',
+    'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
+};
+
 // Terminal Logic
 function handleTerminalCommand(cmd, outputDiv) {
     const line = document.createElement('div');
@@ -240,17 +263,57 @@ function handleTerminalCommand(cmd, outputDiv) {
     outputDiv.appendChild(line);
 
     let response = '';
-    const command = cmd.trim().toLowerCase();
+    const parts = cmd.trim().split(' ');
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1);
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], about, reboot';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], touch [file], rm [file], about, reboot';
     } else if (command === 'date') {
         response = new Date().toString();
     } else if (command === 'clear') {
         outputDiv.innerHTML = '';
         return;
-    } else if (command.startsWith('echo ')) {
-        response = cmd.substring(5);
+    } else if (command === 'echo') {
+        response = args.join(' ');
+    } else if (command === 'ls') {
+        response = Object.keys(fileSystem).join('  ');
+    } else if (command === 'cat') {
+        if (args.length === 0) {
+            response = 'Usage: cat [filename]';
+        } else {
+            const filename = args[0];
+            if (fileSystem[filename] !== undefined) {
+                // Handle newlines for display
+                response = fileSystem[filename];
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
+    } else if (command === 'touch') {
+        if (args.length === 0) {
+            response = 'Usage: touch [filename]';
+        } else {
+            const filename = args[0];
+            if (!fileSystem[filename]) {
+                fileSystem[filename] = '';
+                response = `Created file: ${filename}`;
+            } else {
+                response = `File already exists: ${filename}`;
+            }
+        }
+    } else if (command === 'rm') {
+        if (args.length === 0) {
+            response = 'Usage: rm [filename]';
+        } else {
+            const filename = args[0];
+            if (fileSystem[filename] !== undefined) {
+                delete fileSystem[filename];
+                response = `Removed file: ${filename}`;
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
     } else if (command === 'about') {
         openApp('about');
         response = 'Opened About window.';
@@ -263,7 +326,9 @@ function handleTerminalCommand(cmd, outputDiv) {
     }
 
     if (response) {
+        // Handle newlines in response by creating multiple divs or using whitespace: pre-wrap
         const respLine = document.createElement('div');
+        respLine.style.whiteSpace = 'pre-wrap'; // Preserve newlines
         respLine.textContent = response;
         outputDiv.appendChild(respLine);
     }
@@ -298,6 +363,147 @@ function calcInput(windowId, value) {
         } else {
             display.textContent += value;
         }
+    }
+}
+
+// Snake Game Logic
+const snakeGames = {};
+
+function startSnake(windowId) {
+    const canvas = document.getElementById(`snake-canvas-${windowId}`);
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById(`snake-score-${windowId}`);
+
+    if (snakeGames[windowId]) {
+        clearInterval(snakeGames[windowId].interval);
+    }
+
+    let snake = [{x: 10, y: 10}];
+    let food = {x: 15, y: 15};
+    let dx = 1;
+    let dy = 0;
+    let score = 0;
+    const gridSize = 20;
+    const tileCountX = canvas.width / gridSize;
+    const tileCountY = canvas.height / gridSize;
+
+    // Handle Input
+    function handleKey(e) {
+        // Prevent default scrolling for arrow keys
+        if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+        }
+
+        switch(e.key) {
+            case 'ArrowUp': if(dy !== 1) { dx = 0; dy = -1; } break;
+            case 'ArrowDown': if(dy !== -1) { dx = 0; dy = 1; } break;
+            case 'ArrowLeft': if(dx !== 1) { dx = -1; dy = 0; } break;
+            case 'ArrowRight': if(dx !== -1) { dx = 1; dy = 0; } break;
+        }
+    }
+
+    // Use window listener but filter for active window focus could be tricky.
+    // Simpler: Add listener to document, remove on game over/close
+    // But we need to handle multiple windows.
+    // Let's bind it to the specific window focus logic?
+    // For simplicity, we'll just add a listener that checks if this window is active?
+    // Or just add/remove listener when window is focused?
+    // The existing focus logic doesn't trigger an event we can easily hook without modifying focusWindow.
+    // We'll stick to a global listener that checks if the focused window is this snake window.
+
+    // Better approach: Attach keydown to document, check if `document.activeElement` is inside the window?
+    // Or just checking if the window has `zIndex` highest?
+
+    // Let's attach to the window element itself and make it focusable?
+    // The window content `div` has `onclick="focusWindow..."`.
+    // Let's make the canvas focusable.
+    canvas.tabIndex = 1;
+    canvas.focus();
+    canvas.onkeydown = handleKey;
+
+
+    function draw() {
+        // Move Snake
+        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+        // Wrap around
+        if (head.x < 0) head.x = tileCountX - 1;
+        if (head.x >= tileCountX) head.x = 0;
+        if (head.y < 0) head.y = tileCountY - 1;
+        if (head.y >= tileCountY) head.y = 0;
+
+        // Collision with self
+        for (let i = 0; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) {
+                gameOver();
+                return;
+            }
+        }
+
+        snake.unshift(head);
+
+        // Eat Food
+        if (head.x === food.x && head.y === food.y) {
+            score++;
+            scoreElement.textContent = `Score: ${score}`;
+            food = {
+                x: Math.floor(Math.random() * tileCountX),
+                y: Math.floor(Math.random() * tileCountY)
+            };
+        } else {
+            snake.pop();
+        }
+
+        // Draw
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = 'lime';
+        for (let i = 0; i < snake.length; i++) {
+            ctx.fillRect(snake[i].x * gridSize, snake[i].y * gridSize, gridSize - 2, gridSize - 2);
+        }
+
+        ctx.fillStyle = 'red';
+        ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+    }
+
+    function gameOver() {
+        clearInterval(snakeGames[windowId].interval);
+        ctx.fillStyle = 'white';
+        ctx.font = '30px Arial';
+        ctx.fillText("Game Over", 120, 150);
+        delete snakeGames[windowId];
+    }
+
+    snakeGames[windowId] = {
+        interval: setInterval(draw, 100)
+    };
+}
+
+function maximizeWindow(windowId) {
+    const win = document.getElementById(windowId);
+    if (!win) return;
+
+    if (win.classList.contains('maximized')) {
+        // Restore
+        win.classList.remove('maximized');
+        win.style.left = win.dataset.prevLeft;
+        win.style.top = win.dataset.prevTop;
+        win.style.width = win.dataset.prevWidth || '';
+        win.style.height = win.dataset.prevHeight || '';
+    } else {
+        // Maximize
+        win.dataset.prevLeft = win.style.left;
+        win.dataset.prevTop = win.style.top;
+        win.dataset.prevWidth = win.style.width;
+        win.dataset.prevHeight = win.style.height;
+
+        win.classList.add('maximized');
+        // Reset styles to allow CSS to take over
+        win.style.left = '';
+        win.style.top = '';
+        win.style.width = '';
+        win.style.height = '';
     }
 }
 

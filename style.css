@@ -194,6 +194,15 @@ body {
     min-height: 150px;
 }
 
+.window.maximized {
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: calc(100% - 40px) !important;
+    border-radius: 0;
+    transform: none !important;
+}
+
 .title-bar {
     background-color: #0078d7; /* Active color */
     color: white;
