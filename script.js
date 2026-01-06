@@ -161,7 +161,10 @@ function openApp(appName, arg = null) {
             <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #222;">
                 <canvas id="snake-canvas-${windowId}" width="400" height="300" style="border: 2px solid #555; background: black;"></canvas>
                 <button onclick="startSnake('${windowId}')" style="margin-top: 10px; padding: 5px 15px; cursor: pointer;">Start Game</button>
-                <div id="snake-score-${windowId}" style="color: white; margin-top: 5px;">Score: 0</div>
+                <div style="display: flex; gap: 20px; margin-top: 5px;">
+                    <div id="snake-score-${windowId}" style="color: white;">Score: 0</div>
+                    <div id="snake-highscore-${windowId}" style="color: #aaa;">High Score: 0</div>
+                </div>
             </div>
         `;
     } else if (appName === 'settings') {
@@ -181,6 +184,10 @@ function openApp(appName, arg = null) {
                     <div onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')"
                          style="width: 100px; height: 80px; background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
                 </div>
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
+                <h3>System</h3>
+                <button onclick="if(confirm('Are you sure you want to reset all settings and data? This will clear localStorage and reload the page.')) { localStorage.clear(); location.reload(); }"
+                        style="padding: 10px 20px; background: #d9534f; color: white; border: none; cursor: pointer; border-radius: 4px;">Reset to Defaults</button>
             </div>
         `;
     } else if (appName === 'speak') {
@@ -402,7 +409,14 @@ function handleTerminalCommand(cmd, outputDiv) {
     if (command === 'help') {
         response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], about, reboot, whoami, pwd, history';
     } else if (command === 'date') {
-        response = new Date().toString();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hour = String(now.getHours()).padStart(2, '0');
+        const minute = String(now.getMinutes()).padStart(2, '0');
+        const second = String(now.getSeconds()).padStart(2, '0');
+        response = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
     } else if (command === 'clear') {
         outputDiv.innerHTML = '';
         return;
@@ -702,11 +716,36 @@ function renderFileExplorer(windowId) {
         nameDiv.style.lineHeight = '1.2';
         nameDiv.textContent = filename;
 
+        // Delete Button
+        const deleteBtn = document.createElement('div');
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.style.fontSize = '12px';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.style.marginTop = '2px';
+        deleteBtn.style.display = 'none'; // Hidden by default
+        deleteBtn.title = 'Delete File';
+
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation(); // Prevent opening file
+            if(confirm(`Delete ${filename}?`)) {
+                delete fileSystem[filename];
+                saveFileSystem();
+                renderFileExplorer(windowId);
+            }
+        };
+
         fileDiv.appendChild(iconDiv);
         fileDiv.appendChild(nameDiv);
+        fileDiv.appendChild(deleteBtn);
 
-        fileDiv.onmouseover = () => fileDiv.style.backgroundColor = '#e0e0e0';
-        fileDiv.onmouseout = () => fileDiv.style.backgroundColor = 'transparent';
+        fileDiv.onmouseover = () => {
+            fileDiv.style.backgroundColor = '#e0e0e0';
+            deleteBtn.style.display = 'block';
+        };
+        fileDiv.onmouseout = () => {
+            fileDiv.style.backgroundColor = 'transparent';
+            deleteBtn.style.display = 'none';
+        };
 
         fileDiv.onclick = () => {
              if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
@@ -769,6 +808,7 @@ function startSnake(windowId) {
     const canvas = document.getElementById(`snake-canvas-${windowId}`);
     const ctx = canvas.getContext('2d');
     const scoreElement = document.getElementById(`snake-score-${windowId}`);
+    const highScoreElement = document.getElementById(`snake-highscore-${windowId}`);
 
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -779,6 +819,9 @@ function startSnake(windowId) {
     let dx = 1;
     let dy = 0;
     let score = 0;
+    let highScore = localStorage.getItem('snakeHighScore') || 0;
+    highScoreElement.textContent = `High Score: ${highScore}`;
+
     const gridSize = 20;
     const tileCountX = canvas.width / gridSize;
     const tileCountY = canvas.height / gridSize;
@@ -842,6 +885,11 @@ function startSnake(windowId) {
         if (head.x === food.x && head.y === food.y) {
             score++;
             scoreElement.textContent = `Score: ${score}`;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeHighScore', highScore);
+                highScoreElement.textContent = `High Score: ${highScore}`;
+            }
             food = {
                 x: Math.floor(Math.random() * tileCountX),
                 y: Math.floor(Math.random() * tileCountY)
