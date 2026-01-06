@@ -198,6 +198,19 @@ function openApp(appName, arg = null) {
                 <button onclick="speakText('${windowId}')" style="padding: 10px; cursor: pointer; font-weight: bold;">Speak</button>
             </div>
         `;
+    } else if (appName === 'tictactoe') {
+        title = "Tic Tac Toe";
+        win.classList.add('tictactoe-window');
+        content = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #f0f0f0; padding: 10px;">
+                <div id="ttt-status-${windowId}" style="margin-bottom: 10px; font-size: 18px; font-weight: bold;">Player X's Turn</div>
+                <div class="ttt-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 200px; height: 200px;">
+                    ${Array(9).fill(0).map((_, i) => `<div class="ttt-cell" id="ttt-cell-${windowId}-${i}" onclick="playTicTacToe('${windowId}', ${i})" style="background: white; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 32px; cursor: pointer; user-select: none;"></div>`).join('')}
+                </div>
+                <button onclick="resetTicTacToe('${windowId}')" style="margin-top: 15px; padding: 5px 15px; cursor: pointer;">Reset Game</button>
+            </div>
+        `;
+        setTimeout(() => resetTicTacToe(windowId), 0);
     } else if (appName === 'paint') {
         title = "Paint";
         win.classList.add('paint-window');
@@ -288,10 +301,41 @@ function openApp(appName, arg = null) {
 
     if (appName === 'terminal') {
         const input = win.querySelector('.terminal-input');
+        let historyIndex = -1;
+        let tempInput = '';
+
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 handleTerminalCommand(this.value, win.querySelector('.terminal-output'));
                 this.value = '';
+                historyIndex = -1;
+                tempInput = '';
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const history = window.terminalHistory || [];
+                if (history.length === 0) return;
+
+                if (historyIndex === -1) {
+                    tempInput = this.value;
+                    historyIndex = history.length - 1;
+                } else if (historyIndex > 0) {
+                    historyIndex--;
+                }
+                this.value = history[historyIndex];
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const history = window.terminalHistory || [];
+                if (history.length === 0) return;
+
+                if (historyIndex !== -1) {
+                    if (historyIndex < history.length - 1) {
+                        historyIndex++;
+                        this.value = history[historyIndex];
+                    } else {
+                        historyIndex = -1;
+                        this.value = tempInput;
+                    }
+                }
             }
         });
         setTimeout(() => input.focus(), 10);
@@ -321,6 +365,11 @@ function closeWindow(windowId) {
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
         delete snakeGames[windowId];
+    }
+
+    // Cleanup Tic Tac Toe game if active
+    if (tictactoeGames[windowId]) {
+        delete tictactoeGames[windowId];
     }
 
     const win = document.getElementById(windowId);
@@ -716,13 +765,39 @@ function renderFileExplorer(windowId) {
         nameDiv.style.lineHeight = '1.2';
         nameDiv.textContent = filename;
 
+        // Action Buttons Container
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.display = 'none'; // Hidden by default
+        actionsDiv.style.marginTop = '2px';
+        actionsDiv.style.gap = '5px';
+
+        // Rename Button
+        const renameBtn = document.createElement('div');
+        renameBtn.innerHTML = '✏️';
+        renameBtn.style.fontSize = '12px';
+        renameBtn.style.cursor = 'pointer';
+        renameBtn.title = 'Rename File';
+
+        renameBtn.onclick = (e) => {
+            e.stopPropagation();
+            const newName = prompt(`Rename ${filename} to:`, filename);
+            if (newName && newName !== filename) {
+                if (fileSystem[newName]) {
+                    alert('File with that name already exists!');
+                } else {
+                    fileSystem[newName] = fileSystem[filename];
+                    delete fileSystem[filename];
+                    saveFileSystem();
+                    renderFileExplorer(windowId);
+                }
+            }
+        };
+
         // Delete Button
         const deleteBtn = document.createElement('div');
         deleteBtn.innerHTML = '🗑️';
         deleteBtn.style.fontSize = '12px';
         deleteBtn.style.cursor = 'pointer';
-        deleteBtn.style.marginTop = '2px';
-        deleteBtn.style.display = 'none'; // Hidden by default
         deleteBtn.title = 'Delete File';
 
         deleteBtn.onclick = (e) => {
@@ -734,17 +809,20 @@ function renderFileExplorer(windowId) {
             }
         };
 
+        actionsDiv.appendChild(renameBtn);
+        actionsDiv.appendChild(deleteBtn);
+
         fileDiv.appendChild(iconDiv);
         fileDiv.appendChild(nameDiv);
-        fileDiv.appendChild(deleteBtn);
+        fileDiv.appendChild(actionsDiv);
 
         fileDiv.onmouseover = () => {
             fileDiv.style.backgroundColor = '#e0e0e0';
-            deleteBtn.style.display = 'block';
+            actionsDiv.style.display = 'flex';
         };
         fileDiv.onmouseout = () => {
             fileDiv.style.backgroundColor = 'transparent';
-            deleteBtn.style.display = 'none';
+            actionsDiv.style.display = 'none';
         };
 
         fileDiv.onclick = () => {
@@ -1042,3 +1120,68 @@ function speakText(windowId) {
 
 // Initialize FileSystem
 loadFileSystem();
+
+// Tic Tac Toe Logic
+const tictactoeGames = {};
+
+function resetTicTacToe(windowId) {
+    tictactoeGames[windowId] = {
+        board: Array(9).fill(null),
+        currentPlayer: 'X',
+        gameOver: false
+    };
+    const status = document.getElementById(`ttt-status-${windowId}`);
+    if (status) status.textContent = "Player X's Turn";
+
+    for (let i = 0; i < 9; i++) {
+        const cell = document.getElementById(`ttt-cell-${windowId}-${i}`);
+        if (cell) {
+            cell.textContent = '';
+            cell.style.color = 'black';
+            cell.style.backgroundColor = 'white';
+        }
+    }
+}
+
+function playTicTacToe(windowId, index) {
+    const game = tictactoeGames[windowId];
+    if (!game || game.gameOver || game.board[index]) return;
+
+    game.board[index] = game.currentPlayer;
+    const cell = document.getElementById(`ttt-cell-${windowId}-${index}`);
+    cell.textContent = game.currentPlayer;
+    cell.style.color = game.currentPlayer === 'X' ? '#e74c3c' : '#2980b9';
+
+    if (checkTicTacToeWin(windowId, game.currentPlayer)) {
+        document.getElementById(`ttt-status-${windowId}`).textContent = `Player ${game.currentPlayer} Wins!`;
+        game.gameOver = true;
+    } else if (game.board.every(cell => cell)) {
+        document.getElementById(`ttt-status-${windowId}`).textContent = "It's a Draw!";
+        game.gameOver = true;
+    } else {
+        game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
+        document.getElementById(`ttt-status-${windowId}`).textContent = `Player ${game.currentPlayer}'s Turn`;
+    }
+}
+
+function checkTicTacToeWin(windowId, player) {
+    const game = tictactoeGames[windowId];
+    const b = game.board;
+    const wins = [
+        [0,1,2], [3,4,5], [6,7,8], // Rows
+        [0,3,6], [1,4,7], [2,5,8], // Cols
+        [0,4,8], [2,4,6]           // Diagonals
+    ];
+
+    for (let combo of wins) {
+        if (b[combo[0]] === player && b[combo[1]] === player && b[combo[2]] === player) {
+            // Highlight
+            combo.forEach(i => {
+                const cell = document.getElementById(`ttt-cell-${windowId}-${i}`);
+                if (cell) cell.style.backgroundColor = '#2ecc71';
+            });
+            return true;
+        }
+    }
+    return false;
+}
