@@ -22,6 +22,75 @@ window.addEventListener('load', () => {
         document.getElementById('desktop').style.background = savedBg;
         document.getElementById('desktop').style.backgroundSize = 'cover';
     }
+
+    // Context Menu Logic
+    const desktop = document.getElementById('desktop');
+    const contextMenu = document.createElement('div');
+    contextMenu.id = 'context-menu';
+    contextMenu.style.display = 'none';
+    contextMenu.style.position = 'absolute';
+    contextMenu.style.background = 'white';
+    contextMenu.style.border = '1px solid #ccc';
+    contextMenu.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.2)';
+    contextMenu.style.zIndex = '1000';
+    contextMenu.style.padding = '5px 0';
+    contextMenu.style.width = '150px';
+
+    const menuItems = [
+        { label: 'Refresh', action: () => location.reload() },
+        { label: 'New Text File', action: () => {
+            const filename = prompt('Enter filename:', 'newfile.txt');
+            if (filename) {
+                fileSystem[filename] = '';
+                saveFileSystem();
+                alert(`Created ${filename}`);
+                // Refresh if explorer is open
+                document.querySelectorAll('.window').forEach(win => {
+                    if (win.querySelector('.explorer-toolbar')) { // Identify explorer window
+                         const winId = win.id;
+                         renderFileExplorer(winId);
+                    }
+                });
+            }
+        }},
+        { label: 'Change Background', action: () => openApp('settings') }
+    ];
+
+    menuItems.forEach(item => {
+        const div = document.createElement('div');
+        div.textContent = item.label;
+        div.style.padding = '5px 10px';
+        div.style.cursor = 'pointer';
+        div.style.fontSize = '14px';
+        div.onmouseover = () => div.style.background = '#eee';
+        div.onmouseout = () => div.style.background = 'white';
+        div.onclick = () => {
+            item.action();
+            contextMenu.style.display = 'none';
+        };
+        contextMenu.appendChild(div);
+    });
+
+    document.body.appendChild(contextMenu);
+
+    desktop.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        // Check if clicking on an icon, if so, maybe different menu?
+        // For now, simple desktop menu.
+        // If clicking on icon, we might want to avoid showing this menu or show specific one.
+        // But the event bubbles. The icon has onclick, but contextmenu bubbles.
+        // Let's allow it everywhere on desktop for now.
+
+        contextMenu.style.display = 'block';
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.top = `${e.clientY}px`;
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target)) {
+            contextMenu.style.display = 'none';
+        }
+    });
 });
 
 // Start Menu Logic
@@ -139,7 +208,7 @@ function openApp(appName, arg = null) {
                     <button class="calc-btn" onclick="calcInput('${windowId}', '4')">4</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '5')">5</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '6')">6</button>
-                    <button class="calc-btn equals" style="grid-row: span 2" onclick="calcInput('${windowId}', '=')">=</button>
+                    <button class="calc-btn equals" style="grid-row: span 3" onclick="calcInput('${windowId}', '=')">=</button>
 
                     <button class="calc-btn" onclick="calcInput('${windowId}', '1')">1</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '2')">2</button>
@@ -147,6 +216,15 @@ function openApp(appName, arg = null) {
 
                     <button class="calc-btn" style="grid-column: span 2" onclick="calcInput('${windowId}', '0')">0</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
+
+                    <!-- Scientific Buttons -->
+                    <button class="calc-btn" onclick="calcInput('${windowId}', 'sin(')">sin</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', 'cos(')">cos</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', 'tan(')">tan</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', 'sqrt(')">√</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '^')">^</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', '(')">(</button>
+                    <button class="calc-btn" onclick="calcInput('${windowId}', ')')">)</button>
                 </div>
             </div>
             <div class="calc-history" id="calc-history-${windowId}">
@@ -196,6 +274,18 @@ function openApp(appName, arg = null) {
             <div style="padding: 10px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
                 <textarea id="speak-text-${windowId}" style="flex-grow: 1; margin-bottom: 10px; resize: none; padding: 5px; font-family: sans-serif;" placeholder="Type text here..."></textarea>
                 <button onclick="speakText('${windowId}')" style="padding: 10px; cursor: pointer; font-weight: bold;">Speak</button>
+            </div>
+        `;
+    } else if (appName === 'camera') {
+        title = "Camera";
+        content = `
+            <div style="padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #000;">
+                <video id="camera-video-${windowId}" autoplay style="width: 100%; max-height: 200px; background: #333; margin-bottom: 10px;"></video>
+                <canvas id="camera-canvas-${windowId}" style="display: none;"></canvas>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="startCamera('${windowId}')" style="padding: 5px 15px; cursor: pointer;">Start Camera</button>
+                    <button onclick="takeSnapshot('${windowId}')" style="padding: 5px 15px; cursor: pointer;">Capture</button>
+                </div>
             </div>
         `;
     } else if (appName === 'tictactoe') {
@@ -528,6 +618,35 @@ function handleTerminalCommand(cmd, outputDiv) {
                 response = `File not found: ${filename}`;
             }
         }
+    } else if (command === 'cp') {
+        if (args.length < 2) {
+            response = 'Usage: cp [source] [destination]';
+        } else {
+            const src = args[0];
+            const dest = args[1];
+            if (fileSystem[src] !== undefined) {
+                fileSystem[dest] = fileSystem[src];
+                saveFileSystem();
+                response = `Copied ${src} to ${dest}`;
+            } else {
+                response = `File not found: ${src}`;
+            }
+        }
+    } else if (command === 'mv') {
+        if (args.length < 2) {
+            response = 'Usage: mv [source] [destination]';
+        } else {
+            const src = args[0];
+            const dest = args[1];
+            if (fileSystem[src] !== undefined) {
+                fileSystem[dest] = fileSystem[src];
+                delete fileSystem[src];
+                saveFileSystem();
+                response = `Moved ${src} to ${dest}`;
+            } else {
+                response = `File not found: ${src}`;
+            }
+        }
     } else if (command === 'about') {
         openApp('about');
         response = 'Opened About window.';
@@ -578,10 +697,18 @@ function calcInput(windowId, value) {
         display.textContent = '0';
     } else if (value === '=') {
         try {
-            // Safety check: only allow numbers and operators
-            if (/^[0-9+\-/*.]+$/.test(currentText)) {
+            // Prepare text for evaluation (replace symbols)
+            let evalText = currentText
+                .replace(/sin/g, 'Math.sin')
+                .replace(/cos/g, 'Math.cos')
+                .replace(/tan/g, 'Math.tan')
+                .replace(/sqrt/g, 'Math.sqrt')
+                .replace(/\^/g, '**');
+
+            // Safety check: only allow numbers, operators, parens, and Math functions
+            if (/^[0-9+\-/*().\sMathsincostanqrtpow,]+$/.test(evalText)) {
                 // eslint-disable-next-line no-eval
-                const result = eval(currentText);
+                const result = eval(evalText);
                 display.textContent = result;
 
                 // Add to history
@@ -1115,6 +1242,45 @@ function speakText(windowId) {
     if (text) {
         const utterance = new SpeechSynthesisUtterance(text);
         window.speechSynthesis.speak(utterance);
+    }
+}
+
+// Camera Logic
+function startCamera(windowId) {
+    const video = document.getElementById(`camera-video-${windowId}`);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function(stream) {
+                video.srcObject = stream;
+            })
+            .catch(function(err) {
+                alert("Error accessing camera: " + err.message);
+            });
+    } else {
+        alert("Camera not supported on this device/browser.");
+    }
+}
+
+function takeSnapshot(windowId) {
+    const video = document.getElementById(`camera-video-${windowId}`);
+    const canvas = document.getElementById(`camera-canvas-${windowId}`);
+    if (!video.srcObject) {
+        alert("Please start the camera first.");
+        return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataURL = canvas.toDataURL('image/png');
+    const filename = prompt("Enter filename to save snapshot (e.g., photo.png):", "photo.png");
+
+    if (filename) {
+        fileSystem[filename] = dataURL;
+        saveFileSystem();
+        alert(`Snapshot saved as ${filename}`);
     }
 }
 
