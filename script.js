@@ -3,7 +3,9 @@ function updateClock() {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('clock').textContent = `${hours}:${minutes}`;
+    const clock = document.getElementById('clock');
+    clock.textContent = `${hours}:${minutes}`;
+    clock.title = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -91,7 +93,97 @@ window.addEventListener('load', () => {
             contextMenu.style.display = 'none';
         }
     });
+
+    // Initialize Desktop Icons
+    initDesktopIcons();
 });
+
+// Desktop Icon Logic
+function initDesktopIcons() {
+    const desktop = document.getElementById('desktop');
+    const icons = desktop.querySelectorAll('.icon');
+    const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
+
+    icons.forEach((icon, index) => {
+        // Assign ID if missing
+        if (!icon.id) {
+            icon.id = `desktop-icon-${index}`;
+        }
+
+        const pos = savedPositions[icon.id];
+        if (pos) {
+            icon.style.position = 'absolute';
+            icon.style.left = pos.left;
+            icon.style.top = pos.top;
+        }
+
+        // Add drag events
+        icon.onmousedown = (e) => startDragIcon(e, icon);
+    });
+}
+
+let isDraggingIcon = false;
+let currentDragIcon = null;
+let iconDragOffset = { x: 0, y: 0 };
+
+function startDragIcon(e, icon) {
+    e.stopPropagation(); // Prevent desktop context menu or selection
+    isDraggingIcon = true;
+    currentDragIcon = icon;
+
+    // Switch to absolute positioning if not already
+    // To do this smoothly, we need to calculate current screen position relative to desktop
+    const desktop = document.getElementById('desktop');
+    const iconRect = icon.getBoundingClientRect();
+    const desktopRect = desktop.getBoundingClientRect();
+
+    if (getComputedStyle(icon).position !== 'absolute') {
+        const left = iconRect.left - desktopRect.left;
+        const top = iconRect.top - desktopRect.top;
+
+        icon.style.position = 'absolute';
+        icon.style.left = `${left}px`;
+        icon.style.top = `${top}px`;
+        icon.style.margin = '0'; // Remove margin as it affects absolute pos
+    }
+
+    iconDragOffset.x = e.clientX - icon.getBoundingClientRect().left;
+    iconDragOffset.y = e.clientY - icon.getBoundingClientRect().top;
+
+    document.addEventListener('mousemove', dragIcon);
+    document.addEventListener('mouseup', stopDragIcon);
+}
+
+function dragIcon(e) {
+    if (!isDraggingIcon || !currentDragIcon) return;
+    e.preventDefault();
+
+    const desktop = document.getElementById('desktop');
+    const desktopRect = desktop.getBoundingClientRect();
+
+    const x = e.clientX - desktopRect.left - iconDragOffset.x;
+    const y = e.clientY - desktopRect.top - iconDragOffset.y;
+
+    currentDragIcon.style.left = `${x}px`;
+    currentDragIcon.style.top = `${y}px`;
+}
+
+function stopDragIcon() {
+    if (currentDragIcon) {
+        // Save position
+        const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
+        savedPositions[currentDragIcon.id] = {
+            left: currentDragIcon.style.left,
+            top: currentDragIcon.style.top
+        };
+        localStorage.setItem('desktopIconPositions', JSON.stringify(savedPositions));
+    }
+
+    isDraggingIcon = false;
+    currentDragIcon = null;
+    document.removeEventListener('mousemove', dragIcon);
+    document.removeEventListener('mouseup', stopDragIcon);
+}
 
 // Start Menu Logic
 function toggleStartMenu() {
@@ -166,6 +258,7 @@ function openApp(appName, arg = null) {
                 </label>
             </div>
             <textarea class="notepad-area" id="notepad-area-${windowId}"></textarea>
+            <div id="notepad-status-${windowId}" class="notepad-status" style="padding: 2px 5px; font-size: 11px; background: #eee; border-top: 1px solid #ccc; text-align: right;">Ln 1, Col 1</div>
         `;
     } else if (appName === 'file-explorer') {
         title = "File Explorer";
@@ -198,17 +291,17 @@ function openApp(appName, arg = null) {
                     <button class="calc-btn clear" onclick="calcInput('${windowId}', 'C')">C</button>
                     <button class="calc-btn operator" onclick="calcInput('${windowId}', '/')">/</button>
                     <button class="calc-btn operator" onclick="calcInput('${windowId}', '*')">*</button>
-                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '-')">-</button>
+                    <button class="calc-btn operator" style="color: #d9534f;" onclick="calcInput('${windowId}', 'BACK')">⌫</button>
 
                     <button class="calc-btn" onclick="calcInput('${windowId}', '7')">7</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '8')">8</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '9')">9</button>
-                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '+')">+</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '-')">-</button>
 
                     <button class="calc-btn" onclick="calcInput('${windowId}', '4')">4</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '5')">5</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '6')">6</button>
-                    <button class="calc-btn equals" style="grid-row: span 3" onclick="calcInput('${windowId}', '=')">=</button>
+                    <button class="calc-btn operator" onclick="calcInput('${windowId}', '+')">+</button>
 
                     <button class="calc-btn" onclick="calcInput('${windowId}', '1')">1</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '2')">2</button>
@@ -216,6 +309,7 @@ function openApp(appName, arg = null) {
 
                     <button class="calc-btn" style="grid-column: span 2" onclick="calcInput('${windowId}', '0')">0</button>
                     <button class="calc-btn" onclick="calcInput('${windowId}', '.')">.</button>
+                    <button class="calc-btn equals" style="grid-row: span 1" onclick="calcInput('${windowId}', '=')">=</button>
 
                     <!-- Scientific Buttons -->
                     <button class="calc-btn" onclick="calcInput('${windowId}', 'sin(')">sin</button>
@@ -320,7 +414,9 @@ function openApp(appName, arg = null) {
                 <label style="font-size: 12px;">Size:</label>
                 <input type="range" id="paint-size-${windowId}" min="1" max="50" value="5" style="width: 80px; cursor: pointer;">
 
-                <button onclick="setPaintColor('${windowId}', '#ffffff')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Eraser</button>
+                <button onclick="setPaintTool('${windowId}', 'brush')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Brush</button>
+                <button onclick="setPaintTool('${windowId}', 'fill')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Fill</button>
+                <button onclick="setPaintColor('${windowId}', '#ffffff'); setPaintTool('${windowId}', 'brush')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Eraser</button>
 
                 <div style="flex: 1;"></div>
                 <button onclick="clearPaint('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Clear</button>
@@ -381,12 +477,29 @@ function openApp(appName, arg = null) {
     taskbarApps.appendChild(taskbarItem);
 
     // App specific init
-    if (appName === 'notepad' && arg) {
+    if (appName === 'notepad') {
         const ta = document.getElementById(`notepad-area-${windowId}`);
-        if (fileSystem[arg] !== undefined) {
+        const status = document.getElementById(`notepad-status-${windowId}`);
+
+        if (arg && fileSystem[arg] !== undefined) {
             ta.value = fileSystem[arg];
             ta.dataset.filename = arg;
         }
+
+        const updateStatus = () => {
+            const text = ta.value;
+            const cursorPos = ta.selectionStart;
+            const lines = text.substr(0, cursorPos).split('\n');
+            const lineNum = lines.length;
+            const colNum = lines[lines.length - 1].length + 1;
+            status.textContent = `Ln ${lineNum}, Col ${colNum}`;
+        };
+
+        ta.addEventListener('input', updateStatus);
+        ta.addEventListener('keyup', updateStatus);
+        ta.addEventListener('click', updateStatus);
+        // Initial update in case of loaded content
+        updateStatus();
     }
 
     if (appName === 'terminal') {
@@ -695,6 +808,12 @@ function calcInput(windowId, value) {
 
     if (value === 'C') {
         display.textContent = '0';
+    } else if (value === 'BACK') {
+        if (currentText.length > 1) {
+            display.textContent = currentText.slice(0, -1);
+        } else {
+            display.textContent = '0';
+        }
     } else if (value === '=') {
         try {
             // Prepare text for evaluation (replace symbols)
@@ -761,8 +880,19 @@ function initPaint(windowId, filename = null) {
     // but for simplicity, we'll just let it be fixed size or crop.
 
     function startPosition(e) {
-        painting = true;
-        drawPaint(e);
+        const tool = canvas.dataset.tool || 'brush';
+        if (tool === 'fill') {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            const x = Math.floor(clientX - rect.left);
+            const y = Math.floor(clientY - rect.top);
+            const color = document.getElementById(`paint-color-${windowId}`).value;
+            floodFill(ctx, x, y, color, canvas.width, canvas.height);
+        } else {
+            painting = true;
+            drawPaint(e);
+        }
     }
 
     function endPosition() {
@@ -771,7 +901,8 @@ function initPaint(windowId, filename = null) {
     }
 
     function drawPaint(e) {
-        if (!painting) return;
+        const tool = canvas.dataset.tool || 'brush';
+        if (!painting || tool === 'fill') return;
 
         // Calculate mouse position relative to canvas
         const rect = canvas.getBoundingClientRect();
@@ -790,6 +921,56 @@ function initPaint(windowId, filename = null) {
         ctx.moveTo(x, y);
     }
 
+    function floodFill(ctx, startX, startY, fillColor, width, height) {
+        // Convert hex to rgb
+        const r = parseInt(fillColor.slice(1, 3), 16);
+        const g = parseInt(fillColor.slice(3, 5), 16);
+        const b = parseInt(fillColor.slice(5, 7), 16);
+        const a = 255;
+
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+
+        const getPixelPos = (x, y) => (y * width + x) * 4;
+        const startPos = getPixelPos(startX, startY);
+
+        const startR = data[startPos];
+        const startG = data[startPos + 1];
+        const startB = data[startPos + 2];
+        const startA = data[startPos + 3];
+
+        if (startR === r && startG === g && startB === b && startA === a) return;
+
+        const matchStartColor = (pos) => {
+            return data[pos] === startR && data[pos+1] === startG && data[pos+2] === startB && data[pos+3] === startA;
+        };
+
+        const colorPixel = (pos) => {
+            data[pos] = r;
+            data[pos+1] = g;
+            data[pos+2] = b;
+            data[pos+3] = a;
+        };
+
+        const stack = [[startX, startY]];
+
+        while (stack.length > 0) {
+            const [x, y] = stack.pop();
+            const pos = getPixelPos(x, y);
+
+            if (x < 0 || x >= width || y < 0 || y >= height) continue;
+            if (matchStartColor(pos)) {
+                colorPixel(pos);
+                stack.push([x + 1, y]);
+                stack.push([x - 1, y]);
+                stack.push([x, y + 1]);
+                stack.push([x, y - 1]);
+            }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+    }
+
     function handleTouch(handler) {
         return function(e) {
             e.preventDefault();
@@ -806,6 +987,11 @@ function initPaint(windowId, filename = null) {
     canvas.addEventListener('touchstart', handleTouch(startPosition));
     canvas.addEventListener('touchend', handleTouch(endPosition));
     canvas.addEventListener('touchmove', handleTouch(drawPaint));
+}
+
+function setPaintTool(windowId, tool) {
+    const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    canvas.dataset.tool = tool;
 }
 
 function setPaintColor(windowId, color) {
