@@ -3,7 +3,13 @@ function updateClock() {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('clock').textContent = `${hours}:${minutes}`;
+    const clockElement = document.getElementById('clock');
+    clockElement.textContent = `${hours}:${minutes}`;
+
+    // Date formatting options for German locale
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const dateString = now.toLocaleDateString('de-DE', options);
+    clockElement.title = dateString;
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -91,7 +97,107 @@ window.addEventListener('load', () => {
             contextMenu.style.display = 'none';
         }
     });
+
+    // Initialize draggable icons
+    initDraggableIcons();
 });
+
+// Draggable Icons Logic
+function initDraggableIcons() {
+    const icons = document.querySelectorAll('.icon');
+    const positions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
+
+    icons.forEach((icon, index) => {
+        // Unique ID for each icon based on label or index
+        const label = icon.querySelector('.icon-label').textContent;
+        icon.dataset.id = label;
+
+        // Restore position
+        if (positions[label]) {
+            icon.style.position = 'absolute';
+            icon.style.left = positions[label].x + 'px';
+            icon.style.top = positions[label].y + 'px';
+            icon.style.margin = '0'; // Remove margin when absolute
+        }
+
+        icon.onmousedown = (e) => {
+             // Only left click
+            if(e.button !== 0) return;
+            startDragIcon(e, icon);
+        };
+    });
+}
+
+let isDraggingIcon = false;
+let currentIcon = null;
+let iconOffset = { x: 0, y: 0 };
+let iconStartX = 0;
+let iconStartY = 0;
+const DRAG_THRESHOLD = 5;
+
+function startDragIcon(e, icon) {
+    isDraggingIcon = false; // Will set to true after moving a bit
+    currentIcon = icon;
+
+    // Calculate offset
+    const rect = icon.getBoundingClientRect();
+    iconOffset.x = e.clientX - rect.left;
+    iconOffset.y = e.clientY - rect.top;
+
+    iconStartX = e.clientX;
+    iconStartY = e.clientY;
+
+    document.addEventListener('mousemove', dragIcon);
+    document.addEventListener('mouseup', stopDragIcon);
+}
+
+function dragIcon(e) {
+    if (!currentIcon) return;
+
+    if (!isDraggingIcon) {
+        const dist = Math.sqrt(Math.pow(e.clientX - iconStartX, 2) + Math.pow(e.clientY - iconStartY, 2));
+        if (dist > DRAG_THRESHOLD) {
+            isDraggingIcon = true;
+            // Switch to absolute positioning if not already
+            if (currentIcon.style.position !== 'absolute') {
+                const rect = currentIcon.getBoundingClientRect();
+                currentIcon.style.position = 'absolute';
+                currentIcon.style.left = rect.left + 'px';
+                currentIcon.style.top = rect.top + 'px';
+                currentIcon.style.margin = '0';
+            }
+        }
+    }
+
+    if (isDraggingIcon) {
+        e.preventDefault();
+        currentIcon.style.left = (e.clientX - iconOffset.x) + 'px';
+        currentIcon.style.top = (e.clientY - iconOffset.y) + 'px';
+    }
+}
+
+function stopDragIcon(e) {
+    if (isDraggingIcon && currentIcon) {
+        // Save position
+        const positions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
+        positions[currentIcon.dataset.id] = {
+            x: parseInt(currentIcon.style.left),
+            y: parseInt(currentIcon.style.top)
+        };
+        localStorage.setItem('desktopIconPositions', JSON.stringify(positions));
+    } else if (!isDraggingIcon && currentIcon) {
+        // Was a click, not a drag.
+        const appName = currentIcon.dataset.app;
+        if (appName) {
+            openApp(appName);
+        }
+    }
+
+    isDraggingIcon = false;
+    currentIcon = null;
+    document.removeEventListener('mousemove', dragIcon);
+    document.removeEventListener('mouseup', stopDragIcon);
+}
 
 // Start Menu Logic
 function toggleStartMenu() {
