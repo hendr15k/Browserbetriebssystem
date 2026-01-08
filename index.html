@@ -53,6 +53,10 @@
             <div class="icon-img" style="background-color: #000; color: white;">📷</div>
             <div class="icon-label">Camera</div>
         </div>
+        <div class="icon" onclick="openApp('minesweeper')">
+            <div class="icon-img" style="background-color: #c0392b; color: white;">💣</div>
+            <div class="icon-label">Minesweeper</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -99,6 +103,10 @@
         <div class="start-item" onclick="openApp('camera'); toggleStartMenu()">
             <div class="start-icon" style="background: #000; color: white;">📷</div>
             <span>Camera</span>
+        </div>
+        <div class="start-item" onclick="openApp('minesweeper'); toggleStartMenu()">
+            <div class="start-icon" style="background: #c0392b; color: white;">💣</div>
+            <span>Minesweeper</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
