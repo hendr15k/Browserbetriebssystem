@@ -448,6 +448,25 @@ function openApp(appName, arg = null) {
         `;
         // Defer initialization to after append
         setTimeout(() => initPaint(windowId, arg), 0);
+    } else if (appName === 'calendar') {
+        title = "Calendar";
+        win.classList.add('calendar-window');
+        content = `
+            <div class="calendar-container" style="padding: 10px; height: 100%; display: flex; flex-direction: column;">
+                <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <button onclick="changeCalendarMonth('${windowId}', -1)" style="cursor: pointer; padding: 5px 10px;">&lt;</button>
+                    <h3 id="calendar-month-year-${windowId}" style="margin: 0;">Month Year</h3>
+                    <button onclick="changeCalendarMonth('${windowId}', 1)" style="cursor: pointer; padding: 5px 10px;">&gt;</button>
+                </div>
+                <div class="calendar-days" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-weight: bold; margin-bottom: 5px;">
+                    <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+                </div>
+                <div id="calendar-grid-${windowId}" class="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; flex-grow: 1;">
+                    <!-- Calendar cells -->
+                </div>
+            </div>
+        `;
+        setTimeout(() => initCalendar(windowId), 0);
     }
 
     win.innerHTML = `
@@ -589,6 +608,11 @@ function closeWindow(windowId) {
     // Cleanup Tic Tac Toe game if active
     if (tictactoeGames[windowId]) {
         delete tictactoeGames[windowId];
+    }
+
+    // Cleanup Calendar if active
+    if (calendarStates[windowId]) {
+        delete calendarStates[windowId];
     }
 
     const win = document.getElementById(windowId);
@@ -1707,6 +1731,88 @@ function endMinesweeper(windowId, win) {
             }
         }
         // Face change to 😎
+    }
+}
+
+// Calendar Logic
+const calendarStates = {};
+
+function initCalendar(windowId) {
+    const now = new Date();
+    calendarStates[windowId] = {
+        currentDate: now,
+        displayDate: new Date(now.getFullYear(), now.getMonth(), 1)
+    };
+    renderCalendar(windowId);
+}
+
+function changeCalendarMonth(windowId, delta) {
+    if (!calendarStates[windowId]) return;
+    const state = calendarStates[windowId];
+    state.displayDate.setMonth(state.displayDate.getMonth() + delta);
+    renderCalendar(windowId);
+}
+
+function renderCalendar(windowId) {
+    if (!calendarStates[windowId]) return;
+    const state = calendarStates[windowId];
+    const grid = document.getElementById(`calendar-grid-${windowId}`);
+    const header = document.getElementById(`calendar-month-year-${windowId}`);
+
+    if (!grid || !header) return;
+
+    grid.innerHTML = '';
+    const year = state.displayDate.getFullYear();
+    const month = state.displayDate.getMonth();
+
+    header.textContent = state.displayDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    const daysInMonth = lastDay.getDate();
+
+    // Previous month filler
+    for (let i = 0; i < startDayOfWeek; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-cell empty';
+        grid.appendChild(cell);
+    }
+
+    // Days
+    const today = new Date();
+    for (let d = 1; d <= daysInMonth; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-cell';
+        cell.textContent = d;
+        cell.style.border = '1px solid #ccc';
+        cell.style.background = 'white';
+        cell.style.display = 'flex';
+        cell.style.alignItems = 'center';
+        cell.style.justifyContent = 'center';
+        cell.style.cursor = 'default';
+        cell.style.fontSize = '14px';
+
+        // Check if today
+        if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) {
+            cell.style.background = '#0078d7';
+            cell.style.color = 'white';
+            cell.style.fontWeight = 'bold';
+            cell.title = 'Today';
+        }
+
+        cell.onmouseover = () => {
+             if (cell.style.background !== 'rgb(0, 120, 215)' && cell.style.background !== '#0078d7') {
+                 cell.style.background = '#e0e0e0';
+             }
+        };
+        cell.onmouseout = () => {
+             if (cell.style.background !== 'rgb(0, 120, 215)' && cell.style.background !== '#0078d7') {
+                 cell.style.background = 'white';
+             }
+        };
+
+        grid.appendChild(cell);
     }
 }
 
