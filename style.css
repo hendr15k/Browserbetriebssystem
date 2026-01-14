@@ -672,3 +672,69 @@ body {
 .calendar-day.other-month {
     color: #ccc;
 }
+
+/* Memory Game Styles */
+.memory-window .window-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    background: #2c3e50;
+}
+
+.memory-toolbar {
+    padding: 10px;
+    background: #ecf0f1;
+    border-bottom: 1px solid #bdc3c7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.memory-grid {
+    flex-grow: 1;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 10px;
+    perspective: 1000px;
+    min-height: 400px; /* Ensure grid has height */
+}
+
+.memory-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.5s;
+    cursor: pointer;
+    min-height: 80px; /* Ensure cards have minimum height */
+}
+
+.memory-card.flipped {
+    transform: rotateY(180deg);
+}
+
+.memory-front, .memory-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 32px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.memory-front {
+    background: white;
+    transform: rotateY(180deg);
+}
+
+.memory-back {
+    background: linear-gradient(135deg, #3498db, #8e44ad);
+    color: white;
+    font-size: 24px;
+}

@@ -61,6 +61,10 @@
             <div class="icon-img" style="background-color: #2980b9; color: white;">📅</div>
             <div class="icon-label">Calendar</div>
         </div>
+        <div class="icon" onclick="openApp('memory')">
+            <div class="icon-img" style="background-color: #8e44ad; color: white;">🧩</div>
+            <div class="icon-label">Memory</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -115,6 +119,10 @@
         <div class="start-item" onclick="openApp('calendar'); toggleStartMenu()">
             <div class="start-icon" style="background: #2980b9; color: white;">📅</div>
             <span>Calendar</span>
+        </div>
+        <div class="start-item" onclick="openApp('memory'); toggleStartMenu()">
+            <div class="start-icon" style="background: #8e44ad; color: white;">🧩</div>
+            <span>Memory</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
