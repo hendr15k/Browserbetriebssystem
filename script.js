@@ -476,6 +476,31 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initMemory(windowId), 0);
+    } else if (appName === 'music-player') {
+        title = "Music Player";
+        win.classList.add('music-player-window');
+        content = `
+            <div class="music-player-container" style="display: flex; flex-direction: column; height: 100%; align-items: center; justify-content: center; padding: 20px; background: #2c3e50; color: white;">
+                <div class="music-visualizer" id="music-vis-${windowId}" style="font-size: 64px; margin-bottom: 20px;">🎵</div>
+                <div class="music-info" style="width: 100%; text-align: center; margin-bottom: 15px;">
+                    <div class="music-title" id="music-title-${windowId}" style="font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">No Track Selected</div>
+                    <div class="music-time" id="music-time-${windowId}" style="font-size: 12px; color: #bdc3c7;">00:00 / 00:00</div>
+                </div>
+                <input type="range" class="music-progress" id="music-progress-${windowId}" min="0" max="100" value="0" step="0.1" oninput="seekMusic('${windowId}', this.value)" style="width: 100%; margin-bottom: 20px; cursor: pointer;">
+                <div class="music-controls" style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <button class="music-btn" onclick="playMusic('${windowId}')" style="font-size: 24px; background: none; border: none; color: white; cursor: pointer;">▶</button>
+                    <button class="music-btn" onclick="pauseMusic('${windowId}')" style="font-size: 24px; background: none; border: none; color: white; cursor: pointer;">⏸</button>
+                    <button class="music-btn" onclick="stopMusic('${windowId}')" style="font-size: 24px; background: none; border: none; color: white; cursor: pointer;">⏹</button>
+                </div>
+                <div class="music-file-select">
+                    <label for="music-file-${windowId}" class="custom-file-upload" style="background: #3498db; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                        Load Music
+                    </label>
+                    <input type="file" id="music-file-${windowId}" accept="audio/*" onchange="loadMusic('${windowId}')" style="display: none;">
+                </div>
+                <audio id="music-audio-${windowId}" style="display:none;" ontimeupdate="updateMusicProgress('${windowId}')" onended="stopMusic('${windowId}')"></audio>
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -905,6 +930,80 @@ function calcInput(windowId, value) {
         } else {
             display.textContent += value;
         }
+    }
+}
+
+// Music Player Logic
+function loadMusic(windowId) {
+    const fileInput = document.getElementById(`music-file-${windowId}`);
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    const title = document.getElementById(`music-title-${windowId}`);
+
+    if (fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        const objectUrl = URL.createObjectURL(file);
+        audio.src = objectUrl;
+        title.textContent = file.name;
+
+        // Reset controls
+        document.getElementById(`music-progress-${windowId}`).value = 0;
+        document.getElementById(`music-time-${windowId}`).textContent = "00:00 / 00:00";
+
+        // Auto play
+        playMusic(windowId);
+    }
+}
+
+function playMusic(windowId) {
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    if (audio.src) {
+        audio.play()
+            .then(() => {
+                const vis = document.getElementById(`music-vis-${windowId}`);
+                vis.style.animation = "pulse 1s infinite";
+            })
+            .catch(e => console.error("Playback failed", e));
+    }
+}
+
+function pauseMusic(windowId) {
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    audio.pause();
+    const vis = document.getElementById(`music-vis-${windowId}`);
+    vis.style.animation = "none";
+}
+
+function stopMusic(windowId) {
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    audio.pause();
+    audio.currentTime = 0;
+    const vis = document.getElementById(`music-vis-${windowId}`);
+    vis.style.animation = "none";
+}
+
+function seekMusic(windowId, value) {
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    if (audio.duration) {
+        const seekTime = (value / 100) * audio.duration;
+        audio.currentTime = seekTime;
+    }
+}
+
+function updateMusicProgress(windowId) {
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    const progressBar = document.getElementById(`music-progress-${windowId}`);
+    const timeDisplay = document.getElementById(`music-time-${windowId}`);
+
+    if (audio.duration) {
+        const value = (audio.currentTime / audio.duration) * 100;
+        progressBar.value = value;
+
+        const curM = String(Math.floor(audio.currentTime / 60)).padStart(2, '0');
+        const curS = String(Math.floor(audio.currentTime % 60)).padStart(2, '0');
+        const durM = String(Math.floor(audio.duration / 60)).padStart(2, '0');
+        const durS = String(Math.floor(audio.duration % 60)).padStart(2, '0');
+
+        timeDisplay.textContent = `${curM}:${curS} / ${durM}:${durS}`;
     }
 }
 
@@ -1412,6 +1511,28 @@ function minimizeWindow(windowId) {
             taskbarItem.classList.remove('active');
         }
     }
+}
+
+function toggleDesktop() {
+    const windows = document.querySelectorAll('.window');
+    let anyVisible = false;
+    windows.forEach(win => {
+        if (win.style.display !== 'none') {
+            anyVisible = true;
+        }
+    });
+
+    windows.forEach(win => {
+        if (anyVisible) {
+            if (win.style.display !== 'none') {
+                minimizeWindow(win.id);
+            }
+        } else {
+            if (win.style.display === 'none') {
+                minimizeWindow(win.id);
+            }
+        }
+    });
 }
 
 // Resize Logic

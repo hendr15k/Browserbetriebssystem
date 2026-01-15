@@ -741,3 +741,38 @@ body {
     50% { transform: scale(1.1); }
     100% { transform: scale(1); }
 }
+
+/* Music Player Styles */
+.music-player-window .window-content {
+    padding: 0;
+    overflow: hidden;
+}
+
+.music-btn:hover {
+    transform: scale(1.1);
+    color: #3498db;
+}
+
+.custom-file-upload:hover {
+    background: #2980b9 !important;
+}
+
+/* Range Input Styling */
+.music-progress {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 5px;
+    background: #bdc3c7;
+    outline: none;
+    border-radius: 5px;
+}
+
+.music-progress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #3498db;
+    cursor: pointer;
+}

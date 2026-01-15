@@ -65,6 +65,10 @@
             <div class="icon-img" style="background-color: #f39c12; color: white;">🧠</div>
             <div class="icon-label">Memory</div>
         </div>
+        <div class="icon" onclick="openApp('music-player')">
+            <div class="icon-img" style="background-color: #9b59b6; color: white;">🎵</div>
+            <div class="icon-label">Music</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -124,6 +128,10 @@
             <div class="start-icon" style="background: #f39c12; color: white;">🧠</div>
             <span>Memory</span>
         </div>
+        <div class="start-item" onclick="openApp('music-player'); toggleStartMenu()">
+            <div class="start-icon" style="background: #9b59b6; color: white;">🎵</div>
+            <span>Music Player</span>
+        </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
             <div class="start-icon" style="background: #e81123; color: white;">R</div>
@@ -133,6 +141,7 @@
 
     <div id="taskbar">
         <button id="start-button" onclick="toggleStartMenu()">Start</button>
+        <button id="desktop-button" onclick="toggleDesktop()" style="margin-right: 10px; background: transparent; border: 1px solid #555; color: white; border-radius: 2px; cursor: pointer; padding: 2px 8px;" title="Show Desktop">🖥️</button>
         <div id="taskbar-apps"></div>
         <div id="clock">00:00</div>
     </div>
