@@ -65,6 +65,10 @@
             <div class="icon-img" style="background-color: #f39c12; color: white;">🧠</div>
             <div class="icon-label">Memory</div>
         </div>
+        <div class="icon" onclick="openApp('music-player')">
+            <div class="icon-img" style="background-color: #e91e63; color: white;">🎵</div>
+            <div class="icon-label">Music</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -123,6 +127,10 @@
         <div class="start-item" onclick="openApp('memory'); toggleStartMenu()">
             <div class="start-icon" style="background: #f39c12; color: white;">🧠</div>
             <span>Memory</span>
+        </div>
+        <div class="start-item" onclick="openApp('music-player'); toggleStartMenu()">
+            <div class="start-icon" style="background: #e91e63; color: white;">🎵</div>
+            <span>Music Player</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">

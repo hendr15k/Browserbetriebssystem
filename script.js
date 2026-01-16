@@ -476,6 +476,20 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initMemory(windowId), 0);
+    } else if (appName === 'music-player') {
+        title = "Music Player";
+        win.classList.add('music-player-window');
+        content = `
+            <div class="music-player-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; background: #222; color: white; box-sizing: border-box;">
+                <div class="music-icon" style="font-size: 64px; margin-bottom: 20px;">🎵</div>
+                <div id="music-track-name-${windowId}" style="margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all;">No file selected</div>
+                <audio id="music-audio-${windowId}" controls style="width: 100%; margin-bottom: 20px;"></audio>
+                <label style="background: #e91e63; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: background 0.3s;">
+                    Open Music File
+                    <input type="file" id="music-input-${windowId}" accept="audio/*" style="display: none;" onchange="handleMusicFile('${windowId}')">
+                </label>
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -628,6 +642,15 @@ function closeWindow(windowId) {
     if (memoryGames[windowId]) {
         clearInterval(memoryGames[windowId].timerInterval);
         delete memoryGames[windowId];
+    }
+
+    // Cleanup Music Player
+    const winRef = document.getElementById(windowId);
+    if (winRef && winRef.querySelector('audio')) {
+        const audio = winRef.querySelector('audio');
+        if (audio.src && audio.src.startsWith('blob:')) {
+            URL.revokeObjectURL(audio.src);
+        }
     }
 
     const win = document.getElementById(windowId);
@@ -2008,5 +2031,26 @@ function handleMemoryClick(windowId, index) {
                 game.isLocked = false;
             }, 1000);
         }
+    }
+}
+
+// Music Player Logic
+function handleMusicFile(windowId) {
+    const input = document.getElementById(`music-input-${windowId}`);
+    const audio = document.getElementById(`music-audio-${windowId}`);
+    const trackName = document.getElementById(`music-track-name-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const url = URL.createObjectURL(file);
+
+        // Revoke previous URL if exists to avoid memory leaks
+        if (audio.src && audio.src.startsWith('blob:')) {
+            URL.revokeObjectURL(audio.src);
+        }
+
+        audio.src = url;
+        trackName.textContent = file.name;
+        audio.play().catch(e => console.log('Autoplay blocked or error:', e));
     }
 }
