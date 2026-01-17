@@ -247,6 +247,8 @@ function openApp(appName, arg = null) {
                 <input type="text" class="terminal-input" autofocus>
             </div>
         `;
+        // Initialize terminal state
+        terminalStates[windowId] = { cwd: '/' };
     } else if (appName === 'notepad') {
         title = "Notepad";
         content = `
@@ -263,12 +265,16 @@ function openApp(appName, arg = null) {
     } else if (appName === 'file-explorer') {
         title = "File Explorer";
         content = `
-            <div class="explorer-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc;">
+            <div class="explorer-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 5px;">
                 <button onclick="renderFileExplorer('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Refresh</button>
+                <button onclick="createNewFolder('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">New Folder</button>
+                <input type="text" id="explorer-path-${windowId}" readonly value="/" style="flex-grow: 1; font-size: 12px; padding: 2px 5px; border: 1px solid #ccc; background: #fff; color: #555;">
             </div>
             <div id="explorer-content-${windowId}" style="padding: 10px; display: flex; flex-wrap: wrap; gap: 15px; overflow-y: auto; height: 100%; align-content: flex-start; background: white;">
             </div>
         `;
+        // Initialize explorer state
+        explorerStates[windowId] = { path: '/' };
         setTimeout(() => renderFileExplorer(windowId), 0);
     } else if (appName === 'about') {
         title = "About";
@@ -567,7 +573,7 @@ function openApp(appName, arg = null) {
 
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
-                handleTerminalCommand(this.value, win.querySelector('.terminal-output'));
+                handleTerminalCommand(this.value, win.querySelector('.terminal-output'), windowId);
                 this.value = '';
                 historyIndex = -1;
                 tempInput = '';
@@ -725,19 +731,64 @@ const fileSystem = {
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
 };
 
+// Terminal State
+const terminalStates = {};
+
+function resolvePath(cwd, path) {
+    if (!path) return cwd;
+
+    let parts;
+    if (path.startsWith('/')) {
+        parts = path.split('/').filter(p => p);
+    } else {
+        parts = cwd.split('/').concat(path.split('/')).filter(p => p);
+    }
+
+    const stack = [];
+    for (const part of parts) {
+        if (part === '..') {
+            stack.pop();
+        } else if (part !== '.') {
+            stack.push(part);
+        }
+    }
+
+    let res = '/' + stack.join('/');
+    return res;
+}
+
 // Terminal Logic
-function handleTerminalCommand(cmd, outputDiv) {
+function handleTerminalCommand(cmd, outputDiv, windowId) {
     const line = document.createElement('div');
     line.textContent = '> ' + cmd;
     outputDiv.appendChild(line);
+
+    // Get current directory for this window
+    if (!terminalStates[windowId]) {
+        terminalStates[windowId] = { cwd: '/' };
+    }
+    const cwd = terminalStates[windowId].cwd;
 
     let response = '';
     const parts = cmd.trim().split(' ');
     const command = parts[0].toLowerCase();
     const args = parts.slice(1);
 
+    // Helper to get full path
+    const getFullPath = (p) => {
+        let fullPath = resolvePath(cwd, p);
+        if (fullPath === '/') return '/'; // root
+        return fullPath.startsWith('/') ? fullPath.substring(1) : fullPath; // remove leading / for FS keys unless it's just /
+    };
+
+    // FS keys don't have leading / usually in this map, but let's standardize.
+    // Current keys: 'readme.txt'. This means they are at root.
+    // If I resolvePath('/', 'readme.txt') -> '/readme.txt'.
+    // So I should strip the leading slash when accessing fileSystem.
+    // Directories will be stored with trailing slash: 'folder/'
+
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], about, reboot, whoami, pwd, history';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], about, reboot, whoami, pwd, history';
     } else if (command === 'date') {
         const now = new Date();
         const year = now.getFullYear();
@@ -753,89 +804,179 @@ function handleTerminalCommand(cmd, outputDiv) {
     } else if (command === 'echo') {
         response = args.join(' ');
     } else if (command === 'ls') {
-        response = Object.keys(fileSystem).join('  ');
+        // List files in current directory
+        // cwd is like '/' or '/folder'
+        let prefix = cwd === '/' ? '' : cwd.substring(1) + '/';
+
+        const contents = Object.keys(fileSystem).filter(key => {
+            // Check if key starts with prefix
+            if (!key.startsWith(prefix)) return false;
+
+            // Check if it's a direct child
+            const relPath = key.substring(prefix.length);
+            // If relPath contains '/', it's in a subdirectory (unless it's just the trailing slash of a dir)
+            if (relPath.endsWith('/') && relPath.indexOf('/') === relPath.length - 1) return true; // Direct subdirectory
+            if (relPath.indexOf('/') === -1) return true; // Direct file
+
+            return false;
+        }).map(key => {
+            const relPath = key.substring(prefix.length);
+            if (relPath.endsWith('/')) {
+                return '<span style="color: #4a90e2">' + relPath.slice(0, -1) + '</span>'; // Directory style
+            }
+            return relPath;
+        });
+
+        response = contents.join('  ');
+        if (!response && Object.keys(fileSystem).length > 0 && cwd === '/') {
+             // Fallback for flat structure if needed, but logic above covers root
+        }
+    } else if (command === 'cd') {
+        if (args.length === 0) {
+            terminalStates[windowId].cwd = '/';
+        } else {
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath === '/' ? '' : targetPath.substring(1) + '/';
+
+            // Check if directory exists
+            // Root always exists
+            if (targetPath === '/' || fileSystem[fsKey] === 'directory') {
+                terminalStates[windowId].cwd = targetPath;
+            } else {
+                response = `Directory not found: ${args[0]}`;
+            }
+        }
+    } else if (command === 'mkdir') {
+        if (args.length === 0) {
+            response = 'Usage: mkdir [directory]';
+        } else {
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1) + '/';
+            if (fileSystem[fsKey]) {
+                response = `Directory already exists: ${args[0]}`;
+            } else {
+                fileSystem[fsKey] = 'directory';
+                saveFileSystem();
+                response = `Created directory: ${args[0]}`;
+            }
+        }
+    } else if (command === 'rmdir') {
+        if (args.length === 0) {
+            response = 'Usage: rmdir [directory]';
+        } else {
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1) + '/';
+            if (fileSystem[fsKey] === 'directory') {
+                // Check if empty
+                const hasChildren = Object.keys(fileSystem).some(k => k.startsWith(fsKey) && k !== fsKey);
+                if (hasChildren) {
+                    response = `Directory not empty: ${args[0]}`;
+                } else {
+                    delete fileSystem[fsKey];
+                    saveFileSystem();
+                    response = `Removed directory: ${args[0]}`;
+                }
+            } else {
+                response = `Directory not found: ${args[0]}`;
+            }
+        }
     } else if (command === 'cat') {
         if (args.length === 0) {
             response = 'Usage: cat [filename]';
         } else {
-            const filename = args[0];
-            if (fileSystem[filename] !== undefined) {
-                // Handle newlines for display
-                response = fileSystem[filename];
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1);
+
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                response = fileSystem[fsKey];
+            } else if (fileSystem[fsKey + '/'] === 'directory') {
+                response = `${args[0]} is a directory`;
             } else {
-                response = `File not found: ${filename}`;
+                response = `File not found: ${args[0]}`;
             }
         }
     } else if (command === 'open') {
         if (args.length === 0) {
             response = 'Usage: open [filename]';
         } else {
-            const filename = args[0];
-            if (fileSystem[filename] !== undefined) {
-                if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
-                    openApp('paint', filename);
-                    response = `Opening ${filename} in Paint...`;
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1);
+
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                if (fsKey.endsWith('.png') || fsKey.endsWith('.jpg')) {
+                    openApp('paint', fsKey);
+                    response = `Opening ${fsKey} in Paint...`;
                 } else {
-                    openApp('notepad', filename);
-                    response = `Opening ${filename} in Notepad...`;
+                    openApp('notepad', fsKey);
+                    response = `Opening ${fsKey} in Notepad...`;
                 }
             } else {
-                response = `File not found: ${filename}`;
+                response = `File not found: ${args[0]}`;
             }
         }
     } else if (command === 'touch') {
         if (args.length === 0) {
             response = 'Usage: touch [filename]';
         } else {
-            const filename = args[0];
-            if (!fileSystem[filename]) {
-                fileSystem[filename] = '';
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1);
+
+            if (!fileSystem[fsKey]) {
+                fileSystem[fsKey] = '';
                 saveFileSystem();
-                response = `Created file: ${filename}`;
+                response = `Created file: ${args[0]}`;
             } else {
-                response = `File already exists: ${filename}`;
+                response = `File already exists: ${args[0]}`;
             }
         }
     } else if (command === 'rm') {
         if (args.length === 0) {
             response = 'Usage: rm [filename]';
         } else {
-            const filename = args[0];
-            if (fileSystem[filename] !== undefined) {
-                delete fileSystem[filename];
+            const targetPath = resolvePath(cwd, args[0]);
+            const fsKey = targetPath.substring(1);
+
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                delete fileSystem[fsKey];
                 saveFileSystem();
-                response = `Removed file: ${filename}`;
+                response = `Removed file: ${args[0]}`;
             } else {
-                response = `File not found: ${filename}`;
+                response = `File not found: ${args[0]}`;
             }
         }
     } else if (command === 'cp') {
         if (args.length < 2) {
             response = 'Usage: cp [source] [destination]';
         } else {
-            const src = args[0];
-            const dest = args[1];
-            if (fileSystem[src] !== undefined) {
-                fileSystem[dest] = fileSystem[src];
+            const srcPath = resolvePath(cwd, args[0]);
+            const destPath = resolvePath(cwd, args[1]);
+            const srcKey = srcPath.substring(1);
+            const destKey = destPath.substring(1);
+
+            if (fileSystem[srcKey] !== undefined) {
+                fileSystem[destKey] = fileSystem[srcKey];
                 saveFileSystem();
-                response = `Copied ${src} to ${dest}`;
+                response = `Copied ${args[0]} to ${args[1]}`;
             } else {
-                response = `File not found: ${src}`;
+                response = `File not found: ${args[0]}`;
             }
         }
     } else if (command === 'mv') {
         if (args.length < 2) {
             response = 'Usage: mv [source] [destination]';
         } else {
-            const src = args[0];
-            const dest = args[1];
-            if (fileSystem[src] !== undefined) {
-                fileSystem[dest] = fileSystem[src];
-                delete fileSystem[src];
+            const srcPath = resolvePath(cwd, args[0]);
+            const destPath = resolvePath(cwd, args[1]);
+            const srcKey = srcPath.substring(1);
+            const destKey = destPath.substring(1);
+
+            if (fileSystem[srcKey] !== undefined) {
+                fileSystem[destKey] = fileSystem[srcKey];
+                delete fileSystem[srcKey];
                 saveFileSystem();
-                response = `Moved ${src} to ${dest}`;
+                response = `Moved ${args[0]} to ${args[1]}`;
             } else {
-                response = `File not found: ${src}`;
+                response = `File not found: ${args[0]}`;
             }
         }
     } else if (command === 'about') {
@@ -846,7 +987,7 @@ function handleTerminalCommand(cmd, outputDiv) {
     } else if (command === 'whoami') {
         response = 'user';
     } else if (command === 'pwd') {
-        response = '/home/user';
+        response = cwd;
     } else if (command === 'history') {
         // We need to track history first.
         // For now, let's just show a placeholder or implement simple tracking
@@ -1123,14 +1264,98 @@ function openPaintFile(windowId) {
     }
 }
 
+// Explorer State
+const explorerStates = {};
+
+function createNewFolder(windowId) {
+    const currentPath = explorerStates[windowId].path;
+    const folderName = prompt("Enter folder name:", "New Folder");
+    if (folderName) {
+         if (folderName.includes('/') || folderName.includes('\\')) {
+             alert("Invalid name");
+             return;
+         }
+
+         const prefix = currentPath === '/' ? '' : currentPath.substring(1) + '/';
+         const newKey = prefix + folderName + '/';
+
+         if (fileSystem[newKey]) {
+             alert("Folder already exists");
+         } else {
+             fileSystem[newKey] = 'directory';
+             saveFileSystem();
+             renderFileExplorer(windowId);
+         }
+    }
+}
+
 // File Explorer Logic
 function renderFileExplorer(windowId) {
     const container = document.getElementById(`explorer-content-${windowId}`);
+    const pathInput = document.getElementById(`explorer-path-${windowId}`);
     if (!container) return;
+
+    if (!explorerStates[windowId]) {
+        explorerStates[windowId] = { path: '/' };
+    }
+    const currentPath = explorerStates[windowId].path;
+    if (pathInput) pathInput.value = currentPath;
 
     container.innerHTML = '';
 
-    Object.keys(fileSystem).forEach(filename => {
+    // "Up" Button
+    if (currentPath !== '/') {
+        const upDiv = document.createElement('div');
+        upDiv.style.width = '60px';
+        upDiv.style.textAlign = 'center';
+        upDiv.style.cursor = 'pointer';
+        upDiv.style.display = 'flex';
+        upDiv.style.flexDirection = 'column';
+        upDiv.style.alignItems = 'center';
+        upDiv.style.padding = '5px';
+
+        const iconDiv = document.createElement('div');
+        iconDiv.style.fontSize = '30px';
+        iconDiv.textContent = '⬆️';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.style.fontSize = '11px';
+        nameDiv.textContent = '..';
+
+        upDiv.appendChild(iconDiv);
+        upDiv.appendChild(nameDiv);
+
+        upDiv.onclick = () => {
+            // Go up
+            const parts = currentPath.split('/').filter(p => p);
+            parts.pop();
+            const newPath = parts.length === 0 ? '/' : '/' + parts.join('/');
+            explorerStates[windowId].path = newPath;
+            renderFileExplorer(windowId);
+        };
+
+        upDiv.onmouseover = () => upDiv.style.backgroundColor = '#e0e0e0';
+        upDiv.onmouseout = () => upDiv.style.backgroundColor = 'transparent';
+
+        container.appendChild(upDiv);
+    }
+
+    // Filter items
+    let prefix = currentPath === '/' ? '' : currentPath.substring(1) + '/';
+
+    Object.keys(fileSystem).forEach(key => {
+        if (!key.startsWith(prefix)) return;
+
+        const relPath = key.substring(prefix.length);
+        // Check if direct child
+        // If it contains '/', it must be just at the end (directory)
+        if (relPath.indexOf('/') !== -1 && relPath.indexOf('/') !== relPath.length - 1) return;
+
+        if (relPath === '') return; // Should not happen usually unless key == prefix which is impossible if prefix ends in / and key is dir
+
+        const isDir = relPath.endsWith('/');
+        const displayName = isDir ? relPath.slice(0, -1) : relPath;
+
         const fileDiv = document.createElement('div');
         fileDiv.style.width = '60px';
         fileDiv.style.textAlign = 'center';
@@ -1141,20 +1366,22 @@ function renderFileExplorer(windowId) {
         fileDiv.style.padding = '5px';
         fileDiv.style.borderRadius = '5px';
 
-        // Icon based on extension
+        // Icon based on type
         let iconChar = '📄';
-        if (filename.endsWith('.png') || filename.endsWith('.jpg')) iconChar = '🖼️';
+        if (isDir) iconChar = '📁';
+        else if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) iconChar = '🖼️';
 
         const iconDiv = document.createElement('div');
         iconDiv.style.fontSize = '30px';
         iconDiv.textContent = iconChar;
+        if (isDir) iconDiv.style.color = '#f1c40f'; // Folder color
 
         const nameDiv = document.createElement('div');
         nameDiv.style.fontSize = '11px';
         nameDiv.style.wordBreak = 'break-all';
         nameDiv.style.marginTop = '2px';
         nameDiv.style.lineHeight = '1.2';
-        nameDiv.textContent = filename;
+        nameDiv.textContent = displayName;
 
         // Action Buttons Container
         const actionsDiv = document.createElement('div');
@@ -1167,20 +1394,46 @@ function renderFileExplorer(windowId) {
         renameBtn.innerHTML = '✏️';
         renameBtn.style.fontSize = '12px';
         renameBtn.style.cursor = 'pointer';
-        renameBtn.title = 'Rename File';
+        renameBtn.title = 'Rename';
 
         renameBtn.onclick = (e) => {
             e.stopPropagation();
-            const newName = prompt(`Rename ${filename} to:`, filename);
-            if (newName && newName !== filename) {
-                if (fileSystem[newName]) {
-                    alert('File with that name already exists!');
-                } else {
-                    fileSystem[newName] = fileSystem[filename];
-                    delete fileSystem[filename];
-                    saveFileSystem();
-                    renderFileExplorer(windowId);
+            const newName = prompt(`Rename ${displayName} to:`, displayName);
+            if (newName && newName !== displayName) {
+                 if (newName.includes('/')) { alert("Invalid name"); return; }
+
+                 const oldKey = key;
+                 const newKey = prefix + newName + (isDir ? '/' : '');
+
+                 if (fileSystem[newKey]) {
+                    alert('Already exists!');
+                    return;
                 }
+
+                // If directory, we need to rename all children
+                if (isDir) {
+                    const childPrefix = oldKey;
+                    const newChildPrefix = newKey;
+
+                    // Rename directory entry
+                    fileSystem[newKey] = 'directory';
+                    delete fileSystem[oldKey];
+
+                    // Rename children
+                    Object.keys(fileSystem).forEach(k => {
+                        if (k.startsWith(childPrefix)) {
+                            const suffix = k.substring(childPrefix.length);
+                            fileSystem[newChildPrefix + suffix] = fileSystem[k];
+                            delete fileSystem[k];
+                        }
+                    });
+                } else {
+                    fileSystem[newKey] = fileSystem[oldKey];
+                    delete fileSystem[oldKey];
+                }
+
+                saveFileSystem();
+                renderFileExplorer(windowId);
             }
         };
 
@@ -1189,12 +1442,24 @@ function renderFileExplorer(windowId) {
         deleteBtn.innerHTML = '🗑️';
         deleteBtn.style.fontSize = '12px';
         deleteBtn.style.cursor = 'pointer';
-        deleteBtn.title = 'Delete File';
+        deleteBtn.title = 'Delete';
 
         deleteBtn.onclick = (e) => {
             e.stopPropagation(); // Prevent opening file
-            if(confirm(`Delete ${filename}?`)) {
-                delete fileSystem[filename];
+            if(confirm(`Delete ${displayName}?`)) {
+                if (isDir) {
+                    // Check if empty logic? Or recursive delete?
+                    // Recursive delete is friendlier
+                    const childPrefix = key;
+                    Object.keys(fileSystem).forEach(k => {
+                        if (k.startsWith(childPrefix)) {
+                            delete fileSystem[k];
+                        }
+                    });
+                     delete fileSystem[key];
+                } else {
+                    delete fileSystem[key];
+                }
                 saveFileSystem();
                 renderFileExplorer(windowId);
             }
@@ -1217,10 +1482,16 @@ function renderFileExplorer(windowId) {
         };
 
         fileDiv.onclick = () => {
-             if (filename.endsWith('.png') || filename.endsWith('.jpg')) {
-                 openApp('paint', filename);
+             if (isDir) {
+                 // Navigate into
+                 explorerStates[windowId].path = currentPath === '/' ? '/' + displayName : currentPath + '/' + displayName;
+                 renderFileExplorer(windowId);
              } else {
-                 openApp('notepad', filename);
+                 if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) {
+                     openApp('paint', key); // Pass full key
+                 } else {
+                     openApp('notepad', key); // Pass full key
+                 }
              }
         };
 
