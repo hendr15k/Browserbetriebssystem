@@ -69,6 +69,14 @@
             <div class="icon-img" style="background-color: #e91e63; color: white;">🎵</div>
             <div class="icon-label">Music</div>
         </div>
+        <div class="icon" onclick="openApp('video-player')">
+            <div class="icon-img" style="background-color: #673ab7; color: white;">🎬</div>
+            <div class="icon-label">Video</div>
+        </div>
+        <div class="icon" onclick="openApp('task-manager')">
+            <div class="icon-img" style="background-color: #34495e; color: white;">📊</div>
+            <div class="icon-label">Task Mgr</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -132,6 +140,14 @@
             <div class="start-icon" style="background: #e91e63; color: white;">🎵</div>
             <span>Music Player</span>
         </div>
+        <div class="start-item" onclick="openApp('video-player'); toggleStartMenu()">
+            <div class="start-icon" style="background: #673ab7; color: white;">🎬</div>
+            <span>Video Player</span>
+        </div>
+        <div class="start-item" onclick="openApp('task-manager'); toggleStartMenu()">
+            <div class="start-icon" style="background: #34495e; color: white;">📊</div>
+            <span>Task Manager</span>
+        </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
             <div class="start-icon" style="background: #e81123; color: white;">R</div>
@@ -143,6 +159,7 @@
         <button id="start-button" onclick="toggleStartMenu()">Start</button>
         <div id="taskbar-apps"></div>
         <div id="clock">00:00</div>
+        <button id="show-desktop" onclick="toggleDesktop()" title="Show Desktop">┃</button>
     </div>
 
     <!-- Application Templates (Hidden by default, cloned when opened) -->

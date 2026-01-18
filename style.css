@@ -170,6 +170,27 @@ body {
     text-align: right;
 }
 
+#show-desktop {
+    width: 15px;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-left: 1px solid #555;
+    margin-left: 10px;
+    cursor: pointer;
+    color: #888;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    padding: 0;
+}
+
+#show-desktop:hover {
+    background-color: #333;
+    color: white;
+}
+
 /* Window Styles (Preparing for next step) */
 #window-area {
     position: absolute;
@@ -755,4 +776,13 @@ body {
     0% { transform: translateY(0px); }
     50% { transform: translateY(-10px); }
     100% { transform: translateY(0px); }
+}
+
+/* Task Manager Styles */
+.task-manager-window .window-content {
+    padding: 0;
+}
+
+.task-row:hover {
+    background-color: #e6f7ff !important;
 }
