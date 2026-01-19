@@ -756,3 +756,19 @@ body {
     50% { transform: translateY(-10px); }
     100% { transform: translateY(0px); }
 }
+
+/* Video Player Styles */
+.video-player-window .window-content {
+    background-color: #000;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Task Manager Styles */
+.task-manager-window .window-content {
+    padding: 0;
+    background-color: white;
+}
