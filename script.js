@@ -559,6 +559,37 @@ function openApp(appName, arg = null) {
                 </div>
             </div>
         `;
+    } else if (appName === 'tetris') {
+        title = "Tetris";
+        win.classList.add('tetris-window');
+        content = `
+            <div class="tetris-container">
+                <canvas id="tetris-canvas-${windowId}" width="240" height="400" class="tetris-canvas"></canvas>
+                <div class="tetris-info">
+                    <div class="tetris-score-box">
+                        <div class="tetris-label">Score</div>
+                        <div id="tetris-score-${windowId}" class="tetris-value">0</div>
+                    </div>
+                    <div class="tetris-score-box">
+                        <div class="tetris-label">Level</div>
+                        <div id="tetris-level-${windowId}" class="tetris-value">1</div>
+                    </div>
+                     <div class="tetris-score-box">
+                        <div class="tetris-label">Lines</div>
+                        <div id="tetris-lines-${windowId}" class="tetris-value">0</div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button onclick="initTetris('${windowId}')" style="width: 100%; padding: 8px; background: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">New Game</button>
+                    </div>
+                    <div class="tetris-controls-hint">
+                        <p>⬆️ Rotate</p>
+                        <p>⬅️➡️ Move</p>
+                        <p>⬇️ Soft Drop</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initTetris(windowId), 0);
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -731,6 +762,12 @@ function closeWindow(windowId) {
     if (memoryGames[windowId]) {
         clearInterval(memoryGames[windowId].timerInterval);
         delete memoryGames[windowId];
+    }
+
+    // Cleanup Tetris Game state
+    if (tetrisGames[windowId]) {
+        cancelAnimationFrame(tetrisGames[windowId].requestId);
+        delete tetrisGames[windowId];
     }
 
     // Cleanup Music Player
@@ -2300,6 +2337,9 @@ function renderCalendar(windowId) {
 // Memory Game Logic
 const memoryGames = {};
 
+// Tetris Game Logic
+const tetrisGames = {};
+
 function initMemory(windowId) {
     const grid = document.getElementById(`memory-grid-${windowId}`);
     const movesDisplay = document.getElementById(`memory-moves-${windowId}`);
@@ -2501,4 +2541,271 @@ function renderTaskManager(windowId) {
 
     list.innerHTML = html;
     if (countSpan) countSpan.textContent = count;
+}
+
+// Tetris Logic
+function initTetris(windowId) {
+    const canvas = document.getElementById(`tetris-canvas-${windowId}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const win = document.getElementById(windowId);
+    if (win) {
+        win.tabIndex = 0;
+        win.focus();
+    }
+
+    if (tetrisGames[windowId]) {
+        cancelAnimationFrame(tetrisGames[windowId].requestId);
+    }
+
+    const COLS = 12;
+    const ROWS = 20;
+    const BLOCK_SIZE = 20;
+
+    const PIECES = [
+        [
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [1, 0, 0],
+            [1, 1, 1],
+            [0, 0, 0]
+        ],
+        [
+            [0, 0, 1],
+            [1, 1, 1],
+            [0, 0, 0]
+        ],
+        [
+            [1, 1],
+            [1, 1]
+        ],
+        [
+            [0, 1, 1],
+            [1, 1, 0],
+            [0, 0, 0]
+        ],
+        [
+            [0, 1, 0],
+            [1, 1, 1],
+            [0, 0, 0]
+        ],
+        [
+            [1, 1, 0],
+            [0, 1, 1],
+            [0, 0, 0]
+        ]
+    ];
+
+    const COLORS = [
+        null,
+        '#00f0f0',
+        '#0000f0',
+        '#f0a000',
+        '#f0f000',
+        '#00f000',
+        '#a000f0',
+        '#f00000'
+    ];
+
+    let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    let score = 0;
+    let lines = 0;
+    let level = 1;
+
+    let dropCounter = 0;
+    let dropInterval = 1000;
+    let lastTime = 0;
+
+    const player = {
+        pos: {x: 0, y: 0},
+        matrix: null,
+        color: null
+    };
+
+    function playerReset() {
+        const typeId = Math.floor(Math.random() * PIECES.length);
+        player.matrix = PIECES[typeId].map(row => [...row]); // Deep copy
+        player.color = COLORS[typeId + 1];
+        player.pos.y = 0;
+        player.pos.x = (Math.floor(COLS / 2)) - Math.floor(player.matrix[0].length / 2);
+
+        if (collide(board, player)) {
+            board.forEach(row => row.fill(0));
+            score = 0;
+            lines = 0;
+            level = 1;
+            updateScore();
+        }
+    }
+
+    function collide(board, player) {
+        const m = player.matrix;
+        const o = player.pos;
+        for (let y = 0; y < m.length; ++y) {
+            for (let x = 0; x < m[y].length; ++x) {
+                if (m[y][x] !== 0 &&
+                   (board[y + o.y] && board[y + o.y][x + o.x]) !== 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        drawMatrix(board, {x: 0, y: 0});
+        drawMatrix(player.matrix, player.pos);
+    }
+
+    function drawMatrix(matrix, offset) {
+        matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    ctx.fillStyle = (typeof value === 'string') ? value : player.color;
+                    ctx.fillRect((x + offset.x) * BLOCK_SIZE,
+                                 (y + offset.y) * BLOCK_SIZE,
+                                 BLOCK_SIZE - 1, BLOCK_SIZE - 1);
+                }
+            });
+        });
+    }
+
+    function merge(board, player) {
+        player.matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    board[y + player.pos.y][x + player.pos.x] = player.color;
+                }
+            });
+        });
+    }
+
+    function playerDrop() {
+        player.pos.y++;
+        if (collide(board, player)) {
+            player.pos.y--;
+            merge(board, player);
+            playerReset();
+            arenaSweep();
+            updateScore();
+        }
+        dropCounter = 0;
+    }
+
+    function playerMove(dir) {
+        player.pos.x += dir;
+        if (collide(board, player)) {
+            player.pos.x -= dir;
+        }
+    }
+
+    function playerRotate(dir) {
+        const pos = player.pos.x;
+        let offset = 1;
+        rotate(player.matrix, dir);
+        while (collide(board, player)) {
+            player.pos.x += offset;
+            offset = -(offset + (offset > 0 ? 1 : -1));
+            if (offset > player.matrix[0].length) {
+                rotate(player.matrix, -dir);
+                player.pos.x = pos;
+                return;
+            }
+        }
+    }
+
+    function rotate(matrix, dir) {
+        for (let y = 0; y < matrix.length; ++y) {
+            for (let x = 0; x < y; ++x) {
+                [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+            }
+        }
+        if (dir > 0) {
+            matrix.forEach(row => row.reverse());
+        } else {
+            matrix.reverse();
+        }
+    }
+
+    function arenaSweep() {
+        let rowCount = 0;
+        outer: for (let y = board.length - 1; y > 0; --y) {
+            for (let x = 0; x < board[y].length; ++x) {
+                if (board[y][x] === 0) {
+                    continue outer;
+                }
+            }
+
+            const row = board.splice(y, 1)[0].fill(0);
+            board.unshift(row);
+            ++y;
+
+            rowCount++;
+        }
+
+        if (rowCount > 0) {
+            score += rowCount * 10 * rowCount;
+            lines += rowCount;
+            level = Math.floor(lines / 10) + 1;
+            dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+            updateScore();
+        }
+    }
+
+    function updateScore() {
+        const scoreEl = document.getElementById(`tetris-score-${windowId}`);
+        const levelEl = document.getElementById(`tetris-level-${windowId}`);
+        const linesEl = document.getElementById(`tetris-lines-${windowId}`);
+        if (scoreEl) scoreEl.innerText = score;
+        if (levelEl) levelEl.innerText = level;
+        if (linesEl) linesEl.innerText = lines;
+    }
+
+    function update(time = 0) {
+        if (!tetrisGames[windowId]) return;
+
+        const deltaTime = time - lastTime;
+        lastTime = time;
+
+        dropCounter += deltaTime;
+        if (dropCounter > dropInterval) {
+            playerDrop();
+        }
+
+        draw();
+        tetrisGames[windowId].requestId = requestAnimationFrame(update);
+    }
+
+    if (win) {
+        win.onkeydown = (e) => {
+            if (e.key === 'ArrowLeft') {
+                playerMove(-1);
+                e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+                playerMove(1);
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                playerDrop();
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                playerRotate(1);
+                e.preventDefault();
+            }
+        };
+    }
+
+    playerReset();
+    updateScore();
+
+    tetrisGames[windowId] = {
+        requestId: requestAnimationFrame(update)
+    };
 }

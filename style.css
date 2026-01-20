@@ -786,3 +786,61 @@ body {
 .task-row:hover {
     background-color: #e6f7ff !important;
 }
+
+/* Tetris Styles */
+.tetris-window .window-content {
+    background-color: #202028;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.tetris-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.tetris-canvas {
+    border: 2px solid #333;
+    background-color: #000;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+.tetris-info {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-width: 100px;
+}
+
+.tetris-score-box {
+    background: #333;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.tetris-label {
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.tetris-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.tetris-controls-hint {
+    font-size: 11px;
+    color: #888;
+    margin-top: 10px;
+    line-height: 1.4;
+}
