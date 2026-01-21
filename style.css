@@ -1,3 +1,7 @@
+:root {
+    --theme-color: #0078d7;
+}
+
 body {
     margin: 0;
     overflow: hidden;
@@ -73,7 +77,7 @@ body {
 }
 
 #start-button {
-    background-color: #0078d7;
+    background-color: var(--theme-color);
     color: white;
     border: none;
     padding: 5px 15px;
@@ -85,11 +89,11 @@ body {
 }
 
 #start-button:hover {
-    background-color: #005a9e;
+    box-shadow: inset 0 0 100px 100px rgba(0,0,0,0.1);
 }
 
 #start-button.active {
-    background-color: #004578;
+    box-shadow: inset 0 0 100px 100px rgba(0,0,0,0.2);
 }
 
 #start-menu {
@@ -160,7 +164,7 @@ body {
 
 .taskbar-item.active {
     background-color: #555;
-    border-bottom: 2px solid #0078d7;
+    border-bottom: 2px solid var(--theme-color);
 }
 
 #clock {
@@ -225,7 +229,7 @@ body {
 }
 
 .title-bar {
-    background-color: #0078d7; /* Active color */
+    background-color: var(--theme-color); /* Active color */
     color: white;
     padding: 5px 10px;
     display: flex;
@@ -324,7 +328,7 @@ body {
 
 .about-content h2 {
     margin-top: 0;
-    color: #0078d7;
+    color: var(--theme-color);
 }
 
 .about-content button {
@@ -685,7 +689,7 @@ body {
 }
 
 .calendar-day.today {
-    background: #0078d7;
+    background: var(--theme-color);
     color: white;
     font-weight: bold;
 }
