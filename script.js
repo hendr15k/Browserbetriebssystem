@@ -17,12 +17,22 @@ function setBackground(bg) {
     localStorage.setItem('desktopBackground', bg);
 }
 
+function setThemeColor(color) {
+    document.documentElement.style.setProperty('--theme-color', color);
+    localStorage.setItem('themeColor', color);
+}
+
 // Load Settings
 window.addEventListener('load', () => {
     const savedBg = localStorage.getItem('desktopBackground');
     if (savedBg) {
         document.getElementById('desktop').style.background = savedBg;
         document.getElementById('desktop').style.backgroundSize = 'cover';
+    }
+
+    const savedTheme = localStorage.getItem('themeColor');
+    if (savedTheme) {
+        document.documentElement.style.setProperty('--theme-color', savedTheme);
     }
 
     // Context Menu Logic
@@ -409,6 +419,16 @@ function openApp(appName, arg = null) {
                          style="width: 100px; height: 80px; background: #222; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
                     <div onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')"
                          style="width: 100px; height: 80px; background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
+                </div>
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
+                <h3>Window Theme</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <div onclick="setThemeColor('#0078d7')" style="width: 30px; height: 30px; background: #0078d7; cursor: pointer; border: 1px solid #999;"></div>
+                    <div onclick="setThemeColor('#2ecc71')" style="width: 30px; height: 30px; background: #2ecc71; cursor: pointer; border: 1px solid #999;"></div>
+                    <div onclick="setThemeColor('#e74c3c')" style="width: 30px; height: 30px; background: #e74c3c; cursor: pointer; border: 1px solid #999;"></div>
+                    <div onclick="setThemeColor('#9b59b6')" style="width: 30px; height: 30px; background: #9b59b6; cursor: pointer; border: 1px solid #999;"></div>
+                    <div onclick="setThemeColor('#34495e')" style="width: 30px; height: 30px; background: #34495e; cursor: pointer; border: 1px solid #999;"></div>
+                    <input type="color" onchange="setThemeColor(this.value)" value="#0078d7" style="height: 35px; cursor: pointer;">
                 </div>
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
                 <h3>System</h3>
