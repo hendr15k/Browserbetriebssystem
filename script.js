@@ -610,6 +610,59 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initTetris(windowId), 0);
+    } else if (appName === 'clock') {
+        title = "Clock";
+        win.classList.add('clock-window');
+        content = `
+            <div class="clock-tabs" id="clock-tabs-${windowId}">
+                <button class="clock-tab-btn active" data-tab="clock" onclick="switchClockTab('${windowId}', 'clock')">Clock</button>
+                <button class="clock-tab-btn" data-tab="stopwatch" onclick="switchClockTab('${windowId}', 'stopwatch')">Stopwatch</button>
+                <button class="clock-tab-btn" data-tab="timer" onclick="switchClockTab('${windowId}', 'timer')">Timer</button>
+            </div>
+            <div id="clock-content-${windowId}" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <!-- Clock Tab -->
+                <div id="clock-tab-clock-${windowId}" class="clock-tab-content active">
+                    <div id="clock-time-${windowId}" class="clock-display">00:00:00</div>
+                    <div id="clock-date-${windowId}" class="clock-date">Date</div>
+                </div>
+
+                <!-- Stopwatch Tab -->
+                <div id="clock-tab-stopwatch-${windowId}" class="clock-tab-content">
+                    <div id="stopwatch-display-${windowId}" class="stopwatch-display">00:00.00</div>
+                    <div class="clock-controls">
+                        <button id="sw-start-${windowId}" class="clock-btn start" onclick="startStopwatch('${windowId}')">Start</button>
+                        <button id="sw-stop-${windowId}" class="clock-btn stop" onclick="stopStopwatch('${windowId}')" style="display: none;">Stop</button>
+                        <button id="sw-lap-${windowId}" class="clock-btn lap" onclick="lapStopwatch('${windowId}')" style="display: none;">Lap</button>
+                        <button id="sw-reset-${windowId}" class="clock-btn reset" onclick="resetStopwatch('${windowId}')">Reset</button>
+                    </div>
+                    <div id="laps-list-${windowId}" class="laps-list"></div>
+                </div>
+
+                <!-- Timer Tab -->
+                <div id="clock-tab-timer-${windowId}" class="clock-tab-content">
+                    <div id="timer-display-${windowId}" class="timer-display" style="display: none;">00:00</div>
+
+                    <div id="timer-setup-${windowId}" style="display: flex; flex-direction: column; align-items: center;">
+                        <div class="timer-input-group">
+                            <input type="number" id="timer-min-${windowId}" class="timer-input" placeholder="00" min="0" max="99" value="5">
+                            <span class="timer-label">min</span>
+                            <input type="number" id="timer-sec-${windowId}" class="timer-input" placeholder="00" min="0" max="59" value="0">
+                            <span class="timer-label">sec</span>
+                        </div>
+                        <div class="clock-controls">
+                            <button class="clock-btn start" onclick="startTimer('${windowId}')">Start</button>
+                        </div>
+                    </div>
+
+                    <div id="timer-running-${windowId}" class="clock-controls" style="display: none;">
+                         <button class="clock-btn stop" onclick="stopTimer('${windowId}')">Pause</button>
+                         <button class="clock-btn start" onclick="startTimer('${windowId}')">Resume</button>
+                         <button class="clock-btn reset" onclick="resetTimer('${windowId}')">Reset</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initClock(windowId), 0);
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -811,6 +864,14 @@ function closeWindow(windowId) {
     if (taskManagerIntervals[windowId]) {
         clearInterval(taskManagerIntervals[windowId]);
         delete taskManagerIntervals[windowId];
+    }
+
+    // Cleanup Clock
+    if (clockStates[windowId]) {
+        clearInterval(clockStates[windowId].clockInterval);
+        if(clockStates[windowId].stopwatch.interval) clearInterval(clockStates[windowId].stopwatch.interval);
+        if(clockStates[windowId].timer.interval) clearInterval(clockStates[windowId].timer.interval);
+        delete clockStates[windowId];
     }
 
     const win = document.getElementById(windowId);
@@ -2828,4 +2889,199 @@ function initTetris(windowId) {
     tetrisGames[windowId] = {
         requestId: requestAnimationFrame(update)
     };
+}
+
+// Clock App Logic
+const clockStates = {};
+
+function initClock(windowId) {
+    if (!clockStates[windowId]) {
+        clockStates[windowId] = {
+            clockInterval: null,
+            stopwatch: {
+                startTime: 0,
+                elapsed: 0,
+                interval: null,
+                running: false,
+                laps: []
+            },
+            timer: {
+                duration: 0,
+                remaining: 0,
+                interval: null,
+                running: false
+            }
+        };
+    }
+
+    // Start Clock Tab
+    updateClockTab(windowId);
+    clockStates[windowId].clockInterval = setInterval(() => updateClockTab(windowId), 1000);
+}
+
+function updateClockTab(windowId) {
+    const timeDisplay = document.getElementById(`clock-time-${windowId}`);
+    const dateDisplay = document.getElementById(`clock-date-${windowId}`);
+    if (!timeDisplay) return;
+
+    const now = new Date();
+    timeDisplay.textContent = now.toLocaleTimeString();
+    dateDisplay.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function switchClockTab(windowId, tabName) {
+    // Update Tabs
+    const tabs = document.querySelectorAll(`#clock-tabs-${windowId} .clock-tab-btn`);
+    tabs.forEach(btn => {
+        if (btn.dataset.tab === tabName) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    // Update Content
+    const contents = document.querySelectorAll(`#clock-content-${windowId} .clock-tab-content`);
+    contents.forEach(content => {
+        if (content.id === `clock-tab-${tabName}-${windowId}`) content.classList.add('active');
+        else content.classList.remove('active');
+    });
+}
+
+// Stopwatch
+function formatTime(ms) {
+    const date = new Date(ms);
+    const m = String(date.getUTCMinutes()).padStart(2, '0');
+    const s = String(date.getUTCSeconds()).padStart(2, '0');
+    const cs = String(Math.floor(date.getUTCMilliseconds() / 10)).padStart(2, '0');
+    return `${m}:${s}.${cs}`;
+}
+
+function updateStopwatchDisplay(windowId) {
+    const display = document.getElementById(`stopwatch-display-${windowId}`);
+    if (display) {
+        display.textContent = formatTime(clockStates[windowId].stopwatch.elapsed);
+    }
+}
+
+function startStopwatch(windowId) {
+    const state = clockStates[windowId].stopwatch;
+    if (state.running) return;
+
+    state.running = true;
+    state.startTime = Date.now() - state.elapsed;
+    state.interval = setInterval(() => {
+        state.elapsed = Date.now() - state.startTime;
+        updateStopwatchDisplay(windowId);
+    }, 10);
+
+    // Toggle Buttons
+    document.getElementById(`sw-start-${windowId}`).style.display = 'none';
+    document.getElementById(`sw-stop-${windowId}`).style.display = 'inline-block';
+    document.getElementById(`sw-lap-${windowId}`).style.display = 'inline-block';
+    document.getElementById(`sw-reset-${windowId}`).style.display = 'none';
+}
+
+function stopStopwatch(windowId) {
+    const state = clockStates[windowId].stopwatch;
+    if (!state.running) return;
+
+    state.running = false;
+    clearInterval(state.interval);
+
+    // Toggle Buttons
+    document.getElementById(`sw-start-${windowId}`).style.display = 'inline-block';
+    document.getElementById(`sw-stop-${windowId}`).style.display = 'none';
+    document.getElementById(`sw-lap-${windowId}`).style.display = 'none';
+    document.getElementById(`sw-reset-${windowId}`).style.display = 'inline-block';
+}
+
+function resetStopwatch(windowId) {
+    const state = clockStates[windowId].stopwatch;
+    stopStopwatch(windowId);
+    state.elapsed = 0;
+    state.laps = [];
+    updateStopwatchDisplay(windowId);
+    document.getElementById(`laps-list-${windowId}`).innerHTML = '';
+}
+
+function lapStopwatch(windowId) {
+    const state = clockStates[windowId].stopwatch;
+    if (!state.running) return;
+
+    const lapTime = state.elapsed;
+    state.laps.push(lapTime);
+
+    const lapItem = document.createElement('div');
+    lapItem.className = 'lap-item';
+    lapItem.innerHTML = `<span>Lap ${state.laps.length}</span><span>${formatTime(lapTime)}</span>`;
+
+    const list = document.getElementById(`laps-list-${windowId}`);
+    list.prepend(lapItem);
+}
+
+// Timer
+function formatTimer(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) {
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateTimerDisplay(windowId) {
+    const display = document.getElementById(`timer-display-${windowId}`);
+    if (display) {
+        display.textContent = formatTimer(clockStates[windowId].timer.remaining);
+    }
+}
+
+function startTimer(windowId) {
+    const state = clockStates[windowId].timer;
+    if (state.running) return;
+
+    // If starting from 0/reset, read inputs
+    if (state.remaining === 0) {
+        const min = parseInt(document.getElementById(`timer-min-${windowId}`).value) || 0;
+        const sec = parseInt(document.getElementById(`timer-sec-${windowId}`).value) || 0;
+        if (min === 0 && sec === 0) return;
+        state.duration = min * 60 + sec;
+        state.remaining = state.duration;
+    }
+
+    state.running = true;
+    document.getElementById(`timer-setup-${windowId}`).style.display = 'none';
+    document.getElementById(`timer-running-${windowId}`).style.display = 'flex';
+    document.getElementById(`timer-display-${windowId}`).style.display = 'block';
+
+    updateTimerDisplay(windowId);
+
+    state.interval = setInterval(() => {
+        if (state.remaining > 0) {
+            state.remaining--;
+            updateTimerDisplay(windowId);
+        } else {
+            // Timer Done
+            stopTimer(windowId);
+            state.remaining = 0; // Ensure 0
+            alert("Timer Done!");
+            resetTimer(windowId); // Reset logic
+        }
+    }, 1000);
+}
+
+function stopTimer(windowId) {
+    const state = clockStates[windowId].timer;
+    if (!state.running) return;
+    state.running = false;
+    clearInterval(state.interval);
+}
+
+function resetTimer(windowId) {
+    const state = clockStates[windowId].timer;
+    stopTimer(windowId);
+    state.remaining = 0;
+
+    document.getElementById(`timer-setup-${windowId}`).style.display = 'flex';
+    document.getElementById(`timer-running-${windowId}`).style.display = 'none';
+    document.getElementById(`timer-display-${windowId}`).style.display = 'none';
 }
