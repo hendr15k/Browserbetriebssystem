@@ -848,3 +848,157 @@ body {
     margin-top: 10px;
     line-height: 1.4;
 }
+
+/* Clock App Styles */
+.clock-window .window-content {
+    background-color: #222;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.clock-tabs {
+    display: flex;
+    background: #333;
+    border-bottom: 1px solid #444;
+}
+
+.clock-tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    text-transform: uppercase;
+    font-weight: bold;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.clock-tab-btn:hover {
+    background: rgba(255,255,255,0.05);
+    color: white;
+}
+
+.clock-tab-btn.active {
+    color: var(--theme-color);
+    border-bottom: 2px solid var(--theme-color);
+}
+
+.clock-tab-content {
+    flex: 1;
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.clock-tab-content.active {
+    display: flex;
+}
+
+.clock-display, .stopwatch-display, .timer-display {
+    font-size: 48px;
+    font-weight: 300;
+    margin-bottom: 10px;
+    font-family: 'Segoe UI', sans-serif; /* Monospace variant might be better for alignment, but Segoe UI is clean */
+}
+
+.clock-date {
+    font-size: 18px;
+    color: #aaa;
+}
+
+.clock-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.clock-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+    min-width: 80px;
+}
+
+.clock-btn.start {
+    background: #2ecc71;
+    color: white;
+}
+
+.clock-btn.start:hover {
+    background: #27ae60;
+}
+
+.clock-btn.stop {
+    background: #e74c3c;
+    color: white;
+}
+
+.clock-btn.stop:hover {
+    background: #c0392b;
+}
+
+.clock-btn.reset, .clock-btn.lap {
+    background: #555;
+    color: white;
+}
+
+.clock-btn.reset:hover, .clock-btn.lap:hover {
+    background: #666;
+}
+
+.laps-list {
+    margin-top: 20px;
+    width: 100%;
+    max-height: 150px;
+    overflow-y: auto;
+    border-top: 1px solid #444;
+}
+
+.lap-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-bottom: 1px solid #333;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.lap-item:last-child {
+    border-bottom: none;
+}
+
+.timer-input-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.timer-input {
+    background: #333;
+    border: 1px solid #444;
+    color: white;
+    padding: 5px;
+    border-radius: 4px;
+    width: 60px;
+    text-align: center;
+    font-size: 18px;
+}
+
+.timer-label {
+    font-size: 14px;
+    color: #aaa;
+}
