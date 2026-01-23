@@ -610,6 +610,22 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initTetris(windowId), 0);
+    } else if (appName === 'browser') {
+        title = "Web Browser";
+        win.classList.add('browser-window');
+        content = `
+            <div class="browser-toolbar">
+                <button onclick="browserBack('${windowId}')" title="Back">←</button>
+                <button onclick="browserForward('${windowId}')" title="Forward">→</button>
+                <button onclick="refreshBrowser('${windowId}')" title="Refresh">⟳</button>
+                <button onclick="browserHome('${windowId}')" title="Home">🏠</button>
+                <input type="text" id="browser-input-${windowId}" class="browser-input" placeholder="Enter URL..." value="https://www.wikipedia.org" onkeydown="if(event.key === 'Enter') navigateTo('${windowId}', this.value)">
+                <button onclick="navigateTo('${windowId}', document.getElementById('browser-input-${windowId}').value)">Go</button>
+            </div>
+            <div class="browser-content-area">
+                 <iframe id="browser-iframe-${windowId}" src="https://www.wikipedia.org" class="browser-iframe"></iframe>
+            </div>
+        `;
     } else if (appName === 'clock') {
         title = "Clock";
         win.classList.add('clock-window');
@@ -3084,4 +3100,44 @@ function resetTimer(windowId) {
     document.getElementById(`timer-setup-${windowId}`).style.display = 'flex';
     document.getElementById(`timer-running-${windowId}`).style.display = 'none';
     document.getElementById(`timer-display-${windowId}`).style.display = 'none';
+}
+
+// Browser Logic
+function navigateTo(windowId, url) {
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    const input = document.getElementById(`browser-input-${windowId}`);
+    if (!iframe) return;
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+    iframe.src = url;
+    input.value = url;
+}
+
+function refreshBrowser(windowId) {
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    if (iframe) iframe.src = iframe.src;
+}
+
+function browserHome(windowId) {
+    navigateTo(windowId, 'https://www.wikipedia.org');
+}
+
+function browserBack(windowId) {
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    try {
+        iframe.contentWindow.history.back();
+    } catch (e) {
+        console.log("Cannot go back cross-origin");
+    }
+}
+
+function browserForward(windowId) {
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    try {
+        iframe.contentWindow.history.forward();
+    } catch (e) {
+        console.log("Cannot go forward cross-origin");
+    }
 }

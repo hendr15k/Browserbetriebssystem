@@ -85,9 +85,17 @@
             <div class="icon-img" style="background-color: #9b59b6; color: white;">T</div>
             <div class="icon-label">Tetris</div>
         </div>
+        <div class="icon" onclick="openApp('browser')">
+            <div class="icon-img" style="background-color: #3498db; color: white;">🌐</div>
+            <div class="icon-label">Browser</div>
+        </div>
     </div>
 
     <div id="start-menu">
+        <div class="start-item" onclick="openApp('browser'); toggleStartMenu()">
+            <div class="start-icon" style="background: #3498db; color: white;">🌐</div>
+            <span>Browser</span>
+        </div>
         <div class="start-item" onclick="openApp('terminal'); toggleStartMenu()">
             <div class="start-icon" style="background: #333; color: white;">&gt;_</div>
             <span>Terminal</span>

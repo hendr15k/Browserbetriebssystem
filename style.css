@@ -1002,3 +1002,57 @@ body {
     font-size: 14px;
     color: #aaa;
 }
+
+/* Browser Styles */
+.browser-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.browser-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    gap: 5px;
+}
+
+.browser-toolbar button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+.browser-toolbar button:hover {
+    background: #e0e0e0;
+}
+
+.browser-input {
+    flex-grow: 1;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    outline: none;
+    font-size: 14px;
+}
+
+.browser-input:focus {
+    border-color: var(--theme-color);
+}
+
+.browser-content-area {
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.browser-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
