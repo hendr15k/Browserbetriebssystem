@@ -663,6 +663,28 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initClock(windowId), 0);
+    } else if (appName === 'web-browser') {
+        title = "Web Browser";
+        win.classList.add('browser-window');
+        const defaultUrl = 'https://www.wikipedia.org';
+        content = `
+            <div class="browser-toolbar">
+                <button onclick="browserBack('${windowId}')" title="Back">⬅️</button>
+                <button onclick="browserForward('${windowId}')" title="Forward">➡️</button>
+                <button onclick="refreshBrowser('${windowId}')" title="Refresh">🔄</button>
+                <button onclick="browserHome('${windowId}')" title="Home">🏠</button>
+                <input type="text" class="browser-address-bar" id="browser-url-${windowId}" value="${defaultUrl}" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
+                <button onclick="navigateBrowser('${windowId}', document.getElementById('browser-url-${windowId}').value)" title="Go">Go</button>
+            </div>
+            <iframe id="browser-frame-${windowId}" class="browser-content" src="${defaultUrl}"></iframe>
+        `;
+        // Initialize browser state
+        // browserHistory is defined globally
+        if (!window.browserHistory) window.browserHistory = {};
+        window.browserHistory[windowId] = {
+            history: [defaultUrl],
+            currentIndex: 0
+        };
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -815,6 +837,11 @@ function openApp(appName, arg = null) {
 }
 
 function closeWindow(windowId) {
+    // Cleanup Browser History
+    if (window.browserHistory && window.browserHistory[windowId]) {
+        delete window.browserHistory[windowId];
+    }
+
     // Cleanup Snake game if active
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -3084,4 +3111,70 @@ function resetTimer(windowId) {
     document.getElementById(`timer-setup-${windowId}`).style.display = 'flex';
     document.getElementById(`timer-running-${windowId}`).style.display = 'none';
     document.getElementById(`timer-display-${windowId}`).style.display = 'none';
+}
+
+// Web Browser Logic
+function navigateBrowser(windowId, url) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+
+    const iframe = document.getElementById(`browser-frame-${windowId}`);
+    const input = document.getElementById(`browser-url-${windowId}`);
+
+    if (iframe && input) {
+        iframe.src = url;
+        input.value = url;
+
+        // Update history
+        if (!window.browserHistory) window.browserHistory = {};
+        const state = window.browserHistory[windowId];
+        if (state) {
+            // Remove forward history if we navigate to new page
+            state.history = state.history.slice(0, state.currentIndex + 1);
+            state.history.push(url);
+            state.currentIndex++;
+        }
+    }
+}
+
+function refreshBrowser(windowId) {
+    const iframe = document.getElementById(`browser-frame-${windowId}`);
+    if (iframe) {
+        iframe.src = iframe.src;
+    }
+}
+
+function browserBack(windowId) {
+    if (!window.browserHistory) return;
+    const state = window.browserHistory[windowId];
+    if (state && state.currentIndex > 0) {
+        state.currentIndex--;
+        const url = state.history[state.currentIndex];
+        const iframe = document.getElementById(`browser-frame-${windowId}`);
+        const input = document.getElementById(`browser-url-${windowId}`);
+        if (iframe && input) {
+            iframe.src = url;
+            input.value = url;
+        }
+    }
+}
+
+function browserForward(windowId) {
+    if (!window.browserHistory) return;
+    const state = window.browserHistory[windowId];
+    if (state && state.currentIndex < state.history.length - 1) {
+        state.currentIndex++;
+        const url = state.history[state.currentIndex];
+        const iframe = document.getElementById(`browser-frame-${windowId}`);
+        const input = document.getElementById(`browser-url-${windowId}`);
+        if (iframe && input) {
+            iframe.src = url;
+            input.value = url;
+        }
+    }
+}
+
+function browserHome(windowId) {
+    navigateBrowser(windowId, 'https://www.wikipedia.org');
 }

@@ -1002,3 +1002,62 @@ body {
     font-size: 14px;
     color: #aaa;
 }
+
+/* Web Browser Styles */
+.browser-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: #f0f0f0;
+}
+
+.browser-toolbar {
+    padding: 5px;
+    background: #e0e0e0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.browser-toolbar button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 5px 8px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #333;
+}
+
+.browser-toolbar button:hover {
+    background-color: rgba(0,0,0,0.1);
+}
+
+.browser-toolbar button:active {
+    background-color: rgba(0,0,0,0.2);
+}
+
+.browser-address-bar {
+    flex-grow: 1;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 15px;
+    background: white;
+    font-size: 14px;
+    outline: none;
+    margin: 0 5px;
+}
+
+.browser-address-bar:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 1px #3498db;
+}
+
+.browser-content {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+}
