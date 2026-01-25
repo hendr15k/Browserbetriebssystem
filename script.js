@@ -663,6 +663,25 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initClock(windowId), 0);
+    } else if (appName === 'browser') {
+        title = "Web Browser";
+        win.classList.add('browser-window');
+        content = `
+            <div class="browser-toolbar">
+                <button onclick="handleBrowserNav('${windowId}', 'back')">Back</button>
+                <button onclick="handleBrowserNav('${windowId}', 'forward')">Forward</button>
+                <button onclick="handleBrowserNav('${windowId}', 'refresh')">Refresh</button>
+                <button onclick="handleBrowserNav('${windowId}', 'home')">Home</button>
+                <input type="text" id="browser-url-${windowId}" value="https://www.wikipedia.org" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
+                <button onclick="navigateBrowser('${windowId}', document.getElementById('browser-url-${windowId}').value)">Go</button>
+            </div>
+            <iframe id="browser-iframe-${windowId}" class="browser-iframe" src="https://www.wikipedia.org"></iframe>
+        `;
+        // Initialize state
+        browserStates[windowId] = {
+            history: ['https://www.wikipedia.org'],
+            currentIndex: 0
+        };
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -872,6 +891,11 @@ function closeWindow(windowId) {
         if(clockStates[windowId].stopwatch.interval) clearInterval(clockStates[windowId].stopwatch.interval);
         if(clockStates[windowId].timer.interval) clearInterval(clockStates[windowId].timer.interval);
         delete clockStates[windowId];
+    }
+
+    // Cleanup Browser
+    if (browserStates[windowId]) {
+        delete browserStates[windowId];
     }
 
     const win = document.getElementById(windowId);
@@ -3084,4 +3108,59 @@ function resetTimer(windowId) {
     document.getElementById(`timer-setup-${windowId}`).style.display = 'flex';
     document.getElementById(`timer-running-${windowId}`).style.display = 'none';
     document.getElementById(`timer-display-${windowId}`).style.display = 'none';
+}
+
+// Browser Logic
+const browserStates = {};
+
+function navigateBrowser(windowId, url) {
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    const input = document.getElementById(`browser-url-${windowId}`);
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+
+    iframe.src = url;
+    input.value = url;
+
+    // Update History
+    if (!browserStates[windowId]) {
+        browserStates[windowId] = { history: [], currentIndex: -1 };
+    }
+
+    const state = browserStates[windowId];
+    // If we are not at the end of history, discard future
+    if (state.currentIndex < state.history.length - 1) {
+        state.history = state.history.slice(0, state.currentIndex + 1);
+    }
+
+    state.history.push(url);
+    state.currentIndex++;
+}
+
+function handleBrowserNav(windowId, action) {
+    const state = browserStates[windowId];
+    if (!state) return;
+
+    if (action === 'back') {
+        if (state.currentIndex > 0) {
+            state.currentIndex--;
+            const url = state.history[state.currentIndex];
+            document.getElementById(`browser-iframe-${windowId}`).src = url;
+            document.getElementById(`browser-url-${windowId}`).value = url;
+        }
+    } else if (action === 'forward') {
+        if (state.currentIndex < state.history.length - 1) {
+            state.currentIndex++;
+            const url = state.history[state.currentIndex];
+            document.getElementById(`browser-iframe-${windowId}`).src = url;
+            document.getElementById(`browser-url-${windowId}`).value = url;
+        }
+    } else if (action === 'refresh') {
+         const iframe = document.getElementById(`browser-iframe-${windowId}`);
+         iframe.src = iframe.src;
+    } else if (action === 'home') {
+        navigateBrowser(windowId, 'https://www.wikipedia.org');
+    }
 }

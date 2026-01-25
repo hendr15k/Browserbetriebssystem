@@ -75,7 +75,7 @@ def test_features():
 
         page.on("dialog", handle_dialog)
 
-        rename_btn = file_item.locator("div[title='Rename File']")
+        rename_btn = file_item.locator("div[title='Rename']")
         rename_btn.click()
 
         # Verify rename
