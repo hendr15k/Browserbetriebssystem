@@ -1002,3 +1002,49 @@ body {
     font-size: 14px;
     color: #aaa;
 }
+
+/* Web Browser Styles */
+.browser-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: #f0f0f0;
+}
+
+.browser-toolbar {
+    padding: 5px 10px;
+    background: #e0e0e0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.browser-toolbar button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.browser-toolbar button:hover {
+    background-color: rgba(0,0,0,0.1);
+    border-color: #aaa;
+}
+
+.browser-toolbar input {
+    flex-grow: 1;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+.browser-iframe {
+    flex-grow: 1;
+    width: 100%;
+    border: none;
+    background: white;
+}
