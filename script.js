@@ -682,6 +682,46 @@ function openApp(appName, arg = null) {
             history: ['https://www.wikipedia.org'],
             currentIndex: 0
         };
+    } else if (appName === 'unit-converter') {
+        title = "Unit Converter";
+        win.classList.add('unit-converter-window');
+        content = `
+            <div class="converter-container" style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                <div class="converter-row">
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Category</label>
+                    <select id="conv-category-${windowId}" style="width: 100%; padding: 5px;" onchange="updateConverterCategory('${windowId}')">
+                        <option value="length">Length</option>
+                        <option value="weight">Weight</option>
+                        <option value="temperature">Temperature</option>
+                    </select>
+                </div>
+
+                <div class="converter-row" style="display: flex; gap: 10px; align-items: center;">
+                    <div style="flex: 1;">
+                        <input type="number" id="conv-input-${windowId}" value="1" style="width: 100%; padding: 5px; box-sizing: border-box;" oninput="convertUnits('${windowId}')">
+                    </div>
+                    <div style="flex: 1;">
+                        <select id="conv-from-${windowId}" style="width: 100%; padding: 5px;" onchange="convertUnits('${windowId}')">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+                </div>
+
+                <div style="text-align: center; font-size: 20px; font-weight: bold;">=</div>
+
+                <div class="converter-row" style="display: flex; gap: 10px; align-items: center;">
+                    <div style="flex: 1;">
+                        <input type="text" id="conv-output-${windowId}" readonly style="width: 100%; padding: 5px; background: #eee; border: 1px solid #ccc; box-sizing: border-box;">
+                    </div>
+                    <div style="flex: 1;">
+                        <select id="conv-to-${windowId}" style="width: 100%; padding: 5px;" onchange="convertUnits('${windowId}')">
+                            <!-- Options populated by JS -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initUnitConverter(windowId), 0);
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -3163,4 +3203,105 @@ function handleBrowserNav(windowId, action) {
     } else if (action === 'home') {
         navigateBrowser(windowId, 'https://www.wikipedia.org');
     }
+}
+
+// Unit Converter Logic
+const unitDefinitions = {
+    length: {
+        meters: 1,
+        kilometers: 0.001,
+        centimeters: 100,
+        millimeters: 1000,
+        miles: 0.000621371,
+        yards: 1.09361,
+        feet: 3.28084,
+        inches: 39.3701
+    },
+    weight: {
+        kilograms: 1,
+        grams: 1000,
+        milligrams: 1000000,
+        pounds: 2.20462,
+        ounces: 35.274
+    },
+    temperature: {
+        celsius: 'C',
+        fahrenheit: 'F',
+        kelvin: 'K'
+    }
+};
+
+function initUnitConverter(windowId) {
+    updateConverterCategory(windowId);
+}
+
+function updateConverterCategory(windowId) {
+    const category = document.getElementById(`conv-category-${windowId}`).value;
+    const fromSelect = document.getElementById(`conv-from-${windowId}`);
+    const toSelect = document.getElementById(`conv-to-${windowId}`);
+
+    fromSelect.innerHTML = '';
+    toSelect.innerHTML = '';
+
+    const units = Object.keys(unitDefinitions[category]);
+
+    units.forEach(unit => {
+        const opt1 = document.createElement('option');
+        opt1.value = unit;
+        opt1.textContent = unit.charAt(0).toUpperCase() + unit.slice(1);
+        fromSelect.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = unit;
+        opt2.textContent = unit.charAt(0).toUpperCase() + unit.slice(1);
+        toSelect.appendChild(opt2);
+    });
+
+    // Set defaults
+    if (category === 'length') {
+        toSelect.value = 'feet';
+    } else if (category === 'weight') {
+        toSelect.value = 'pounds';
+    } else if (category === 'temperature') {
+        toSelect.value = 'fahrenheit';
+    }
+
+    convertUnits(windowId);
+}
+
+function convertUnits(windowId) {
+    const category = document.getElementById(`conv-category-${windowId}`).value;
+    const fromUnit = document.getElementById(`conv-from-${windowId}`).value;
+    const toUnit = document.getElementById(`conv-to-${windowId}`).value;
+    const inputValue = parseFloat(document.getElementById(`conv-input-${windowId}`).value);
+    const outputInput = document.getElementById(`conv-output-${windowId}`);
+
+    if (isNaN(inputValue)) {
+        outputInput.value = '';
+        return;
+    }
+
+    let result;
+
+    if (category === 'temperature') {
+        if (fromUnit === toUnit) {
+            result = inputValue;
+        } else if (fromUnit === 'celsius') {
+            if (toUnit === 'fahrenheit') result = (inputValue * 9/5) + 32;
+            else if (toUnit === 'kelvin') result = inputValue + 273.15;
+        } else if (fromUnit === 'fahrenheit') {
+            if (toUnit === 'celsius') result = (inputValue - 32) * 5/9;
+            else if (toUnit === 'kelvin') result = (inputValue - 32) * 5/9 + 273.15;
+        } else if (fromUnit === 'kelvin') {
+            if (toUnit === 'celsius') result = inputValue - 273.15;
+            else if (toUnit === 'fahrenheit') result = (inputValue - 273.15) * 9/5 + 32;
+        }
+    } else {
+        // Linear conversion
+        const baseValue = inputValue / unitDefinitions[category][fromUnit];
+        result = baseValue * unitDefinitions[category][toUnit];
+    }
+
+    // Format output
+    outputInput.value = parseFloat(result.toFixed(4));
 }

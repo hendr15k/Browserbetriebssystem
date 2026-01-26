@@ -1048,3 +1048,20 @@ body {
     border: none;
     background: white;
 }
+
+/* Unit Converter Styles */
+.unit-converter-window .window-content {
+    background-color: #f9f9f9;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.converter-container select, .converter-container input {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.converter-container select:focus, .converter-container input:focus {
+    outline: none;
+    border-color: var(--theme-color);
+}
