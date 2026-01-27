@@ -106,6 +106,9 @@ window.addEventListener('load', () => {
 
     // Initialize Desktop Icons
     initDesktopIcons();
+
+    // Initialize Sticky Notes
+    initStickyNotes();
 });
 
 // Desktop Icon Logic
@@ -742,6 +745,67 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initTaskManager(windowId), 0);
+    } else if (appName === 'stickynote') {
+        title = "Sticky Note";
+        win.classList.add('stickynote-window');
+
+        // Handle ID and Data
+        let noteId;
+        let noteData;
+
+        if (arg && arg.id) {
+            // Opening existing note
+            noteId = arg.id;
+            noteData = arg;
+        } else {
+            // New Note
+            noteId = 'note-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+            noteData = {
+                id: noteId,
+                text: '',
+                color: '#f1c40f', // Yellow
+                x: '100px',
+                y: '100px',
+                width: '200px',
+                height: '200px'
+            };
+            saveStickyNote(noteId, noteData);
+        }
+
+        win.dataset.noteId = noteId;
+
+        // Apply saved position/size
+        if (noteData.x) win.style.left = noteData.x;
+        if (noteData.y) win.style.top = noteData.y;
+        if (noteData.width) win.style.width = noteData.width;
+        if (noteData.height) win.style.height = noteData.height;
+
+        // Apply Color
+        win.style.backgroundColor = noteData.color;
+
+        content = `
+            <div class="stickynote-toolbar" onmousedown="startDrag(event, '${windowId}')" style="padding: 5px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.1); cursor: move;">
+                <div style="display: flex; gap: 5px;" onmousedown="event.stopPropagation()">
+                    <button onclick="setStickyColor('${windowId}', '#f1c40f')" style="width: 15px; height: 15px; background: #f1c40f; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; border-radius: 50%;" title="Yellow"></button>
+                    <button onclick="setStickyColor('${windowId}', '#2ecc71')" style="width: 15px; height: 15px; background: #2ecc71; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; border-radius: 50%;" title="Green"></button>
+                    <button onclick="setStickyColor('${windowId}', '#3498db')" style="width: 15px; height: 15px; background: #3498db; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; border-radius: 50%;" title="Blue"></button>
+                    <button onclick="setStickyColor('${windowId}', '#9b59b6')" style="width: 15px; height: 15px; background: #9b59b6; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; border-radius: 50%;" title="Purple"></button>
+                    <button onclick="setStickyColor('${windowId}', '#e74c3c')" style="width: 15px; height: 15px; background: #e74c3c; border: 1px solid rgba(0,0,0,0.2); cursor: pointer; border-radius: 50%;" title="Red"></button>
+                </div>
+                <button onclick="deleteStickyNote('${noteId}')" onmousedown="event.stopPropagation()" style="background: transparent; border: none; cursor: pointer; font-size: 14px; opacity: 0.6;" title="Delete Note">🗑️</button>
+            </div>
+            <textarea id="stickynote-text-${windowId}" class="stickynote-area" style="width: 100%; flex-grow: 1; border: none; background: transparent; resize: none; outline: none; padding: 10px; box-sizing: border-box; font-family: 'Comic Sans MS', 'Segoe UI', sans-serif; font-size: 14px;"></textarea>
+        `;
+
+        setTimeout(() => {
+            const ta = document.getElementById(`stickynote-text-${windowId}`);
+            if (ta) {
+                ta.value = noteData.text || '';
+                ta.addEventListener('input', () => {
+                    saveStickyNote(noteId, { text: ta.value });
+                });
+            }
+        }, 0);
     }
 
     win.innerHTML = `
@@ -998,6 +1062,13 @@ function drag(e) {
 }
 
 function stopDrag() {
+    if (currentWindow && currentWindow.dataset.noteId) {
+        saveStickyNote(currentWindow.dataset.noteId, {
+            x: currentWindow.style.left,
+            y: currentWindow.style.top
+        });
+    }
+
     isDragging = false;
     currentWindow = null;
     document.removeEventListener('mousemove', drag);
@@ -2031,6 +2102,13 @@ function resize(e) {
 }
 
 function stopResize() {
+    if (currentResizeWindow && currentResizeWindow.dataset.noteId) {
+        saveStickyNote(currentResizeWindow.dataset.noteId, {
+            width: currentResizeWindow.style.width,
+            height: currentResizeWindow.style.height
+        });
+    }
+
     isResizing = false;
     currentResizeWindow = null;
     document.removeEventListener('mousemove', resize);
@@ -3304,4 +3382,55 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// Sticky Notes Logic
+let stickyNotes = {};
+
+function initStickyNotes() {
+    const saved = localStorage.getItem('stickyNotes');
+    if (saved) {
+        try {
+            stickyNotes = JSON.parse(saved);
+            Object.values(stickyNotes).forEach(note => {
+                openApp('stickynote', note);
+            });
+        } catch (e) {
+            console.error('Failed to load sticky notes:', e);
+        }
+    }
+}
+
+function saveStickyNote(id, data) {
+    if (!stickyNotes[id]) {
+        stickyNotes[id] = {};
+    }
+    Object.assign(stickyNotes[id], data);
+    localStorage.setItem('stickyNotes', JSON.stringify(stickyNotes));
+}
+
+function deleteStickyNote(id) {
+    if (stickyNotes[id]) {
+        delete stickyNotes[id];
+        localStorage.setItem('stickyNotes', JSON.stringify(stickyNotes));
+    }
+    // Window closing is handled by the caller or closeWindow
+    // We need to find the window with this note ID and close it.
+    const windows = document.querySelectorAll('.window');
+    windows.forEach(win => {
+        if (win.dataset.noteId === id) {
+             closeWindow(win.id);
+        }
+    });
+}
+
+function setStickyColor(windowId, color) {
+    const win = document.getElementById(windowId);
+    if (win) {
+        win.style.backgroundColor = color;
+        const noteId = win.dataset.noteId;
+        if (noteId) {
+            saveStickyNote(noteId, { color: color });
+        }
+    }
 }
