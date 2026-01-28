@@ -106,6 +106,9 @@ window.addEventListener('load', () => {
 
     // Initialize Desktop Icons
     initDesktopIcons();
+
+    // Initialize Sticky Notes
+    initStickyNotes();
 });
 
 // Desktop Icon Logic
@@ -722,6 +725,45 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initUnitConverter(windowId), 0);
+    } else if (appName === 'sticky-notes') {
+        title = "Note";
+        win.classList.add('sticky-note-window');
+
+        let noteId = arg;
+        if (!noteId) {
+            noteId = 'note-' + Date.now();
+            stickyNotes[noteId] = {
+                content: '',
+                x: win.style.left,
+                y: win.style.top,
+                width: '200px',
+                height: '200px'
+            };
+            saveStickyNotesToStorage();
+        }
+
+        if (!stickyNotes[noteId]) {
+             stickyNotes[noteId] = { content: '', x: '100px', y: '100px' };
+        }
+
+        const note = stickyNotes[noteId];
+        win.dataset.noteId = noteId;
+
+        // Apply saved position/size
+        if (note.x) win.style.left = note.x;
+        if (note.y) win.style.top = note.y;
+        if (note.width) win.style.width = note.width;
+        if (note.height) win.style.height = note.height;
+
+        content = `
+            <div class="sticky-toolbar">
+                <button class="sticky-btn" onclick="deleteStickyNote('${noteId}')" title="Delete Note">🗑️</button>
+            </div>
+            <textarea class="sticky-note-textarea"
+                id="sticky-note-textarea-${noteId}"
+                oninput="updateStickyNote('${noteId}', this.value)"
+                placeholder="Type here..."></textarea>
+        `;
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -787,6 +829,14 @@ function openApp(appName, arg = null) {
     taskbarApps.appendChild(taskbarItem);
 
     // App specific init
+    if (appName === 'sticky-notes') {
+        const noteId = win.dataset.noteId;
+        const ta = document.getElementById(`sticky-note-textarea-${noteId}`);
+        if (ta && stickyNotes[noteId]) {
+            ta.value = stickyNotes[noteId].content || '';
+        }
+    }
+
     if (appName === 'notepad') {
         const ta = document.getElementById(`notepad-area-${windowId}`);
         const status = document.getElementById(`notepad-status-${windowId}`);
@@ -998,6 +1048,9 @@ function drag(e) {
 }
 
 function stopDrag() {
+    if (currentWindow && currentWindow.dataset.noteId) {
+        updateStickyNotePosition(currentWindow.dataset.noteId, currentWindow.style.left, currentWindow.style.top);
+    }
     isDragging = false;
     currentWindow = null;
     document.removeEventListener('mousemove', drag);
@@ -1012,6 +1065,61 @@ const fileSystem = {
 
 // Terminal State
 const terminalStates = {};
+
+// Sticky Notes State
+let stickyNotes = {};
+
+function saveStickyNotesToStorage() {
+    localStorage.setItem('stickyNotes', JSON.stringify(stickyNotes));
+}
+
+function initStickyNotes() {
+    const saved = localStorage.getItem('stickyNotes');
+    if (saved) {
+        try {
+            stickyNotes = JSON.parse(saved);
+            Object.keys(stickyNotes).forEach(id => {
+                openApp('sticky-notes', id);
+            });
+        } catch (e) {
+            console.error('Failed to load sticky notes:', e);
+        }
+    }
+}
+
+function updateStickyNote(id, content) {
+    if (!stickyNotes[id]) return;
+    stickyNotes[id].content = content;
+    saveStickyNotesToStorage();
+}
+
+function deleteStickyNote(noteId) {
+    if (confirm('Delete this sticky note?')) {
+        delete stickyNotes[noteId];
+        saveStickyNotesToStorage();
+
+        const windows = document.querySelectorAll('.window');
+        windows.forEach(win => {
+            if (win.dataset.noteId === noteId) {
+                closeWindow(win.id);
+            }
+        });
+    }
+}
+
+function updateStickyNotePosition(id, left, top) {
+    if (!stickyNotes[id]) return;
+    stickyNotes[id].x = left;
+    stickyNotes[id].y = top;
+    saveStickyNotesToStorage();
+}
+
+function updateStickyNoteSize(id, width, height) {
+    if (!stickyNotes[id]) return;
+    stickyNotes[id].width = width;
+    stickyNotes[id].height = height;
+    saveStickyNotesToStorage();
+}
 
 function resolvePath(cwd, path) {
     if (!path) return cwd;
@@ -2031,6 +2139,9 @@ function resize(e) {
 }
 
 function stopResize() {
+    if (currentResizeWindow && currentResizeWindow.dataset.noteId) {
+        updateStickyNoteSize(currentResizeWindow.dataset.noteId, currentResizeWindow.style.width, currentResizeWindow.style.height);
+    }
     isResizing = false;
     currentResizeWindow = null;
     document.removeEventListener('mousemove', resize);
