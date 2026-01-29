@@ -113,6 +113,24 @@ body {
     color: white;
 }
 
+#start-search {
+    width: 90%;
+    margin: 5px auto 10px auto;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: white;
+    font-size: 14px;
+    box-sizing: border-box;
+    outline: none;
+}
+
+#start-search:focus {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--theme-color);
+}
+
 .start-item {
     padding: 10px 15px;
     display: flex;

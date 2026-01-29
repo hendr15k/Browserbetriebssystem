@@ -202,15 +202,53 @@ function stopDragIcon() {
 function toggleStartMenu() {
     const menu = document.getElementById('start-menu');
     const btn = document.getElementById('start-button');
+    const searchInput = document.getElementById('start-search');
 
     if (menu.style.display === 'none' || menu.style.display === '') {
         menu.style.display = 'flex';
         btn.classList.add('active');
+        if (searchInput) {
+            searchInput.value = '';
+            filterStartMenu('');
+            setTimeout(() => searchInput.focus(), 50);
+        }
     } else {
         menu.style.display = 'none';
         btn.classList.remove('active');
     }
 }
+
+function filterStartMenu(query) {
+    const items = document.querySelectorAll('.start-item');
+    const divider = document.querySelector('.start-divider');
+    const q = query.toLowerCase();
+
+    items.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(q)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    if (divider) {
+        divider.style.display = query !== '' ? 'none' : 'block';
+    }
+}
+
+// Initialize Search Listener
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('start-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            filterStartMenu(e.target.value);
+        });
+        // Stop propagation to prevent menu closing if we had click logic on items that bubbled?
+        // Actually, preventing default might be needed for keys?
+        // For now, simple input listener is enough.
+    }
+});
 
 // Close start menu when clicking outside
 document.addEventListener('click', function(e) {
