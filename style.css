@@ -1133,3 +1133,166 @@ body {
     line-height: 1.4;
     color: #333;
 }
+
+/* Solitaire Styles */
+.solitaire-window .window-content {
+    background-color: #27ae60; /* Green table */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: auto;
+}
+
+.solitaire-table {
+    display: inline-flex; /* content-hugging */
+    flex-direction: column;
+    gap: 20px;
+    user-select: none;
+    padding-bottom: 50px; /* Space for long columns */
+}
+
+.solitaire-top-row {
+    display: flex;
+    gap: 20px;
+    height: 100px;
+}
+
+.solitaire-bottom-row {
+    display: flex;
+    gap: 20px;
+}
+
+/* Piles in Top Row */
+.solitaire-pile {
+    width: 70px;
+    height: 100px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    position: relative;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Cards inside piles (Stock, Waste, Foundation) are absolute */
+.solitaire-pile .solitaire-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+}
+
+/* Tableau Columns */
+.solitaire-column {
+    width: 70px;
+    min-height: 100px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    /* No background/border usually, just a placeholder if empty? */
+}
+
+.solitaire-column-placeholder {
+    width: 70px;
+    height: 100px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+
+/* Cards inside columns flow naturally but overlap */
+.solitaire-column .solitaire-card {
+    margin-top: -80px; /* Overlap */
+    position: relative;
+    z-index: 1; /* Above placeholder */
+}
+
+/* Reset for first actual card (it follows the placeholder) */
+.solitaire-column-placeholder + .solitaire-card {
+    margin-top: 0;
+}
+
+/* Card Visuals */
+.solitaire-card {
+    width: 70px;
+    height: 100px;
+    background-color: white;
+    border-radius: 5px;
+    border: 1px solid #999;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5px;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.solitaire-card:hover {
+    filter: brightness(1.05);
+}
+
+.solitaire-card.red { color: #e74c3c; }
+.solitaire-card.black { color: #2c3e50; }
+
+.solitaire-card.face-down {
+    background: repeating-linear-gradient(
+        45deg,
+        #3498db,
+        #3498db 10px,
+        #2980b9 10px,
+        #2980b9 20px
+    );
+    border-color: #fff;
+    cursor: default; /* Usually can't select face down unless it's stock */
+}
+
+.solitaire-pile.solitaire-stock .solitaire-card.face-down {
+    cursor: pointer;
+}
+
+.solitaire-card.selected {
+    box-shadow: 0 0 0 3px #f1c40f;
+    z-index: 1000 !important;
+}
+
+.solitaire-card-top, .solitaire-card-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.solitaire-card-bottom {
+    transform: rotate(180deg);
+}
+
+.solitaire-card-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px;
+    pointer-events: none;
+}
+
+.solitaire-symbol {
+    font-size: 14px;
+}
+
+.solitaire-empty-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255,255,255,0.3);
+    font-size: 24px;
+    pointer-events: none;
+}

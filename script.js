@@ -802,6 +802,45 @@ function openApp(appName, arg = null) {
                 oninput="updateStickyNote('${noteId}', this.value)"
                 placeholder="Type here..."></textarea>
         `;
+    } else if (appName === 'solitaire') {
+        title = "Solitaire";
+        win.classList.add('solitaire-window');
+        // Fixed size for layout consistency
+        win.style.width = '600px';
+        win.style.height = '500px';
+
+        content = `
+            <div class="solitaire-table">
+                <div class="solitaire-top-row">
+                    <div class="solitaire-pile solitaire-stock" id="sol-stock-${windowId}" onclick="handleSolitaireClick('${windowId}', 'stock', -1, -1)">
+                        <div class="solitaire-empty-text">↺</div>
+                    </div>
+                    <div class="solitaire-pile solitaire-waste" id="sol-waste-${windowId}"></div>
+                    <div style="width: 70px;"></div> <!-- Spacer -->
+                    <div class="solitaire-pile solitaire-foundation" id="sol-found-0-${windowId}" onclick="handleSolitaireClick('${windowId}', 'foundation', 0, -1)">
+                         <div class="solitaire-empty-text" style="color: rgba(255,0,0,0.3)">♥</div>
+                    </div>
+                    <div class="solitaire-pile solitaire-foundation" id="sol-found-1-${windowId}" onclick="handleSolitaireClick('${windowId}', 'foundation', 1, -1)">
+                         <div class="solitaire-empty-text" style="color: rgba(255,0,0,0.3)">♦</div>
+                    </div>
+                    <div class="solitaire-pile solitaire-foundation" id="sol-found-2-${windowId}" onclick="handleSolitaireClick('${windowId}', 'foundation', 2, -1)">
+                         <div class="solitaire-empty-text" style="color: rgba(0,0,0,0.3)">♣</div>
+                    </div>
+                    <div class="solitaire-pile solitaire-foundation" id="sol-found-3-${windowId}" onclick="handleSolitaireClick('${windowId}', 'foundation', 3, -1)">
+                         <div class="solitaire-empty-text" style="color: rgba(0,0,0,0.3)">♠</div>
+                    </div>
+                </div>
+                <div class="solitaire-bottom-row">
+                    <!-- 7 Columns -->
+                    ${Array(7).fill(0).map((_, i) => `
+                        <div class="solitaire-column" id="sol-col-${i}-${windowId}" onclick="handleSolitaireClick('${windowId}', 'tableau', ${i}, -1)">
+                            <div class="solitaire-column-placeholder"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        setTimeout(() => initSolitaire(windowId), 0);
     } else if (appName === 'task-manager') {
         title = "Task Manager";
         win.classList.add('task-manager-window');
@@ -982,6 +1021,11 @@ function closeWindow(windowId) {
     if (memoryGames[windowId]) {
         clearInterval(memoryGames[windowId].timerInterval);
         delete memoryGames[windowId];
+    }
+
+    // Cleanup Solitaire Game state
+    if (solitaireGames[windowId]) {
+        delete solitaireGames[windowId];
     }
 
     // Cleanup Tetris Game state
@@ -2631,6 +2675,9 @@ function renderCalendar(windowId) {
 // Memory Game Logic
 const memoryGames = {};
 
+// Solitaire Game Logic
+const solitaireGames = {};
+
 // Tetris Game Logic
 const tetrisGames = {};
 
@@ -3453,4 +3500,306 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// Solitaire Logic Implementation
+function initSolitaire(windowId) {
+    const suits = ['h', 'd', 'c', 's'];
+    const deck = [];
+    for (let s of suits) {
+        for (let r = 1; r <= 13; r++) {
+            deck.push({
+                suit: s,
+                rank: r,
+                color: (s === 'h' || s === 'd') ? 'red' : 'black',
+                faceUp: false
+            });
+        }
+    }
+
+    // Shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const tableau = Array.from({length: 7}, () => []);
+    const foundations = [[], [], [], []]; // h, d, c, s order matched by ID
+
+    // Deal
+    let cardIdx = 0;
+    for (let i = 0; i < 7; i++) {
+        for (let j = 0; j <= i; j++) {
+            const card = deck[cardIdx++];
+            if (j === i) card.faceUp = true;
+            tableau[i].push(card);
+        }
+    }
+
+    const stock = deck.slice(cardIdx);
+    const waste = [];
+
+    solitaireGames[windowId] = {
+        stock,
+        waste,
+        foundations,
+        tableau,
+        selection: null // { area, index, cardIndex }
+    };
+
+    renderSolitaire(windowId);
+}
+
+function renderSolitaire(windowId) {
+    const game = solitaireGames[windowId];
+    if (!game) return;
+
+    // Render Stock
+    const stockEl = document.getElementById(`sol-stock-${windowId}`);
+    stockEl.innerHTML = '';
+    if (game.stock.length > 0) {
+        const cardDiv = createSolitaireCardDiv(windowId, { faceUp: false });
+        stockEl.appendChild(cardDiv);
+    } else {
+        stockEl.innerHTML = '<div class="solitaire-empty-text">↺</div>';
+    }
+
+    // Render Waste
+    const wasteEl = document.getElementById(`sol-waste-${windowId}`);
+    wasteEl.innerHTML = '';
+    if (game.waste.length > 0) {
+        const card = game.waste[game.waste.length - 1];
+        const cardDiv = createSolitaireCardDiv(windowId, card);
+        cardDiv.onclick = (e) => {
+             e.stopPropagation();
+             handleSolitaireClick(windowId, 'waste', -1, game.waste.length - 1);
+        };
+        // Check selection
+        if (isSolitaireSelected(game, 'waste', -1, game.waste.length - 1)) {
+            cardDiv.classList.add('selected');
+        }
+        wasteEl.appendChild(cardDiv);
+    }
+
+    // Render Foundations
+    // 0=h, 1=d, 2=c, 3=s
+    const suitSymbols = ['♥', '♦', '♣', '♠'];
+    const suitColors = ['red', 'red', 'black', 'black'];
+
+    for (let i = 0; i < 4; i++) {
+        const foundEl = document.getElementById(`sol-found-${i}-${windowId}`);
+        foundEl.innerHTML = '';
+        if (game.foundations[i].length > 0) {
+            const card = game.foundations[i][game.foundations[i].length - 1];
+            const cardDiv = createSolitaireCardDiv(windowId, card);
+            cardDiv.style.margin = '0';
+            cardDiv.onclick = (e) => {
+                 e.stopPropagation();
+                 handleSolitaireClick(windowId, 'foundation', i, game.foundations[i].length - 1);
+            };
+             if (isSolitaireSelected(game, 'foundation', i, game.foundations[i].length - 1)) {
+                cardDiv.classList.add('selected');
+            }
+            foundEl.appendChild(cardDiv);
+        } else {
+            foundEl.innerHTML = `<div class="solitaire-empty-text" style="color: ${suitColors[i] === 'red' ? 'rgba(255,0,0,0.3)' : 'rgba(0,0,0,0.3)'}">${suitSymbols[i]}</div>`;
+        }
+    }
+
+    // Render Tableau
+    for (let i = 0; i < 7; i++) {
+        const colEl = document.getElementById(`sol-col-${i}-${windowId}`);
+        // Clear but keep placeholder
+        colEl.innerHTML = '<div class="solitaire-column-placeholder"></div>';
+
+        game.tableau[i].forEach((card, idx) => {
+            const cardDiv = createSolitaireCardDiv(windowId, card);
+            cardDiv.onclick = (e) => {
+                e.stopPropagation();
+                handleSolitaireClick(windowId, 'tableau', i, idx);
+            };
+            // Check selection
+            if (isSolitaireSelected(game, 'tableau', i, idx)) {
+                cardDiv.classList.add('selected');
+            }
+            colEl.appendChild(cardDiv);
+        });
+    }
+}
+
+function createSolitaireCardDiv(windowId, card) {
+    const div = document.createElement('div');
+    div.className = 'solitaire-card';
+    if (!card.faceUp) {
+        div.classList.add('face-down');
+        return div;
+    }
+
+    div.classList.add(card.color);
+
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const rankStr = ranks[card.rank - 1];
+    const suitMap = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' };
+    const suitStr = suitMap[card.suit];
+
+    div.innerHTML = `
+        <div class="solitaire-card-top">
+            <span>${rankStr}</span>
+            <span class="solitaire-symbol">${suitStr}</span>
+        </div>
+        <div class="solitaire-card-center">${suitStr}</div>
+        <div class="solitaire-card-bottom">
+            <span>${rankStr}</span>
+            <span class="solitaire-symbol">${suitStr}</span>
+        </div>
+    `;
+
+    return div;
+}
+
+function isSolitaireSelected(game, area, index, cardIndex) {
+    const s = game.selection;
+    if (!s) return false;
+    return s.area === area && s.index === index && s.cardIndex === cardIndex;
+}
+
+function handleSolitaireClick(windowId, area, index, cardIndex) {
+    const game = solitaireGames[windowId];
+    if (!game) return;
+
+    // 1. Handle Stock Click
+    if (area === 'stock') {
+        game.selection = null; // Clear selection
+        if (game.stock.length > 0) {
+            // Draw 1
+            const card = game.stock.pop();
+            card.faceUp = true;
+            game.waste.push(card);
+        } else {
+            // Recycle
+            while (game.waste.length > 0) {
+                const card = game.waste.pop();
+                card.faceUp = false;
+                game.stock.push(card);
+            }
+        }
+        renderSolitaire(windowId);
+        return;
+    }
+
+    // 2. Handle Selection Logic
+    if (!game.selection) {
+        if (cardIndex === -1 && area !== 'stock') return; // Clicked empty slot
+
+        // Check if valid select
+        if (area === 'waste') {
+            game.selection = { area, index, cardIndex };
+        } else if (area === 'foundation') {
+            game.selection = { area, index, cardIndex };
+        } else if (area === 'tableau') {
+            const card = game.tableau[index][cardIndex];
+            if (card.faceUp) {
+                game.selection = { area, index, cardIndex };
+            } else {
+                if (cardIndex === game.tableau[index].length - 1) {
+                    card.faceUp = true;
+                    game.selection = null;
+                }
+            }
+        }
+        renderSolitaire(windowId);
+        return;
+    }
+
+    // 3. Handle Move Logic
+    const sel = game.selection;
+
+    // Deselect if clicking same
+    if (sel.area === area && sel.index === index && sel.cardIndex === cardIndex) {
+        game.selection = null;
+        renderSolitaire(windowId);
+        return;
+    }
+
+    // Get cards to move
+    let cardsToMove = [];
+    if (sel.area === 'waste') {
+        cardsToMove = [game.waste[game.waste.length - 1]];
+    } else if (sel.area === 'foundation') {
+         cardsToMove = [game.foundations[sel.index][game.foundations[sel.index].length - 1]];
+    } else if (sel.area === 'tableau') {
+        cardsToMove = game.tableau[sel.index].slice(sel.cardIndex);
+    }
+
+    const movingCard = cardsToMove[0];
+
+    // Check validity
+    let valid = false;
+
+    if (area === 'foundation') {
+        if (cardsToMove.length === 1) {
+            const targetPile = game.foundations[index];
+            const suitMap = ['h', 'd', 'c', 's']; // 0,1,2,3
+            if (movingCard.suit === suitMap[index]) {
+                if (targetPile.length === 0) {
+                    if (movingCard.rank === 1) valid = true; // Ace
+                } else {
+                    const top = targetPile[targetPile.length - 1];
+                    if (movingCard.rank === top.rank + 1) valid = true;
+                }
+            }
+        }
+    } else if (area === 'tableau') {
+        const targetCol = game.tableau[index];
+        if (targetCol.length === 0) {
+            if (movingCard.rank === 13) valid = true; // King
+        } else {
+            const top = targetCol[targetCol.length - 1];
+            if (top.faceUp && movingCard.rank === top.rank - 1 && movingCard.color !== top.color) {
+                valid = true;
+            }
+        }
+    }
+
+    if (valid) {
+        // Execute Move
+        if (sel.area === 'waste') {
+            game.waste.pop();
+        } else if (sel.area === 'foundation') {
+            game.foundations[sel.index].pop();
+        } else if (sel.area === 'tableau') {
+            game.tableau[sel.index].splice(sel.cardIndex, cardsToMove.length);
+            if (game.tableau[sel.index].length > 0) {
+                const newTop = game.tableau[sel.index][game.tableau[sel.index].length - 1];
+                if (!newTop.faceUp) newTop.faceUp = true;
+            }
+        }
+
+        if (area === 'foundation') {
+            game.foundations[index].push(movingCard);
+        } else if (area === 'tableau') {
+            game.tableau[index].push(...cardsToMove);
+        }
+
+        game.selection = null;
+        checkSolitaireWin(windowId);
+    } else {
+        // Change selection if valid source
+        let newSelection = null;
+        if (area === 'tableau' && cardIndex !== -1 && game.tableau[index][cardIndex].faceUp) {
+            newSelection = { area, index, cardIndex };
+        } else if (area === 'waste' && game.waste.length > 0) {
+             newSelection = { area, index, cardIndex: game.waste.length - 1 };
+        }
+        game.selection = newSelection;
+    }
+
+    renderSolitaire(windowId);
+}
+
+function checkSolitaireWin(windowId) {
+    const game = solitaireGames[windowId];
+    if (game.foundations.every(f => f.length === 13)) {
+        setTimeout(() => alert("Congratulations! You Won!"), 100);
+    }
 }
