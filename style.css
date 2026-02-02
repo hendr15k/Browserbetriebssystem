@@ -1133,3 +1133,65 @@ body {
     line-height: 1.4;
     color: #333;
 }
+
+/* Markdown Viewer Styles */
+.markdown-viewer-window .window-content {
+    background-color: #ffffff;
+    padding: 20px;
+    font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+    color: #333;
+    line-height: 1.6;
+}
+
+.md-content h1 {
+    font-size: 24px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+    margin-top: 0;
+}
+
+.md-content h2 {
+    font-size: 20px;
+    margin-top: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.md-content h3 {
+    font-size: 16px;
+    margin-top: 15px;
+    font-weight: bold;
+}
+
+.md-content ul {
+    padding-left: 20px;
+}
+
+.md-content li {
+    margin-bottom: 5px;
+}
+
+.md-content a {
+    color: var(--theme-color);
+    text-decoration: none;
+}
+
+.md-content a:hover {
+    text-decoration: underline;
+}
+
+.md-content strong {
+    font-weight: bold;
+}
+
+.md-content em {
+    font-style: italic;
+}
+
+.md-content code {
+    background: #f0f0f0;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 90%;
+}

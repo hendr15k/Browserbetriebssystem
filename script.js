@@ -361,6 +361,27 @@ function openApp(appName, arg = null) {
             <textarea class="notepad-area" id="notepad-area-${windowId}"></textarea>
             <div id="notepad-status-${windowId}" class="notepad-status" style="padding: 2px 5px; font-size: 11px; background: #eee; border-top: 1px solid #ccc; text-align: right;">Ln 1, Col 1</div>
         `;
+    } else if (appName === 'markdown-viewer') {
+        title = "Markdown Viewer";
+        win.classList.add('markdown-viewer-window');
+        let mdContent = '';
+        if (arg && fileSystem[arg]) {
+             mdContent = renderMarkdown(fileSystem[arg]);
+             title = arg;
+        } else {
+             mdContent = '<p style="color: #666; padding: 20px;">No file selected.</p>';
+        }
+
+        content = `
+            <div class="notepad-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc; display: flex; gap: 5px;">
+                 <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
+                    Open <input type="file" id="md-input-${windowId}" style="display: none;" onchange="openMarkdownFile('${windowId}')">
+                </label>
+            </div>
+            <div id="md-display-${windowId}" style="height: calc(100% - 35px); overflow-y: auto;">
+                ${mdContent}
+            </div>
+        `;
     } else if (appName === 'file-explorer') {
         title = "File Explorer";
         content = `
@@ -707,20 +728,21 @@ function openApp(appName, arg = null) {
     } else if (appName === 'browser') {
         title = "Web Browser";
         win.classList.add('browser-window');
+        const initialUrl = arg || "https://www.wikipedia.org";
         content = `
             <div class="browser-toolbar">
                 <button onclick="handleBrowserNav('${windowId}', 'back')">Back</button>
                 <button onclick="handleBrowserNav('${windowId}', 'forward')">Forward</button>
                 <button onclick="handleBrowserNav('${windowId}', 'refresh')">Refresh</button>
                 <button onclick="handleBrowserNav('${windowId}', 'home')">Home</button>
-                <input type="text" id="browser-url-${windowId}" value="https://www.wikipedia.org" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
+                <input type="text" id="browser-url-${windowId}" value="${initialUrl}" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
                 <button onclick="navigateBrowser('${windowId}', document.getElementById('browser-url-${windowId}').value)">Go</button>
             </div>
-            <iframe id="browser-iframe-${windowId}" class="browser-iframe" src="https://www.wikipedia.org"></iframe>
+            <iframe id="browser-iframe-${windowId}" class="browser-iframe" src="${initialUrl}"></iframe>
         `;
         // Initialize state
         browserStates[windowId] = {
-            history: ['https://www.wikipedia.org'],
+            history: [initialUrl],
             currentIndex: 0
         };
     } else if (appName === 'unit-converter') {
@@ -1099,6 +1121,7 @@ function stopDrag() {
 const fileSystem = {
     'readme.txt': 'Welcome to WebOS! This is a simple browser-based OS.',
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
+    'example.md': '# Welcome to Markdown\n\nThis is a **bold** statement.\nThis is an *italic* statement.\n\n## Features\n- Simple Headers\n- Lists\n- [Links](https://www.google.com)\n\n### Code\n`console.log("Hello World")`',
 };
 
 // Terminal State
@@ -1213,7 +1236,7 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     // Directories will be stored with trailing slash: 'folder/'
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], about, reboot, whoami, pwd, history';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], cp [src] [dest], mv [src] [dest], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], about, reboot, whoami, pwd, history';
     } else if (command === 'date') {
         const now = new Date();
         const year = now.getFullYear();
@@ -1331,6 +1354,9 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
                 if (fsKey.endsWith('.png') || fsKey.endsWith('.jpg')) {
                     openApp('paint', fsKey);
                     response = `Opening ${fsKey} in Paint...`;
+                } else if (fsKey.endsWith('.md')) {
+                    openApp('markdown-viewer', fsKey);
+                    response = `Opening ${fsKey} in Markdown Viewer...`;
                 } else {
                     openApp('notepad', fsKey);
                     response = `Opening ${fsKey} in Notepad...`;
@@ -1796,6 +1822,7 @@ function renderFileExplorer(windowId) {
         if (isDir) iconChar = '📁';
         else if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) iconChar = '🖼️';
         else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) iconChar = '🎞️';
+        else if (displayName.endsWith('.md')) iconChar = '📜';
 
         const iconDiv = document.createElement('div');
         iconDiv.style.fontSize = '30px';
@@ -1907,7 +1934,8 @@ function renderFileExplorer(windowId) {
             actionsDiv.style.display = 'none';
         };
 
-        fileDiv.onclick = () => {
+        fileDiv.onclick = (e) => {
+             e.stopPropagation(); // Prevent focusing the current window after opening the new one
              if (isDir) {
                  // Navigate into
                  explorerStates[windowId].path = currentPath === '/' ? '/' + displayName : currentPath + '/' + displayName;
@@ -1917,6 +1945,8 @@ function renderFileExplorer(windowId) {
                      openApp('paint', key); // Pass full key
                  } else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) {
                      openApp('video-player', key); // Pass full key
+                 } else if (displayName.endsWith('.md')) {
+                     openApp('markdown-viewer', key);
                  } else {
                      openApp('notepad', key); // Pass full key
                  }
@@ -3453,4 +3483,84 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// Markdown Viewer Logic
+function renderMarkdown(text) {
+    if (!text) return '';
+
+    const lines = text.split('\n');
+    let html = '';
+    let inList = false;
+
+    lines.forEach(line => {
+        // Escape HTML special characters
+        let safeLine = line
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Headers
+        if (safeLine.match(/^### (.*$)/)) {
+             safeLine = safeLine.replace(/^### (.*$)/, '<h3>$1</h3>');
+        } else if (safeLine.match(/^## (.*$)/)) {
+             safeLine = safeLine.replace(/^## (.*$)/, '<h2>$1</h2>');
+        } else if (safeLine.match(/^# (.*$)/)) {
+             safeLine = safeLine.replace(/^# (.*$)/, '<h1>$1</h1>');
+        }
+
+        // List Handling
+        const listMatch = safeLine.match(/^\s*-\s+(.*)$/);
+        if (listMatch) {
+            if (!inList) {
+                html += '<ul>';
+                inList = true;
+            }
+            safeLine = `<li>${listMatch[1]}</li>`;
+        } else {
+            if (inList) {
+                html += '</ul>';
+                inList = false;
+            }
+        }
+
+        // Inline Formatting
+        safeLine = safeLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        safeLine = safeLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        safeLine = safeLine.replace(/`(.*?)`/g, '<code>$1</code>');
+
+        // Links with XSS protection
+        safeLine = safeLine.replace(/\[(.*?)\]\((.*?)\)/g, (match, txt, url) => {
+             const jsSafeUrl = url.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+             const htmlSafeUrl = jsSafeUrl.replace(/"/g, '&quot;');
+             return `<a href="#" onclick="openApp('browser', '${htmlSafeUrl}'); return false;">${txt}</a>`;
+        });
+
+        // Append line
+        if (!safeLine.startsWith('<h') && !safeLine.startsWith('<li') && !safeLine.startsWith('<ul')) {
+             html += safeLine + '<br>';
+        } else {
+             html += safeLine;
+        }
+    });
+
+    if (inList) {
+        html += '</ul>';
+    }
+
+    return '<div class="md-content">' + html + '</div>';
+}
+
+function openMarkdownFile(windowId) {
+    const input = document.getElementById(`md-input-${windowId}`);
+    const display = document.getElementById(`md-display-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            display.innerHTML = renderMarkdown(text);
+        };
+        reader.readAsText(input.files[0]);
+    }
 }
