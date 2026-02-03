@@ -707,22 +707,42 @@ function openApp(appName, arg = null) {
     } else if (appName === 'browser') {
         title = "Web Browser";
         win.classList.add('browser-window');
+
+        let initialUrl = arg || "https://www.wikipedia.org";
+        if (!initialUrl.startsWith('http')) initialUrl = 'https://' + initialUrl;
+
         content = `
             <div class="browser-toolbar">
                 <button onclick="handleBrowserNav('${windowId}', 'back')">Back</button>
                 <button onclick="handleBrowserNav('${windowId}', 'forward')">Forward</button>
                 <button onclick="handleBrowserNav('${windowId}', 'refresh')">Refresh</button>
                 <button onclick="handleBrowserNav('${windowId}', 'home')">Home</button>
-                <input type="text" id="browser-url-${windowId}" value="https://www.wikipedia.org" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
+                <input type="text" id="browser-url-${windowId}" value="${initialUrl}" onkeydown="if(event.key === 'Enter') navigateBrowser('${windowId}', this.value)">
                 <button onclick="navigateBrowser('${windowId}', document.getElementById('browser-url-${windowId}').value)">Go</button>
             </div>
-            <iframe id="browser-iframe-${windowId}" class="browser-iframe" src="https://www.wikipedia.org"></iframe>
+            <iframe id="browser-iframe-${windowId}" class="browser-iframe" src="${initialUrl}"></iframe>
         `;
         // Initialize state
         browserStates[windowId] = {
-            history: ['https://www.wikipedia.org'],
+            history: [initialUrl],
             currentIndex: 0
         };
+    } else if (appName === 'markdown-viewer') {
+        title = "Markdown Viewer";
+        win.classList.add('markdown-viewer-window');
+
+        let mdContent = "";
+        if (arg && fileSystem[arg]) {
+            mdContent = renderMarkdown(fileSystem[arg]);
+        } else {
+             mdContent = renderMarkdown("# Welcome to Markdown Viewer\n\nOpen a .md file to view its content.");
+        }
+
+        content = `
+            <div class="markdown-container">
+                ${mdContent}
+            </div>
+        `;
     } else if (appName === 'unit-converter') {
         title = "Unit Converter";
         win.classList.add('unit-converter-window');
@@ -1917,6 +1937,8 @@ function renderFileExplorer(windowId) {
                      openApp('paint', key); // Pass full key
                  } else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) {
                      openApp('video-player', key); // Pass full key
+                 } else if (displayName.endsWith('.md')) {
+                     openApp('markdown-viewer', key); // Pass full key
                  } else {
                      openApp('notepad', key); // Pass full key
                  }
@@ -3453,4 +3475,131 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// Markdown Parser
+function renderMarkdown(text) {
+    if (!text) return '';
+
+    let lines = text.split('\n');
+    let html = '<div class="markdown-content">';
+    let inList = false;
+    let inCodeBlock = false;
+
+    lines.forEach(line => {
+        // Code Blocks
+        if (line.trim().startsWith('```')) {
+            if (inCodeBlock) {
+                html += '</pre>';
+                inCodeBlock = false;
+            } else {
+                html += '<pre>';
+                inCodeBlock = true;
+            }
+            return;
+        }
+
+        if (inCodeBlock) {
+            html += line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '\n';
+            return;
+        }
+
+        // Headers
+        if (line.startsWith('#')) {
+            const match = line.match(/^#+/);
+            if (match) {
+                const level = match[0].length;
+                if (level <= 6) {
+                    const content = line.substring(level).trim();
+                    html += `<h${level}>${parseInline(content)}</h${level}>`;
+                    return;
+                }
+            }
+        }
+
+        // Lists
+        if (line.trim().startsWith('- ')) {
+            if (!inList) {
+                html += '<ul>';
+                inList = true;
+            }
+            const content = line.trim().substring(2);
+            html += `<li>${parseInline(content)}</li>`;
+            return;
+        } else if (inList && line.trim() !== '') {
+            html += '</ul>';
+            inList = false;
+        }
+
+        // Paragraphs
+        if (line.trim() === '') {
+            if (inList) {
+                html += '</ul>';
+                inList = false;
+            }
+            html += '<br>';
+        } else {
+            if (inList) { // Should not happen if list logic is perfect, but safety
+                html += '</ul>';
+                inList = false;
+            }
+            html += `<p>${parseInline(line)}</p>`;
+        }
+    });
+
+    if (inList) html += '</ul>';
+    if (inCodeBlock) html += '</pre>';
+
+    html += '</div>';
+    return html;
+}
+
+function parseInline(text) {
+    // Escape HTML first
+    let escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    // Bold
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Italic
+    escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Links [text](url) - Strict sanitization
+    escaped = escaped.replace(/\[(.*?)\]\((.*?)\)/g, (match, txt, url) => {
+        let safeUrl = url.trim();
+        // Only allow http/https and mailto
+        if (/^(https?:\/\/|mailto:)/i.test(safeUrl)) {
+             return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" onclick="handleLinkClick(event, '${safeUrl}')">${txt}</a>`;
+        }
+        return `${txt} (${url})`;
+    });
+
+    // Code inline
+    escaped = escaped.replace(/`(.*?)`/g, '<code>$1</code>');
+
+    return escaped;
+}
+
+// Handle external links in markdown to open in Browser app if possible?
+// Or just let them open in new tab.
+// The task description says "routes hyperlinks to the internal Web Browser".
+function handleLinkClick(e, url) {
+    e.preventDefault();
+    openApp('browser');
+    // We need to wait for browser to open and then navigate
+    // Since openApp is sync but DOM update might be async-ish or we need ID.
+    // openApp creates a new window with a new ID every time.
+    // We don't easily know the ID of the new window.
+    // But we can navigate the last opened browser or pass arg?
+    // openApp('browser', url) isn't supported yet in browser logic.
+    // Let's modify browser open logic to accept url?
+    // For now, let's just try to find the last browser window.
+
+    // Actually, let's implement openApp('browser', url) support in step 2.
+    // I'll update the plan or just do it.
+    // I'll assume openApp('browser', url) will work.
+    openApp('browser', url);
 }
