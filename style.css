@@ -1133,3 +1133,175 @@ body {
     line-height: 1.4;
     color: #333;
 }
+
+/* Solitaire Styles */
+.solitaire-window .window-content {
+    background-color: #27ae60;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+
+.solitaire-board {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+.solitaire-top-row {
+    display: flex;
+    justify-content: space-between;
+    height: 110px;
+    margin-bottom: 20px;
+}
+
+.solitaire-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    flex-grow: 1;
+    position: relative;
+}
+
+.solitaire-deck-area, .solitaire-foundation-area {
+    display: flex;
+    gap: 10px;
+}
+
+.solitaire-column {
+    position: relative;
+    width: 70px;
+    height: 100%;
+}
+
+.solitaire-slot {
+    width: 70px;
+    height: 100px;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 24px;
+}
+
+.solitaire-card {
+    width: 70px;
+    height: 100px;
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    position: absolute; /* Default for tableau piles */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5px;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s;
+    font-size: 16px;
+}
+
+/* Static position for stock/waste/foundation top card */
+.solitaire-card.static {
+    position: relative;
+}
+
+.solitaire-card:hover {
+    filter: brightness(1.05);
+}
+
+.solitaire-card.selected {
+    box-shadow: 0 0 0 3px #f1c40f;
+    z-index: 100 !important;
+}
+
+.solitaire-card.red { color: #e74c3c; }
+.solitaire-card.black { color: #2c3e50; }
+
+.solitaire-card-back {
+    background: repeating-linear-gradient(
+        45deg,
+        #606dbc,
+        #606dbc 10px,
+        #465298 10px,
+        #465298 20px
+    );
+    border: 2px solid white;
+}
+
+.solitaire-card-top, .solitaire-card-center, .solitaire-card-bottom {
+    display: flex;
+    pointer-events: none;
+}
+
+.solitaire-card-top { justify-content: flex-start; }
+.solitaire-card-bottom { justify-content: flex-end; transform: rotate(180deg); }
+.solitaire-card-center {
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+}
+
+/* Overlap handling in CSS?
+   No, we will use inline style top: Xpx for cascading cards
+   or absolute positioning logic in JS.
+*/
+
+/* Markdown Viewer Styles */
+.markdown-window .window-content {
+    background: white;
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.markdown-window h1 {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-top: 0;
+}
+
+.markdown-window h2 {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.markdown-window a {
+    color: var(--theme-color);
+    text-decoration: none;
+}
+
+.markdown-window a:hover {
+    text-decoration: underline;
+}
+
+.markdown-window code {
+    background: #f0f0f0;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 0.9em;
+}
+
+.markdown-window pre {
+    background: #f8f8f8;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+.markdown-window blockquote {
+    border-left: 4px solid #ddd;
+    margin: 0;
+    padding-left: 15px;
+    color: #666;
+}
