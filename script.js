@@ -822,6 +822,36 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initTaskManager(windowId), 0);
+    } else if (appName === 'solitaire') {
+        title = "Solitaire";
+        win.classList.add('solitaire-window');
+        // Explicit dimensions as per requirements
+        win.style.width = '600px';
+        win.style.height = '500px';
+
+        content = `
+            <div class="solitaire-board" id="solitaire-board-${windowId}">
+                <!-- Game rendered by JS -->
+            </div>
+        `;
+        setTimeout(() => initSolitaire(windowId), 0);
+    } else if (appName === 'markdown-viewer') {
+        title = arg || "Markdown Viewer";
+        win.classList.add('markdown-window');
+
+        // Load content
+        let mdText = "# Error\nFile not found.";
+        if (arg && fileSystem[arg]) {
+            mdText = fileSystem[arg];
+        }
+
+        const html = renderMarkdown(mdText);
+
+        content = `
+            <div class="markdown-content">
+                ${html}
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -988,6 +1018,11 @@ function closeWindow(windowId) {
     if (tetrisGames[windowId]) {
         cancelAnimationFrame(tetrisGames[windowId].requestId);
         delete tetrisGames[windowId];
+    }
+
+    // Cleanup Solitaire Game state
+    if (solitaireGames[windowId]) {
+        delete solitaireGames[windowId];
     }
 
     // Cleanup Music Player
@@ -1917,6 +1952,8 @@ function renderFileExplorer(windowId) {
                      openApp('paint', key); // Pass full key
                  } else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) {
                      openApp('video-player', key); // Pass full key
+                 } else if (displayName.endsWith('.md')) {
+                     openApp('markdown-viewer', key); // Pass full key
                  } else {
                      openApp('notepad', key); // Pass full key
                  }
@@ -3453,4 +3490,403 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// Solitaire Logic
+const solitaireGames = {};
+
+function initSolitaire(windowId) {
+    const deck = [];
+    const suits = ['h', 'd', 'c', 's'];
+    const suitsSymbols = { 'h': '♥', 'd': '♦', 'c': '♣', 's': '♠' };
+    const colors = { 'h': 'red', 'd': 'red', 'c': 'black', 's': 'black' };
+
+    for (let s of suits) {
+        for (let r = 1; r <= 13; r++) {
+            deck.push({
+                suit: s,
+                rank: r,
+                symbol: suitsSymbols[s],
+                color: colors[s],
+                faceUp: false,
+                id: s + r
+            });
+        }
+    }
+
+    // Shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const state = {
+        stock: [],
+        waste: [],
+        foundations: [[], [], [], []],
+        tableau: [[], [], [], [], [], [], []],
+        selected: null // { type: 'waste'|'tableau'|'foundation', index: 0-6|0-3, subIndex: int }
+    };
+
+    // Deal
+    let cardIdx = 0;
+    for (let i = 0; i < 7; i++) {
+        for (let j = 0; j <= i; j++) {
+            const card = deck[cardIdx++];
+            if (j === i) card.faceUp = true; // Top card face up
+            state.tableau[i].push(card);
+        }
+    }
+
+    while (cardIdx < deck.length) {
+        state.stock.push(deck[cardIdx++]);
+    }
+
+    solitaireGames[windowId] = state;
+    renderSolitaire(windowId);
+}
+
+function renderSolitaire(windowId) {
+    const state = solitaireGames[windowId];
+    const board = document.getElementById(`solitaire-board-${windowId}`);
+    if (!state || !board) return;
+
+    board.innerHTML = '';
+
+    // Helper to render card
+    const renderCard = (card, type, index, subIndex, isSelected) => {
+        const el = document.createElement('div');
+        el.className = 'solitaire-card';
+        if (isSelected) el.classList.add('selected');
+
+        if (!card.faceUp) {
+            el.classList.add('solitaire-card-back');
+        } else {
+            el.classList.add(card.color);
+            el.dataset.suit = card.suit;
+            el.dataset.rank = card.rank;
+
+            const ranks = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+            const rankStr = ranks[card.rank] || card.rank;
+
+            el.innerHTML = `
+                <div class="solitaire-card-top"><span>${rankStr}</span><span>${card.symbol}</span></div>
+                <div class="solitaire-card-center">${card.symbol}</div>
+                <div class="solitaire-card-bottom"><span>${rankStr}</span><span>${card.symbol}</span></div>
+            `;
+        }
+
+        el.onclick = (e) => {
+            e.stopPropagation();
+            handleSolitaireClick(windowId, type, index, subIndex);
+        };
+        return el;
+    };
+
+    // Top Row: Stock, Waste, Spacers, Foundations
+    const topRow = document.createElement('div');
+    topRow.className = 'solitaire-top-row';
+
+    const deckArea = document.createElement('div');
+    deckArea.className = 'solitaire-deck-area';
+
+    // Stock
+    const stockSlot = document.createElement('div');
+    stockSlot.className = 'solitaire-slot';
+    if (state.stock.length > 0) {
+        const card = state.stock[state.stock.length - 1]; // Top of stock (visually)
+        // Actually stock is usually face down.
+        const el = renderCard({ faceUp: false }, 'stock', 0, 0, false);
+        el.classList.add('static');
+        stockSlot.appendChild(el);
+    } else {
+        stockSlot.textContent = '↺';
+        stockSlot.style.cursor = 'pointer';
+        stockSlot.onclick = () => handleSolitaireClick(windowId, 'stock', 0, 0);
+    }
+    deckArea.appendChild(stockSlot);
+
+    // Waste
+    const wasteSlot = document.createElement('div');
+    wasteSlot.className = 'solitaire-slot';
+    if (state.waste.length > 0) {
+        const card = state.waste[state.waste.length - 1];
+        const isSelected = state.selected && state.selected.type === 'waste';
+        const el = renderCard(card, 'waste', 0, state.waste.length - 1, isSelected);
+        el.classList.add('static');
+        wasteSlot.appendChild(el);
+    }
+    deckArea.appendChild(wasteSlot);
+
+    topRow.appendChild(deckArea);
+
+    const foundationArea = document.createElement('div');
+    foundationArea.className = 'solitaire-foundation-area';
+
+    for (let i = 0; i < 4; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'solitaire-slot';
+        slot.textContent = 'A'; // Placeholder
+
+        if (state.foundations[i].length > 0) {
+            const card = state.foundations[i][state.foundations[i].length - 1];
+            const isSelected = state.selected && state.selected.type === 'foundation' && state.selected.index === i;
+            const el = renderCard(card, 'foundation', i, state.foundations[i].length - 1, isSelected);
+            el.classList.add('static');
+            slot.textContent = ''; // Clear placeholder
+            slot.appendChild(el);
+        }
+
+        slot.onclick = (e) => {
+             // Handle click on empty slot
+             if (state.foundations[i].length === 0) {
+                 handleSolitaireClick(windowId, 'foundation', i, -1);
+             }
+        };
+
+        foundationArea.appendChild(slot);
+    }
+    topRow.appendChild(foundationArea);
+    board.appendChild(topRow);
+
+    // Bottom Row: Tableau
+    const bottomRow = document.createElement('div');
+    bottomRow.className = 'solitaire-bottom-row';
+
+    for (let i = 0; i < 7; i++) {
+        const col = document.createElement('div');
+        col.className = 'solitaire-column';
+
+        // Empty column click handler
+        col.onclick = (e) => {
+            if (state.tableau[i].length === 0) {
+                handleSolitaireClick(windowId, 'tableau', i, -1);
+            }
+        };
+
+        state.tableau[i].forEach((card, idx) => {
+            const isSelected = state.selected && state.selected.type === 'tableau' && state.selected.index === i && state.selected.subIndex === idx;
+            const el = renderCard(card, 'tableau', i, idx, isSelected);
+            el.style.top = `${idx * 25}px`; // Overlap
+            col.appendChild(el);
+        });
+
+        bottomRow.appendChild(col);
+    }
+
+    board.appendChild(bottomRow);
+}
+
+function handleSolitaireClick(windowId, type, index, subIndex) {
+    const state = solitaireGames[windowId];
+    if (!state) return;
+
+    if (type === 'stock') {
+        if (state.stock.length > 0) {
+            // Draw
+            const card = state.stock.pop();
+            card.faceUp = true;
+            state.waste.push(card);
+            state.selected = null;
+        } else {
+            // Recycle waste
+            while(state.waste.length > 0) {
+                const card = state.waste.pop();
+                card.faceUp = false;
+                state.stock.push(card);
+            }
+            state.selected = null;
+        }
+        renderSolitaire(windowId);
+        return;
+    }
+
+    // Logic for selection and movement
+    if (!state.selected) {
+        // Select logic
+        if (type === 'waste' && state.waste.length > 0) {
+            state.selected = { type: 'waste', index: 0, subIndex: state.waste.length - 1 };
+        } else if (type === 'tableau') {
+            const pile = state.tableau[index];
+            if (pile.length > 0 && subIndex !== -1) {
+                const card = pile[subIndex];
+                if (card.faceUp) {
+                    state.selected = { type: 'tableau', index: index, subIndex: subIndex };
+                }
+            }
+        } else if (type === 'foundation') {
+            if (state.foundations[index].length > 0) {
+                state.selected = { type: 'foundation', index: index, subIndex: state.foundations[index].length - 1 };
+            }
+        }
+    } else {
+        // Move logic
+        // Target is (type, index)
+
+        // If clicking same card, deselect
+        if (state.selected.type === type && state.selected.index === index && state.selected.subIndex === subIndex) {
+            state.selected = null;
+            renderSolitaire(windowId);
+            return;
+        }
+
+        const sourceCard = getSolitaireCard(state, state.selected);
+        if (!sourceCard) {
+             state.selected = null;
+             renderSolitaire(windowId);
+             return;
+        }
+
+        let moveValid = false;
+
+        if (type === 'foundation') {
+            // Move to foundation
+            // Can only move one card at a time to foundation
+            // Check if source is top of its pile
+            const isTop = isTopOfPile(state, state.selected);
+            if (isTop) {
+                const targetPile = state.foundations[index];
+                if (targetPile.length === 0) {
+                    if (sourceCard.rank === 1) moveValid = true;
+                } else {
+                    const top = targetPile[targetPile.length - 1];
+                    if (top.suit === sourceCard.suit && top.rank === sourceCard.rank - 1) {
+                        moveValid = true;
+                    }
+                }
+            }
+        } else if (type === 'tableau') {
+            // Move to tableau
+            const targetPile = state.tableau[index];
+            if (targetPile.length === 0) {
+                if (sourceCard.rank === 13) moveValid = true; // King
+            } else {
+                const top = targetPile[targetPile.length - 1];
+                if (top.color !== sourceCard.color && top.rank === sourceCard.rank + 1) {
+                    moveValid = true;
+                }
+            }
+        }
+
+        if (moveValid) {
+            executeSolitaireMove(state, state.selected, { type, index });
+            state.selected = null;
+
+            // Check Win
+            if (state.foundations.every(f => f.length === 13)) {
+                setTimeout(() => alert("You Won!"), 100);
+            }
+        } else {
+            // Invalid move, change selection if valid target
+            // Similar selection logic as above
+             if (type === 'waste' && state.waste.length > 0) {
+                state.selected = { type: 'waste', index: 0, subIndex: state.waste.length - 1 };
+            } else if (type === 'tableau') {
+                const pile = state.tableau[index];
+                if (pile.length > 0 && subIndex !== -1) {
+                    const card = pile[subIndex];
+                    if (card.faceUp) {
+                        state.selected = { type: 'tableau', index: index, subIndex: subIndex };
+                    }
+                }
+            } else if (type === 'foundation') {
+                if (state.foundations[index].length > 0) {
+                    state.selected = { type: 'foundation', index: index, subIndex: state.foundations[index].length - 1 };
+                }
+            } else {
+                state.selected = null;
+            }
+        }
+    }
+
+    renderSolitaire(windowId);
+}
+
+function getSolitaireCard(state, selection) {
+    if (selection.type === 'waste') return state.waste[state.waste.length - 1];
+    if (selection.type === 'foundation') return state.foundations[selection.index][state.foundations[selection.index].length - 1];
+    if (selection.type === 'tableau') return state.tableau[selection.index][selection.subIndex];
+    return null;
+}
+
+function isTopOfPile(state, selection) {
+    if (selection.type === 'waste') return true;
+    if (selection.type === 'foundation') return true;
+    if (selection.type === 'tableau') {
+        return selection.subIndex === state.tableau[selection.index].length - 1;
+    }
+    return false;
+}
+
+function executeSolitaireMove(state, from, to) {
+    let cardsToMove = [];
+
+    // Extract cards
+    if (from.type === 'waste') {
+        cardsToMove.push(state.waste.pop());
+    } else if (from.type === 'foundation') {
+        cardsToMove.push(state.foundations[from.index].pop());
+    } else if (from.type === 'tableau') {
+        const pile = state.tableau[from.index];
+        cardsToMove = pile.splice(from.subIndex); // Take from subIndex to end
+
+        // Flip new top card
+        if (pile.length > 0) {
+            pile[pile.length - 1].faceUp = true;
+        }
+    }
+
+    // Add to target
+    if (to.type === 'tableau') {
+        state.tableau[to.index].push(...cardsToMove);
+    } else if (to.type === 'foundation') {
+        state.foundations[to.index].push(...cardsToMove);
+    }
+}
+
+// Markdown Parser
+function renderMarkdown(text) {
+    if (!text) return '';
+
+    // Sanitize HTML to prevent XSS (basic)
+    // We only allow specific tags we generate.
+    // Actually, simple regex replacement is prone to XSS if we don't escape input first.
+    // Let's escape < and > first.
+    let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    // Headers
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+    // Code Block
+    html = html.replace(/```(.*?)```/gim, '<pre><code>$1</code></pre>');
+    html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
+
+    // Links [text](url)
+    html = html.replace(/\[(.*?)\]\((.*?)\)/gim, (match, p1, p2) => {
+        // Sanitize URL
+        let url = p2.trim();
+        return `<a href="${url}" target="_blank">${p1}</a>`;
+    });
+
+    // Lists
+    html = html.replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>');
+    html = html.replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>');
+
+    // Blockquote
+    html = html.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+    // Paragraphs (newlines)
+    // If line is not a tag, wrap in p?
+    // Simple approach: Replace \n with <br>
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
 }
