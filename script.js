@@ -835,6 +835,20 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initSolitaire(windowId), 0);
+    } else if (appName === 'pong') {
+        title = "Pong";
+        win.classList.add('pong-window');
+        content = `
+            <div class="pong-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #222;">
+                <canvas id="pong-canvas-${windowId}" width="400" height="300" style="border: 2px solid #555; background: black;"></canvas>
+                <div style="margin-top: 10px; color: white; font-family: 'Courier New', monospace; font-weight: bold; font-size: 20px;">
+                    <span id="pong-score-p1-${windowId}">0</span> - <span id="pong-score-p2-${windowId}">0</span>
+                </div>
+                <div style="color: #aaa; font-size: 12px; margin-top: 5px;">Use Up/Down arrows to move.</div>
+                <button onclick="initPong('${windowId}')" style="margin-top: 10px; padding: 5px 15px; cursor: pointer;">Restart</button>
+            </div>
+        `;
+        setTimeout(() => initPong(windowId), 0);
     } else if (appName === 'markdown-viewer') {
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
@@ -1023,6 +1037,12 @@ function closeWindow(windowId) {
     // Cleanup Solitaire Game state
     if (solitaireGames[windowId]) {
         delete solitaireGames[windowId];
+    }
+
+    // Cleanup Pong Game state
+    if (typeof pongGames !== 'undefined' && pongGames[windowId]) {
+        cancelAnimationFrame(pongGames[windowId].requestId);
+        delete pongGames[windowId];
     }
 
     // Cleanup Music Player
@@ -3889,4 +3909,176 @@ function renderMarkdown(text) {
     html = html.replace(/\n/g, '<br>');
 
     return html;
+}
+
+// Pong Game Logic
+const pongGames = {};
+
+function initPong(windowId) {
+    const canvas = document.getElementById(`pong-canvas-${windowId}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const win = document.getElementById(windowId);
+    if (win) {
+        win.tabIndex = 0;
+        win.focus();
+    }
+
+    if (pongGames[windowId]) {
+        cancelAnimationFrame(pongGames[windowId].requestId);
+    }
+
+    const paddleWidth = 10;
+    const paddleHeight = 60;
+    const ballSize = 8;
+
+    const game = {
+        requestId: null,
+        player: {
+            x: 10,
+            y: (canvas.height - paddleHeight) / 2,
+            score: 0,
+            dy: 0
+        },
+        ai: {
+            x: canvas.width - 20,
+            y: (canvas.height - paddleHeight) / 2,
+            score: 0,
+            speed: 3
+        },
+        ball: {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            dx: 4,
+            dy: 4
+        }
+    };
+
+    function resetBall() {
+        game.ball.x = canvas.width / 2;
+        game.ball.y = canvas.height / 2;
+        game.ball.dx = -game.ball.dx; // Serve to winner/loser
+        game.ball.dy = (Math.random() * 6) - 3;
+    }
+
+    function update() {
+        if (!pongGames[windowId]) return;
+
+        // Player movement
+        game.player.y += game.player.dy;
+        if (game.player.y < 0) game.player.y = 0;
+        if (game.player.y > canvas.height - paddleHeight) game.player.y = canvas.height - paddleHeight;
+
+        // AI movement
+        const aiCenter = game.ai.y + paddleHeight / 2;
+        if (aiCenter < game.ball.y - 10) game.ai.y += game.ai.speed;
+        else if (aiCenter > game.ball.y + 10) game.ai.y -= game.ai.speed;
+        if (game.ai.y < 0) game.ai.y = 0;
+        if (game.ai.y > canvas.height - paddleHeight) game.ai.y = canvas.height - paddleHeight;
+
+        // Ball movement
+        game.ball.x += game.ball.dx;
+        game.ball.y += game.ball.dy;
+
+        // Ball collision with walls
+        if (game.ball.y < 0 || game.ball.y > canvas.height - ballSize) {
+            game.ball.dy = -game.ball.dy;
+        }
+
+        // Ball collision with paddles
+        // Player
+        if (game.ball.x < game.player.x + paddleWidth &&
+            game.ball.x + ballSize > game.player.x &&
+            game.ball.y + ballSize > game.player.y &&
+            game.ball.y < game.player.y + paddleHeight) {
+            game.ball.dx = -game.ball.dx;
+            // Speed up slightly?
+            game.ball.dx *= 1.05;
+            game.ball.dx = Math.min(Math.max(game.ball.dx, -10), 10);
+
+             // Add some spin/angle change based on where it hit the paddle
+            const hitPoint = (game.ball.y + ballSize/2) - (game.player.y + paddleHeight/2);
+            game.ball.dy = hitPoint * 0.2;
+        }
+
+        // AI
+        if (game.ball.x + ballSize > game.ai.x &&
+            game.ball.x < game.ai.x + paddleWidth &&
+            game.ball.y + ballSize > game.ai.y &&
+            game.ball.y < game.ai.y + paddleHeight) {
+            game.ball.dx = -game.ball.dx;
+             // Add some spin/angle change
+            const hitPoint = (game.ball.y + ballSize/2) - (game.ai.y + paddleHeight/2);
+            game.ball.dy = hitPoint * 0.2;
+        }
+
+        // Scoring
+        if (game.ball.x < 0) {
+            game.ai.score++;
+            updateScore();
+            resetBall();
+        } else if (game.ball.x > canvas.width) {
+            game.player.score++;
+            updateScore();
+            resetBall();
+        }
+
+        draw();
+        game.requestId = requestAnimationFrame(update);
+    }
+
+    function updateScore() {
+        const p1 = document.getElementById(`pong-score-p1-${windowId}`);
+        const p2 = document.getElementById(`pong-score-p2-${windowId}`);
+        if (p1 && p2) {
+            p1.textContent = game.player.score;
+            p2.textContent = game.ai.score;
+        }
+    }
+
+    function draw() {
+        // Clear
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Center Line
+        ctx.strokeStyle = '#333';
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Paddles
+        ctx.fillStyle = 'white';
+        ctx.fillRect(game.player.x, game.player.y, paddleWidth, paddleHeight);
+        ctx.fillRect(game.ai.x, game.ai.y, paddleWidth, paddleHeight);
+
+        // Ball
+        ctx.fillRect(game.ball.x, game.ball.y, ballSize, ballSize);
+    }
+
+    // Input Handling
+    if (win) {
+        win.onkeydown = (e) => {
+            if (e.key === 'ArrowUp') {
+                game.player.dy = -5;
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                game.player.dy = 5;
+                e.preventDefault();
+            }
+        };
+
+        win.onkeyup = (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                game.player.dy = 0;
+            }
+        };
+    }
+
+    pongGames[windowId] = game;
+    update();
 }
