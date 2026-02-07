@@ -659,6 +659,7 @@ function openApp(appName, arg = null) {
                 <button class="clock-tab-btn active" data-tab="clock" onclick="switchClockTab('${windowId}', 'clock')">Clock</button>
                 <button class="clock-tab-btn" data-tab="stopwatch" onclick="switchClockTab('${windowId}', 'stopwatch')">Stopwatch</button>
                 <button class="clock-tab-btn" data-tab="timer" onclick="switchClockTab('${windowId}', 'timer')">Timer</button>
+                <button class="clock-tab-btn" data-tab="world" onclick="switchClockTab('${windowId}', 'world')">World</button>
             </div>
             <div id="clock-content-${windowId}" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                 <!-- Clock Tab -->
@@ -699,6 +700,19 @@ function openApp(appName, arg = null) {
                          <button class="clock-btn stop" onclick="stopTimer('${windowId}')">Pause</button>
                          <button class="clock-btn start" onclick="startTimer('${windowId}')">Resume</button>
                          <button class="clock-btn reset" onclick="resetTimer('${windowId}')">Reset</button>
+                    </div>
+                </div>
+
+                <!-- World Clock Tab -->
+                <div id="clock-tab-world-${windowId}" class="clock-tab-content">
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px; width: 100%;">
+                        <select id="world-clock-select-${windowId}" style="padding: 5px; flex-grow: 1; background: #333; color: white; border: 1px solid #555; border-radius: 4px;">
+                            <!-- Options populated by JS -->
+                        </select>
+                        <button onclick="addWorldCity('${windowId}')" class="clock-btn start" style="min-width: 50px; font-size: 12px;">Add</button>
+                    </div>
+                    <div id="world-clock-list-${windowId}" style="width: 100%; display: flex; flex-direction: column; gap: 5px; overflow-y: auto;">
+                        <!-- List populated by JS -->
                     </div>
                 </div>
             </div>
@@ -3200,6 +3214,19 @@ function initTetris(windowId) {
 // Clock App Logic
 const clockStates = {};
 
+const TIMEZONES = [
+    { name: 'UTC', zone: 'UTC' },
+    { name: 'New York', zone: 'America/New_York' },
+    { name: 'London', zone: 'Europe/London' },
+    { name: 'Paris', zone: 'Europe/Paris' },
+    { name: 'Moscow', zone: 'Europe/Moscow' },
+    { name: 'Tokyo', zone: 'Asia/Tokyo' },
+    { name: 'Sydney', zone: 'Australia/Sydney' },
+    { name: 'Los Angeles', zone: 'America/Los_Angeles' },
+    { name: 'Dubai', zone: 'Asia/Dubai' },
+    { name: 'Singapore', zone: 'Asia/Singapore' }
+];
+
 function initClock(windowId) {
     if (!clockStates[windowId]) {
         clockStates[windowId] = {
@@ -3216,9 +3243,25 @@ function initClock(windowId) {
                 remaining: 0,
                 interval: null,
                 running: false
+            },
+            world: {
+                cities: JSON.parse(localStorage.getItem('clockWorldCities') || '[]')
             }
         };
     }
+
+    // Populate World Clock Select
+    const worldSelect = document.getElementById(`world-clock-select-${windowId}`);
+    if (worldSelect) {
+        TIMEZONES.forEach((tz, index) => {
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.textContent = tz.name;
+            worldSelect.appendChild(opt);
+        });
+    }
+
+    renderWorldClock(windowId);
 
     // Start Clock Tab
     updateClockTab(windowId);
@@ -3233,6 +3276,102 @@ function updateClockTab(windowId) {
     const now = new Date();
     timeDisplay.textContent = now.toLocaleTimeString();
     dateDisplay.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Update World Clocks if visible
+    const worldTab = document.getElementById(`clock-tab-world-${windowId}`);
+    if (worldTab && worldTab.classList.contains('active')) {
+        const state = clockStates[windowId];
+        if (state && state.world) {
+            state.world.cities.forEach((city, index) => {
+                const timeEl = document.getElementById(`world-clock-time-${windowId}-${index}`);
+                if (timeEl) {
+                    try {
+                        const timeString = new Date().toLocaleTimeString('en-US', { timeZone: city.zone });
+                        timeEl.textContent = timeString;
+                    } catch (e) {
+                        timeEl.textContent = "Invalid Timezone";
+                    }
+                }
+            });
+        }
+    }
+}
+
+function renderWorldClock(windowId) {
+    const list = document.getElementById(`world-clock-list-${windowId}`);
+    if (!list) return;
+    list.innerHTML = '';
+
+    const state = clockStates[windowId];
+    if (!state || !state.world) return;
+
+    state.world.cities.forEach((city, index) => {
+        const item = document.createElement('div');
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        item.style.padding = '5px';
+        item.style.background = '#333';
+        item.style.borderRadius = '4px';
+        item.style.borderBottom = '1px solid #444';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = city.name;
+        nameSpan.style.fontWeight = 'bold';
+        nameSpan.style.fontSize = '14px';
+
+        const timeSpan = document.createElement('span');
+        timeSpan.id = `world-clock-time-${windowId}-${index}`;
+        timeSpan.style.fontFamily = 'monospace';
+        timeSpan.style.fontSize = '14px';
+        try {
+            timeSpan.textContent = new Date().toLocaleTimeString('en-US', { timeZone: city.zone });
+        } catch (e) {
+            timeSpan.textContent = "--:--:--";
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.style.background = 'transparent';
+        delBtn.style.color = '#e74c3c';
+        delBtn.style.border = 'none';
+        delBtn.style.cursor = 'pointer';
+        delBtn.style.marginLeft = '10px';
+        delBtn.onclick = () => removeWorldCity(windowId, index);
+
+        const leftDiv = document.createElement('div');
+        leftDiv.style.display = 'flex';
+        leftDiv.style.alignItems = 'center';
+        leftDiv.style.gap = '10px';
+        leftDiv.appendChild(delBtn);
+        leftDiv.appendChild(nameSpan);
+
+        item.appendChild(leftDiv);
+        item.appendChild(timeSpan);
+
+        list.appendChild(item);
+    });
+}
+
+function addWorldCity(windowId) {
+    const select = document.getElementById(`world-clock-select-${windowId}`);
+    const index = select.value;
+    const city = TIMEZONES[index];
+
+    const state = clockStates[windowId];
+    if (!state.world) state.world = { cities: [] };
+
+    state.world.cities.push(city);
+    localStorage.setItem('clockWorldCities', JSON.stringify(state.world.cities));
+    renderWorldClock(windowId);
+}
+
+function removeWorldCity(windowId, index) {
+    const state = clockStates[windowId];
+    if (!state.world) return;
+    state.world.cities.splice(index, 1);
+    localStorage.setItem('clockWorldCities', JSON.stringify(state.world.cities));
+    renderWorldClock(windowId);
 }
 
 function switchClockTab(windowId, tabName) {
