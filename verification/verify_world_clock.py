@@ -55,12 +55,6 @@ def run(playwright):
     time_span = item.locator("span[id^='world-clock-time-']")
     expect(time_span).to_be_visible()
     # Wait for time to update (it might be --:--:-- initially for ms, but updateClockTab runs every 1s)
-    # Actually updateClockTab runs immediately on load too?
-    # But updateClockTab runs every 1s.
-    # We should wait for text to match a time pattern or change from --:--:--
-    # But my code sets it immediately if updateClockTab runs.
-    # Actually, updateClockTab runs every 1s. So it might take up to 1s.
-    # Let's wait for it to not contain --:--:--
     expect(time_span).not_to_have_text("--:--:--", timeout=2000)
 
     # Take screenshot
@@ -80,5 +74,6 @@ def run(playwright):
 
     browser.close()
 
-with sync_playwright() as playwright:
-    run(playwright)
+if __name__ == "__main__":
+    with sync_playwright() as playwright:
+        run(playwright)
