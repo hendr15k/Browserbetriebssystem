@@ -17,6 +17,10 @@
             <div class="icon-img" style="background-color: #fff; color: black; border: 1px solid #ccc;">Txt</div>
             <div class="icon-label">Notepad</div>
         </div>
+        <div class="icon" onclick="openApp('markdown-editor')">
+            <div class="icon-img" style="background-color: #2c3e50; color: white; font-weight: bold; font-family: monospace;">M↓</div>
+            <div class="icon-label">MD Editor</div>
+        </div>
         <div class="icon" onclick="openApp('file-explorer')">
             <div class="icon-img" style="background-color: #f1c40f; color: white; font-size: 24px;">📂</div>
             <div class="icon-label">Explorer</div>
@@ -120,6 +124,10 @@
         <div class="start-item" onclick="openApp('notepad'); toggleStartMenu()">
             <div class="start-icon" style="background: white; color: black; border: 1px solid #ccc;">Txt</div>
             <span>Notepad</span>
+        </div>
+        <div class="start-item" onclick="openApp('markdown-editor'); toggleStartMenu()">
+            <div class="start-icon" style="background: #2c3e50; color: white; font-weight: bold; font-family: monospace;">M↓</div>
+            <span>Markdown Editor</span>
         </div>
         <div class="start-item" onclick="openApp('file-explorer'); toggleStartMenu()">
             <div class="start-icon" style="background: #f1c40f; color: white;">📂</div>

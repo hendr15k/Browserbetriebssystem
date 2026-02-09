@@ -894,6 +894,36 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initGame2048(windowId), 0);
+    } else if (appName === 'markdown-editor') {
+        title = "Markdown Editor";
+        win.classList.add('markdown-editor-window');
+        win.style.width = '800px';
+        win.style.height = '500px';
+
+        let initialContent = "# New Document\nStart typing...";
+        if (arg && fileSystem[arg]) {
+            initialContent = fileSystem[arg];
+            title = arg;
+        }
+
+        content = `
+            <div class="markdown-editor-toolbar">
+                <button onclick="saveMarkdown('${windowId}')">Save</button>
+                <button onclick="downloadMarkdown('${windowId}')">Download</button>
+                <label>
+                    Open <input type="file" id="md-input-${windowId}" style="display: none;" onchange="openMarkdownFile('${windowId}')" accept=".md,.txt">
+                </label>
+            </div>
+            <div class="markdown-editor-container">
+                <div class="markdown-editor-pane left">
+                    <textarea class="markdown-editor-textarea" id="md-textarea-${windowId}" oninput="updateMarkdownPreview('${windowId}')">${initialContent}</textarea>
+                </div>
+                <div class="markdown-editor-pane right">
+                    <div class="markdown-preview" id="md-preview-${windowId}"></div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => updateMarkdownPreview(windowId), 0);
     } else if (appName === 'markdown-viewer') {
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
@@ -4452,4 +4482,76 @@ function checkGameOver2048(board) {
     }
 
     return true;
+}
+
+// Markdown Editor Logic
+function updateMarkdownPreview(windowId) {
+    const textarea = document.getElementById(`md-textarea-${windowId}`);
+    const preview = document.getElementById(`md-preview-${windowId}`);
+    if (!textarea || !preview) return;
+
+    const html = renderMarkdown(textarea.value);
+    preview.innerHTML = html;
+}
+
+function saveMarkdown(windowId) {
+    const textarea = document.getElementById(`md-textarea-${windowId}`);
+    const text = textarea.value;
+
+    const win = document.getElementById(windowId);
+    const titleBarText = win.querySelector('.title-bar-text').textContent;
+    let defaultName = "document.md";
+    if (titleBarText !== "Markdown Editor") {
+        defaultName = titleBarText;
+    }
+
+    const filename = prompt("Enter filename to save (e.g., notes.md):", defaultName);
+    if (filename) {
+        fileSystem[filename] = text;
+        saveFileSystem();
+        alert(`File "${filename}" saved.`);
+
+        // Update title
+        win.querySelector('.title-bar-text').textContent = filename;
+
+        // Refresh explorer if open
+         document.querySelectorAll('.window').forEach(w => {
+            if (w.querySelector('.explorer-toolbar')) {
+                 const wId = w.id;
+                 renderFileExplorer(wId);
+            }
+        });
+    }
+}
+
+function downloadMarkdown(windowId) {
+    const textarea = document.getElementById(`md-textarea-${windowId}`);
+    const text = textarea.value;
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.download = 'document.md';
+    link.href = url;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+function openMarkdownFile(windowId) {
+    const input = document.getElementById(`md-input-${windowId}`);
+    const textarea = document.getElementById(`md-textarea-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            textarea.value = e.target.result;
+            updateMarkdownPreview(windowId);
+            // Update title
+            const win = document.getElementById(windowId);
+            win.querySelector('.title-bar-text').textContent = file.name;
+        };
+        reader.readAsText(file);
+    }
 }
