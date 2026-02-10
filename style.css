@@ -1460,3 +1460,92 @@ body {
     font-weight: bold;
     font-size: 18px;
 }
+
+/* Markdown Editor Styles */
+.markdown-editor-window .window-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    background: white;
+}
+
+.markdown-editor-toolbar {
+    padding: 5px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.markdown-editor-toolbar button {
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.markdown-editor-toolbar button:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.markdown-editor-toolbar .file-upload {
+    font-size: 12px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    display: inline-block;
+}
+
+.markdown-editor-toolbar .file-upload:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.markdown-editor-toolbar .file-upload input {
+    display: none;
+}
+
+.markdown-editor-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.markdown-editor-pane {
+    width: 50%;
+    height: 100%;
+    border: none;
+    border-right: 1px solid #ccc;
+    resize: none;
+    padding: 10px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+    background: #fafafa;
+    color: #333;
+}
+
+.markdown-preview-pane {
+    width: 50%;
+    height: 100%;
+    overflow: auto;
+    padding: 20px;
+    background: white;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+.markdown-preview-pane h1 { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-top: 0; }
+.markdown-preview-pane h2 { border-bottom: 1px solid #eee; padding-bottom: 5px; }
+.markdown-preview-pane a { color: var(--theme-color); text-decoration: none; }
+.markdown-preview-pane a:hover { text-decoration: underline; }
+.markdown-preview-pane code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+.markdown-preview-pane pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; }
+.markdown-preview-pane blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 15px; color: #666; }

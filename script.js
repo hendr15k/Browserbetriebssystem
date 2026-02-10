@@ -894,6 +894,26 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initGame2048(windowId), 0);
+    } else if (appName === 'markdown-editor') {
+        title = "Markdown Editor";
+        win.classList.add('markdown-editor-window');
+        win.style.width = '800px';
+        win.style.height = '500px';
+
+        content = `
+            <div class="markdown-editor-toolbar">
+                <button onclick="saveMarkdown('${windowId}')">Save</button>
+                <button onclick="downloadMarkdown('${windowId}')">Download</button>
+                <label class="file-upload">
+                    Open <input type="file" onchange="openMarkdownFile('${windowId}', this)" accept=".md,.txt">
+                </label>
+            </div>
+            <div class="markdown-editor-container">
+                <textarea id="markdown-editor-${windowId}" class="markdown-editor-pane" oninput="updateMarkdownPreview('${windowId}')" placeholder="# Start typing markdown..."></textarea>
+                <div id="markdown-preview-${windowId}" class="markdown-preview-pane"></div>
+            </div>
+        `;
+        setTimeout(() => updateMarkdownPreview(windowId), 0);
     } else if (appName === 'markdown-viewer') {
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
@@ -4036,6 +4056,58 @@ function executeSolitaireMove(state, from, to) {
         state.tableau[to.index].push(...cardsToMove);
     } else if (to.type === 'foundation') {
         state.foundations[to.index].push(...cardsToMove);
+    }
+}
+
+// Markdown Editor Logic
+function updateMarkdownPreview(windowId) {
+    const editor = document.getElementById(`markdown-editor-${windowId}`);
+    const preview = document.getElementById(`markdown-preview-${windowId}`);
+    if (editor && preview) {
+        preview.innerHTML = renderMarkdown(editor.value || editor.placeholder);
+    }
+}
+
+function saveMarkdown(windowId) {
+    const editor = document.getElementById(`markdown-editor-${windowId}`);
+    const content = editor.value;
+    const filename = prompt("Enter filename to save (e.g., doc.md):", "doc.md");
+
+    if (filename) {
+        if (filename.includes('/') || filename.includes('\\')) {
+             alert("Invalid name");
+             return;
+        }
+        fileSystem[filename] = content;
+        saveFileSystem();
+        alert(`File "${filename}" saved.`);
+    }
+}
+
+function downloadMarkdown(windowId) {
+    const editor = document.getElementById(`markdown-editor-${windowId}`);
+    const content = editor.value;
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.download = 'document.md';
+    link.href = url;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+function openMarkdownFile(windowId, input) {
+    const editor = document.getElementById(`markdown-editor-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            editor.value = e.target.result;
+            updateMarkdownPreview(windowId);
+        };
+        reader.readAsText(input.files[0]);
     }
 }
 
