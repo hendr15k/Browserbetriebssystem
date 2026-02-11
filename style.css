@@ -1549,3 +1549,145 @@ body {
 .markdown-preview-pane code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.9em; }
 .markdown-preview-pane pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; }
 .markdown-preview-pane blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 15px; color: #666; }
+
+/* Sudoku Styles */
+.sudoku-window .window-content {
+    background-color: #fff;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    font-family: 'Segoe UI', sans-serif;
+    user-select: none;
+}
+
+.sudoku-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    border: 2px solid #333;
+    width: 360px;
+    height: 360px;
+    background: #333;
+    gap: 1px;
+}
+
+.sudoku-cell {
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Thick borders for 3x3 blocks */
+.sudoku-cell:nth-child(3n) {
+    border-right: 2px solid #333;
+}
+.sudoku-cell:nth-child(9n) {
+    border-right: none;
+}
+/* This approach with gap is easier, but for 3x3 visual separation we might need specific margins or borders.
+   Let's rely on the gap for normal cells and add extra borders.
+   Actually, the gap: 1px provides the grid lines.
+   To make 3x3 blocks stand out, we can use specific borders on cells.
+*/
+
+.sudoku-grid {
+    gap: 0;
+    border: 2px solid #000;
+}
+
+.sudoku-cell {
+    border: 1px solid #ccc;
+    width: 40px;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.sudoku-cell.border-right {
+    border-right: 2px solid #000;
+}
+
+.sudoku-cell.border-bottom {
+    border-bottom: 2px solid #000;
+}
+
+.sudoku-cell.selected {
+    background-color: #bbdefb;
+}
+
+.sudoku-cell.highlight {
+    background-color: #e3f2fd;
+}
+
+.sudoku-cell.same-number {
+    background-color: #c5cae9;
+}
+
+.sudoku-cell.error {
+    color: #d32f2f;
+    background-color: #ffcdd2;
+}
+
+.sudoku-cell.fixed {
+    color: #000;
+    font-weight: bold;
+    background-color: #f5f5f5;
+}
+
+.sudoku-controls {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
+}
+
+.sudoku-btn {
+    padding: 8px 15px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.sudoku-btn:hover {
+    background: #e0e0e0;
+}
+
+.sudoku-status {
+    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--theme-color);
+    min-height: 24px;
+}
+
+.sudoku-numpad {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 5px;
+    width: 360px;
+}
+
+.sudoku-num-btn {
+    padding: 5px 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+}
+
+.sudoku-num-btn:hover {
+    background: #e3f2fd;
+    border-color: #2196f3;
+}
