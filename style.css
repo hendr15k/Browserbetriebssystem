@@ -1549,3 +1549,122 @@ body {
 .markdown-preview-pane code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 0.9em; }
 .markdown-preview-pane pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; }
 .markdown-preview-pane blockquote { border-left: 4px solid #ddd; margin: 0; padding-left: 15px; color: #666; }
+
+/* Sudoku Styles */
+.sudoku-window .window-content {
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.sudoku-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.sudoku-btn {
+    padding: 5px 15px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.sudoku-btn:hover {
+    background: #2980b9;
+}
+
+.sudoku-board {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    border: 2px solid #333;
+    width: 360px;
+    height: 360px;
+}
+
+.sudoku-cell {
+    border: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* Thicker borders for 3x3 blocks */
+.sudoku-cell:nth-child(3n) {
+    border-right: 2px solid #333;
+}
+.sudoku-cell:nth-child(9n) {
+    border-right: 1px solid #ccc; /* Reset right border for last column to default, but board has border */
+}
+/* Re-apply board border visually if needed or just handle right edge */
+.sudoku-cell:nth-child(9n) {
+    border-right: none;
+}
+/* Actually, grid borders are tricky. Let's use specific classes or nth-child logic carefully. */
+/* Right border for col 3, 6 */
+.sudoku-cell:nth-child(9n+3), .sudoku-cell:nth-child(9n+6) {
+    border-right: 2px solid #333;
+}
+
+/* Bottom border for row 3, 6.
+   Rows are groups of 9 cells.
+   Row 3 ends at index 26 (0-indexed) -> 27th item.
+   Cells 19-27 are row 3.
+   Actually easier to target by index range if possible, but CSS doesn't support ranges easily.
+   We can use n-th child logic:
+   Row 3: cells 19-27.
+   Row 6: cells 46-54.
+   Cells 1-81.
+   Row 1: 1-9
+   Row 2: 10-18
+   Row 3: 19-27 -> border-bottom
+   Row 6: 46-54 -> border-bottom
+*/
+.sudoku-cell:nth-child(n+19):nth-child(-n+27),
+.sudoku-cell:nth-child(n+46):nth-child(-n+54) {
+    border-bottom: 2px solid #333;
+}
+
+.sudoku-cell input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    text-align: center;
+    font-size: 20px;
+    outline: none;
+    color: #333;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+
+.sudoku-cell input:disabled {
+    background: #eee;
+    color: #000;
+    font-weight: bold;
+}
+
+.sudoku-cell.invalid input {
+    color: red;
+}
+
+.sudoku-cell.highlight {
+    background: #e6f7ff;
+}
+
+.sudoku-msg {
+    margin-top: 10px;
+    font-weight: bold;
+    height: 20px;
+    color: #27ae60;
+}
