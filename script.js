@@ -1020,6 +1020,41 @@ function openApp(appName, arg = null) {
                 this.value = '';
                 historyIndex = -1;
                 tempInput = '';
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const val = this.value;
+                const tokens = val.split(' ');
+                const lastToken = tokens[tokens.length - 1];
+
+                if (lastToken) {
+                    const supportedCommands = ['ls', 'cd', 'mkdir', 'rmdir', 'pwd', 'touch', 'rm', 'cat', 'open', 'whoami', 'history', 'date', 'clear', 'help', 'reboot', 'cp', 'mv', 'grep', 'head', 'tail', 'wc'];
+
+                    const cwd = terminalStates[windowId].cwd;
+                    let prefix = cwd === '/' ? '' : cwd.substring(1) + '/';
+
+                    const files = Object.keys(fileSystem)
+                        .filter(k => k.startsWith(prefix))
+                        .map(k => {
+                            const rel = k.substring(prefix.length);
+                            if (rel.indexOf('/') === -1) return rel;
+                            return rel.split('/')[0] + '/';
+                        });
+                    const uniqueFiles = [...new Set(files)];
+
+                    const candidates = [];
+                    // Always suggest commands if first token, but also allow files as first token (e.g. ./script)
+                    if (tokens.length === 1) {
+                         candidates.push(...supportedCommands.filter(c => c.startsWith(lastToken)));
+                    }
+                    candidates.push(...uniqueFiles.filter(f => f.startsWith(lastToken)));
+
+                    const uniqueCandidates = [...new Set(candidates)];
+
+                    if (uniqueCandidates.length === 1) {
+                        tokens[tokens.length - 1] = uniqueCandidates[0];
+                        this.value = tokens.join(' ');
+                    }
+                }
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 const history = window.terminalHistory || [];
@@ -1225,6 +1260,7 @@ const fileSystem = {
     'readme.txt': 'Welcome to WebOS! This is a simple browser-based OS.',
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
 };
+window.fileSystem = fileSystem;
 
 // Terminal State
 const terminalStates = {};
@@ -1338,7 +1374,7 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     // Directories will be stored with trailing slash: 'folder/'
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], about, reboot, whoami, pwd, history';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], cp [src] [dst], mv [src] [dst], grep [pattern] [file], head [-n lines] [file], tail [-n lines] [file], wc [file], about, reboot, whoami, pwd, history';
     } else if (command === 'date') {
         const now = new Date();
         const year = now.getFullYear();
@@ -1545,6 +1581,87 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
         // Actually, let's implement a simple history array.
         if (!window.terminalHistory) window.terminalHistory = [];
         response = window.terminalHistory.join('\n');
+    } else if (command === 'grep') {
+        if (args.length < 2) {
+            response = 'Usage: grep [pattern] [filename]';
+        } else {
+            const pattern = args[0];
+            const filename = args[1];
+            const targetPath = resolvePath(cwd, filename);
+            const fsKey = targetPath.substring(1);
+
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                const content = fileSystem[fsKey];
+                const lines = content.split('\n');
+                const matchingLines = lines.filter(line => line.includes(pattern));
+                response = matchingLines.join('\n');
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
+    } else if (command === 'head') {
+        let n = 10;
+        let filename;
+        if (args.length === 1) {
+            filename = args[0];
+        } else if (args.length >= 3 && args[0] === '-n') {
+            n = parseInt(args[1]);
+            filename = args[2];
+        } else {
+            response = 'Usage: head [-n lines] [filename]';
+        }
+
+        if (filename && !response) {
+            const targetPath = resolvePath(cwd, filename);
+            const fsKey = targetPath.substring(1);
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                const content = fileSystem[fsKey];
+                const lines = content.split('\n');
+                response = lines.slice(0, n).join('\n');
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
+    } else if (command === 'tail') {
+        let n = 10;
+        let filename;
+        if (args.length === 1) {
+            filename = args[0];
+        } else if (args.length >= 3 && args[0] === '-n') {
+            n = parseInt(args[1]);
+            filename = args[2];
+        } else {
+            response = 'Usage: tail [-n lines] [filename]';
+        }
+
+        if (filename && !response) {
+            const targetPath = resolvePath(cwd, filename);
+            const fsKey = targetPath.substring(1);
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                const content = fileSystem[fsKey];
+                const lines = content.split('\n');
+                response = lines.slice(-n).join('\n');
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
+    } else if (command === 'wc') {
+        if (args.length === 0) {
+            response = 'Usage: wc [filename]';
+        } else {
+            const filename = args[0];
+            const targetPath = resolvePath(cwd, filename);
+            const fsKey = targetPath.substring(1);
+            if (fileSystem[fsKey] !== undefined && fileSystem[fsKey] !== 'directory') {
+                const content = fileSystem[fsKey];
+                const lines = content.split('\n');
+                const words = content.trim().split(/\s+/).filter(w => w.length > 0);
+                const chars = content.length;
+                response = `${lines.length} ${words.length} ${chars} ${filename}`;
+            } else {
+                response = `File not found: ${filename}`;
+            }
+        }
     } else if (command === '') {
         response = '';
     } else {
