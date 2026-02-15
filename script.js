@@ -367,6 +367,8 @@ function openApp(appName, arg = null) {
             <div class="explorer-toolbar" style="padding: 5px; background: #eee; border-bottom: 1px solid #ccc; display: flex; align-items: center; gap: 5px;">
                 <button onclick="renderFileExplorer('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Refresh</button>
                 <button onclick="createNewFolder('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">New Folder</button>
+                <button onclick="uploadFile('${windowId}')" style="font-size: 12px; padding: 2px 8px; cursor: pointer;">Upload</button>
+                <input type="file" id="explorer-upload-${windowId}" style="display: none;" onchange="handleFileUpload('${windowId}', this)">
                 <input type="text" id="explorer-path-${windowId}" readonly value="/" style="flex-grow: 1; font-size: 12px; padding: 2px 5px; border: 1px solid #ccc; background: #fff; color: #555;">
             </div>
             <div id="explorer-content-${windowId}" style="padding: 10px; display: flex; flex-wrap: wrap; gap: 15px; overflow-y: auto; height: 100%; align-content: flex-start; background: white;">
@@ -594,32 +596,64 @@ function openApp(appName, arg = null) {
     } else if (appName === 'music-player') {
         title = "Music Player";
         win.classList.add('music-player-window');
+
+        let trackName = "No file selected";
+        let src = "";
+
+        if (arg && fileSystem[arg]) {
+            trackName = arg;
+            src = fileSystem[arg];
+        }
+
         content = `
             <div class="music-player-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; background: #222; color: white; box-sizing: border-box;">
                 <div class="music-icon" style="font-size: 64px; margin-bottom: 20px;">🎵</div>
-                <div id="music-track-name-${windowId}" style="margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all;">No file selected</div>
-                <audio id="music-audio-${windowId}" controls style="width: 100%; margin-bottom: 20px;"></audio>
+                <div id="music-track-name-${windowId}" style="margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all;">${trackName}</div>
+                <audio id="music-audio-${windowId}" controls style="width: 100%; margin-bottom: 20px;" src="${src}"></audio>
                 <label style="background: #e91e63; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: background 0.3s;">
                     Open Music File
                     <input type="file" id="music-input-${windowId}" accept="audio/*" style="display: none;" onchange="handleMusicFile('${windowId}')">
                 </label>
             </div>
         `;
+
+        if (src) {
+             setTimeout(() => {
+                 const audio = document.getElementById(`music-audio-${windowId}`);
+                 if(audio) audio.play().catch(e => console.log('Autoplay blocked:', e));
+             }, 100);
+        }
     } else if (appName === 'video-player') {
         title = "Video Player";
         win.classList.add('video-player-window');
+
+        let videoName = "No video";
+        let src = "";
+
+        if (arg && fileSystem[arg]) {
+            videoName = arg;
+            src = fileSystem[arg];
+        }
+
         content = `
             <div class="video-player-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 0; background: #000; color: white; box-sizing: border-box; overflow: hidden;">
-                <video id="video-player-${windowId}" controls style="width: 100%; height: 100%; max-height: calc(100% - 40px); object-fit: contain;"></video>
+                <video id="video-player-${windowId}" controls style="width: 100%; height: 100%; max-height: calc(100% - 40px); object-fit: contain;" src="${src}"></video>
                 <div style="height: 40px; display: flex; align-items: center; justify-content: center; width: 100%; background: #222;">
                     <label style="background: #673ab7; color: white; padding: 5px 15px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-right: 10px;">
                         Open Video
                         <input type="file" id="video-input-${windowId}" accept="video/*" style="display: none;" onchange="handleVideoFile('${windowId}')">
                     </label>
-                    <div id="video-name-${windowId}" style="font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">No video</div>
+                    <div id="video-name-${windowId}" style="font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${videoName}</div>
                 </div>
             </div>
         `;
+
+        if (src) {
+             setTimeout(() => {
+                 const video = document.getElementById(`video-player-${windowId}`);
+                 if(video) video.play().catch(e => console.log('Autoplay blocked:', e));
+             }, 100);
+        }
     } else if (appName === 'tetris') {
         title = "Tetris";
         win.classList.add('tetris-window');
@@ -1839,6 +1873,36 @@ function createNewFolder(windowId) {
     }
 }
 
+function uploadFile(windowId) {
+    const input = document.getElementById(`explorer-upload-${windowId}`);
+    if (input) input.click();
+}
+
+function handleFileUpload(windowId, input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            const currentPath = explorerStates[windowId].path;
+            const prefix = currentPath === '/' ? '' : currentPath.substring(1) + '/';
+            const filename = file.name;
+            const key = prefix + filename;
+
+            if (fileSystem[key]) {
+                if (!confirm(`File "${filename}" already exists. Overwrite?`)) return;
+            }
+
+            fileSystem[key] = content;
+            saveFileSystem();
+            renderFileExplorer(windowId);
+            alert(`Uploaded ${filename}`);
+            input.value = ''; // Reset input
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
 // File Explorer Logic
 function renderFileExplorer(windowId) {
     const container = document.getElementById(`explorer-content-${windowId}`);
@@ -1921,6 +1985,7 @@ function renderFileExplorer(windowId) {
         if (isDir) iconChar = '📁';
         else if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) iconChar = '🖼️';
         else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) iconChar = '🎞️';
+        else if (displayName.endsWith('.mp3') || displayName.endsWith('.wav')) iconChar = '🎵';
 
         const iconDiv = document.createElement('div');
         iconDiv.style.fontSize = '30px';
@@ -2032,7 +2097,8 @@ function renderFileExplorer(windowId) {
             actionsDiv.style.display = 'none';
         };
 
-        fileDiv.onclick = () => {
+        fileDiv.onclick = (e) => {
+             e.stopPropagation();
              if (isDir) {
                  // Navigate into
                  explorerStates[windowId].path = currentPath === '/' ? '/' + displayName : currentPath + '/' + displayName;
@@ -2042,6 +2108,8 @@ function renderFileExplorer(windowId) {
                      openApp('paint', key); // Pass full key
                  } else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) {
                      openApp('video-player', key); // Pass full key
+                 } else if (displayName.endsWith('.mp3') || displayName.endsWith('.wav')) {
+                     openApp('music-player', key); // Pass full key
                  } else if (displayName.endsWith('.md')) {
                      openApp('markdown-viewer', key); // Pass full key
                  } else {
