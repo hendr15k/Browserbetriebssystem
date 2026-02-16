@@ -1614,3 +1614,107 @@ body {
 .sudoku-header button:hover {
     background: #e0e0e0;
 }
+
+/* Weather App Styles */
+.weather-window .window-content {
+    background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    font-family: 'Segoe UI', sans-serif;
+    text-align: center;
+}
+
+.weather-search {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
+.weather-search input {
+    padding: 8px;
+    border: none;
+    border-radius: 20px;
+    outline: none;
+    width: 200px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.weather-search button {
+    background: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    color: #4facfe;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.weather-search button:hover {
+    transform: scale(1.1);
+}
+
+.weather-display {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-y: auto;
+}
+
+.weather-city {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.weather-temp {
+    font-size: 64px;
+    font-weight: 300;
+    margin: 10px 0;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.weather-desc {
+    font-size: 18px;
+    text-transform: capitalize;
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.2);
+    padding: 5px 15px;
+    border-radius: 15px;
+}
+
+.weather-details {
+    display: flex;
+    gap: 20px;
+    background: rgba(255,255,255,0.15);
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 10px;
+}
+
+.weather-detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.weather-detail-label {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.weather-detail-value {
+    font-size: 16px;
+    font-weight: bold;
+}

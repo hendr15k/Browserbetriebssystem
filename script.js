@@ -976,6 +976,19 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => updateMarkdownPreview(windowId), 0);
+    } else if (appName === 'weather') {
+        title = "Weather";
+        win.classList.add('weather-window');
+        // Simple initial content
+        content = `
+            <div class="weather-search">
+                <input type="text" id="weather-input-${windowId}" placeholder="Enter city name..." onkeydown="if(event.key === 'Enter') searchWeather('${windowId}')">
+                <button onclick="searchWeather('${windowId}')">🔍</button>
+            </div>
+            <div id="weather-display-${windowId}" class="weather-display">
+                <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">Enter a city to see the weather.</div>
+            </div>
+        `;
     } else if (appName === 'markdown-viewer') {
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
@@ -4382,6 +4395,7 @@ const pongGames = {};
 // 2048 Game State
 const game2048States = {};
 const sudokuGames = {};
+const weatherStates = {};
 
 function initPong(windowId) {
     const canvas = document.getElementById(`pong-canvas-${windowId}`);
@@ -5018,4 +5032,89 @@ function checkSudokuWin(windowId, alertUser = false) {
     }
 
     return isCorrect;
+}
+
+// Weather App Logic
+function searchWeather(windowId) {
+    const input = document.getElementById(`weather-input-${windowId}`);
+    const city = input.value.trim();
+    if (!city) return;
+
+    const display = document.getElementById(`weather-display-${windowId}`);
+    display.innerHTML = '<div style="margin-top: 20px;">Loading...</div>';
+
+    // 1. Geocoding
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                throw new Error('City not found');
+            }
+            const result = data.results[0];
+            return {
+                name: result.name,
+                country: result.country,
+                lat: result.latitude,
+                lon: result.longitude
+            };
+        })
+        .then(location => {
+            // 2. Weather Data
+            return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lon}&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto`)
+                .then(response => response.json())
+                .then(weatherData => {
+                    renderWeather(windowId, location, weatherData);
+                });
+        })
+        .catch(err => {
+            display.innerHTML = `<div style="color: #ffcccc; margin-top: 20px;">Error: ${err.message}</div>`;
+        });
+}
+
+function renderWeather(windowId, location, data) {
+    const display = document.getElementById(`weather-display-${windowId}`);
+    if (!display) return;
+
+    const current = data.current_weather;
+    const daily = data.daily;
+
+    const weatherCodes = {
+        0: 'Clear sky',
+        1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+        45: 'Fog', 48: 'Depositing rime fog',
+        51: 'Drizzle: Light', 53: 'Drizzle: Moderate', 55: 'Drizzle: Dense',
+        61: 'Rain: Slight', 63: 'Rain: Moderate', 65: 'Rain: Heavy',
+        71: 'Snow: Slight', 73: 'Snow: Moderate', 75: 'Snow: Heavy',
+        80: 'Rain showers: Slight', 81: 'Rain showers: Moderate', 82: 'Rain showers: Violent',
+        95: 'Thunderstorm: Slight or moderate', 96: 'Thunderstorm with slight hail', 99: 'Thunderstorm with heavy hail'
+    };
+
+    const condition = weatherCodes[current.weathercode] || 'Unknown';
+    const temp = Math.round(current.temperature);
+    const wind = current.windspeed;
+    const maxTemp = daily && daily.temperature_2m_max ? Math.round(daily.temperature_2m_max[0]) : '-';
+    const minTemp = daily && daily.temperature_2m_min ? Math.round(daily.temperature_2m_min[0]) : '-';
+
+    display.innerHTML = `
+        <div class="weather-city">${location.name}</div>
+        <div class="weather-desc">${condition}</div>
+        <div class="weather-temp">${temp}°C</div>
+        <div class="weather-details">
+            <div class="weather-detail-item">
+                <span class="weather-detail-label">Wind</span>
+                <span class="weather-detail-value">${wind} km/h</span>
+            </div>
+            <div class="weather-detail-item">
+                <span class="weather-detail-label">High</span>
+                <span class="weather-detail-value">${maxTemp}°C</span>
+            </div>
+            <div class="weather-detail-item">
+                <span class="weather-detail-label">Low</span>
+                <span class="weather-detail-value">${minTemp}°C</span>
+            </div>
+        </div>
+    `;
+
+    // Save state
+    weatherStates[windowId] = { location, data };
 }
