@@ -956,6 +956,19 @@ function openApp(appName, arg = null) {
         win.tabIndex = 0;
         win.addEventListener('keydown', (e) => handleSudokuInput(windowId, e));
         setTimeout(() => initSudoku(windowId), 0);
+    } else if (appName === 'weather') {
+        title = "Weather";
+        win.classList.add('weather-window');
+        content = `
+            <div class="weather-search">
+                <input type="text" id="weather-input-${windowId}" placeholder="Enter city..." onkeydown="if(event.key === 'Enter') searchWeather('${windowId}', this.value)">
+                <button onclick="searchWeather('${windowId}', document.getElementById('weather-input-${windowId}').value)">Search</button>
+            </div>
+            <div id="weather-content-${windowId}" style="flex-grow: 1; display: flex; flex-direction: column; width: 100%;">
+                <!-- Weather content -->
+            </div>
+        `;
+        setTimeout(() => initWeather(windowId), 0);
     } else if (appName === 'markdown-editor') {
         title = "Markdown Editor";
         win.classList.add('markdown-editor-window');
@@ -1215,6 +1228,11 @@ function closeWindow(windowId) {
     // Cleanup Sudoku
     if (sudokuGames[windowId]) {
         delete sudokuGames[windowId];
+    }
+
+    // Cleanup Weather
+    if (weatherStates[windowId]) {
+        delete weatherStates[windowId];
     }
 
     // Cleanup Music Player
@@ -5018,4 +5036,120 @@ function checkSudokuWin(windowId, alertUser = false) {
     }
 
     return isCorrect;
+}
+
+// Weather App Logic
+const weatherStates = {};
+
+function initWeather(windowId) {
+    if (!weatherStates[windowId]) {
+        weatherStates[windowId] = {
+            location: 'London',
+            data: null,
+            loading: false
+        };
+    }
+    // Initial fetch
+    searchWeather(windowId, 'London');
+}
+
+function searchWeather(windowId, query) {
+    if (!query) return;
+    const state = weatherStates[windowId];
+    if (state) {
+        state.loading = true;
+        renderWeather(windowId);
+        fetchWeatherData(windowId, query);
+    }
+}
+
+async function fetchWeatherData(windowId, location) {
+    const state = weatherStates[windowId];
+    if (!state) return;
+
+    try {
+        // 1. Geocoding
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json();
+
+        if (!geoData.results || geoData.results.length === 0) {
+            alert('Location not found');
+            state.loading = false;
+            renderWeather(windowId);
+            return;
+        }
+
+        const { latitude, longitude, name, country } = geoData.results[0];
+        state.location = `${name}, ${country}`;
+
+        // 2. Weather Data
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,relativehumidity_2m,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+
+        state.data = weatherData;
+        state.loading = false;
+        renderWeather(windowId);
+
+    } catch (error) {
+        console.error('Weather fetch error:', error);
+        alert('Failed to fetch weather data');
+        state.loading = false;
+        renderWeather(windowId);
+    }
+}
+
+function renderWeather(windowId) {
+    const state = weatherStates[windowId];
+    const container = document.getElementById(`weather-content-${windowId}`);
+    if (!container || !state) return;
+
+    if (state.loading) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center;">Loading...</div>';
+        return;
+    }
+
+    if (!state.data) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center;">No Data</div>';
+        return;
+    }
+
+    const current = state.data.current_weather;
+    // Map WMO weather codes to text/emoji
+    const getWeatherDesc = (code) => {
+        const codes = {
+            0: 'Clear sky ☀️',
+            1: 'Mainly clear 🌤️',
+            2: 'Partly cloudy ⛅',
+            3: 'Overcast ☁️',
+            45: 'Fog 🌫️', 48: 'Depositing rime fog 🌫️',
+            51: 'Drizzle: Light 🌧️', 53: 'Drizzle: Moderate 🌧️', 55: 'Drizzle: Dense 🌧️',
+            61: 'Rain: Slight 🌧️', 63: 'Rain: Moderate 🌧️', 65: 'Rain: Heavy 🌧️',
+            71: 'Snow: Slight ❄️', 73: 'Snow: Moderate ❄️', 75: 'Snow: Heavy ❄️',
+            80: 'Rain showers: Slight 🌦️', 81: 'Rain showers: Moderate 🌦️', 82: 'Rain showers: Violent ⛈️',
+            95: 'Thunderstorm: Slight or moderate ⚡', 96: 'Thunderstorm with slight hail ⛈️', 99: 'Thunderstorm with heavy hail ⛈️'
+        };
+        return codes[code] || 'Unknown';
+    };
+
+    const desc = getWeatherDesc(current.weathercode);
+
+    container.innerHTML = `
+        <div class="weather-current">
+            <div class="weather-location">${state.location}</div>
+            <div class="weather-temp">${current.temperature}°C</div>
+            <div class="weather-desc">${desc}</div>
+            <div class="weather-details">
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Wind</div>
+                    <div class="weather-detail-value">${current.windspeed} km/h</div>
+                </div>
+                <div class="weather-detail-item">
+                    <div class="weather-detail-label">Elevation</div>
+                    <div class="weather-detail-value">${state.data.elevation} m</div>
+                </div>
+            </div>
+        </div>
+    `;
 }
