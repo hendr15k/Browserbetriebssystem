@@ -1614,3 +1614,11 @@ body {
 .sudoku-header button:hover {
     background: #e0e0e0;
 }
+
+/* Weather App Styles */
+.weather-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+}

@@ -993,6 +993,43 @@ function openApp(appName, arg = null) {
                 ${html}
             </div>
         `;
+    } else if (appName === 'weather') {
+        title = "Weather";
+        win.classList.add('weather-window');
+
+        content = `
+            <div class="weather-content" style="padding: 20px; display: flex; flex-direction: column; align-items: center; height: 100%; box-sizing: border-box; background: linear-gradient(to bottom, #3498db, #2980b9); color: white;">
+                <div class="weather-search" style="display: flex; gap: 10px; width: 100%; margin-bottom: 20px;">
+                    <input type="text" id="weather-search-${windowId}" class="weather-search-input" placeholder="Enter city..." style="flex: 1; padding: 8px; border-radius: 20px; border: none; outline: none; text-align: center;">
+                    <button class="weather-search-btn" onclick="getWeather('${windowId}')" style="padding: 8px 15px; border-radius: 20px; border: none; background: #f1c40f; color: #333; font-weight: bold; cursor: pointer;">Get Weather</button>
+                </div>
+
+                <div id="weather-loading-${windowId}" style="display: none; font-size: 18px;">
+                    Loading...
+                </div>
+
+                <div id="weather-result-${windowId}" class="weather-result" style="display: none; flex-direction: column; align-items: center; text-align: center;">
+                    <div class="weather-city" id="weather-city-${windowId}" style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">City</div>
+                    <div class="weather-icon" id="weather-icon-${windowId}" style="font-size: 64px; margin: 10px 0;">☀️</div>
+                    <div class="weather-temp" id="weather-temp-${windowId}" style="font-size: 48px; font-weight: bold;">20°C</div>
+                    <div class="weather-desc" id="weather-desc-${windowId}" style="font-size: 18px; opacity: 0.9;">Clear Sky</div>
+                    <div style="margin-top: 20px; display: flex; gap: 20px; font-size: 14px;">
+                        <div>💨 Wind: <span id="weather-wind-${windowId}">10 km/h</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add Enter key listener
+        setTimeout(() => {
+            const input = document.getElementById(`weather-search-${windowId}`);
+            if (input) {
+                input.focus();
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') getWeather(windowId);
+                });
+            }
+        }, 100);
     }
 
     win.innerHTML = `
@@ -1215,6 +1252,11 @@ function closeWindow(windowId) {
     // Cleanup Sudoku
     if (sudokuGames[windowId]) {
         delete sudokuGames[windowId];
+    }
+
+    // Cleanup Weather
+    if (weatherStates[windowId]) {
+        delete weatherStates[windowId];
     }
 
     // Cleanup Music Player
@@ -4382,6 +4424,7 @@ const pongGames = {};
 // 2048 Game State
 const game2048States = {};
 const sudokuGames = {};
+const weatherStates = {};
 
 function initPong(windowId) {
     const canvas = document.getElementById(`pong-canvas-${windowId}`);
@@ -5018,4 +5061,101 @@ function checkSudokuWin(windowId, alertUser = false) {
     }
 
     return isCorrect;
+}
+
+// Weather App Logic
+function getWeather(windowId) {
+    const input = document.getElementById(`weather-search-${windowId}`);
+    const loading = document.getElementById(`weather-loading-${windowId}`);
+    const result = document.getElementById(`weather-result-${windowId}`);
+
+    const city = input.value.trim();
+    if (!city) return;
+
+    loading.style.display = 'block';
+    result.style.display = 'none';
+
+    // 1. Geocoding
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) {
+                throw new Error('City not found');
+            }
+            const location = data.results[0];
+            const lat = location.latitude;
+            const lon = location.longitude;
+            const cityName = location.name;
+
+            // 2. Forecast
+            return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+                .then(res => res.json())
+                .then(weatherData => {
+                    renderWeather(windowId, weatherData, cityName);
+                });
+        })
+        .catch(err => {
+            loading.style.display = 'none';
+            alert(err.message);
+        });
+}
+
+function renderWeather(windowId, data, cityName) {
+    const loading = document.getElementById(`weather-loading-${windowId}`);
+    const result = document.getElementById(`weather-result-${windowId}`);
+
+    const cityEl = document.getElementById(`weather-city-${windowId}`);
+    const tempEl = document.getElementById(`weather-temp-${windowId}`);
+    const descEl = document.getElementById(`weather-desc-${windowId}`);
+    const windEl = document.getElementById(`weather-wind-${windowId}`);
+    const iconEl = document.getElementById(`weather-icon-${windowId}`);
+
+    if (loading) loading.style.display = 'none';
+    if (result) result.style.display = 'flex';
+
+    if (data && data.current_weather) {
+        const current = data.current_weather;
+        cityEl.textContent = cityName;
+        tempEl.textContent = `${current.temperature}°C`;
+        windEl.textContent = `${current.windspeed} km/h`;
+
+        const weatherInfo = getWeatherDescription(current.weathercode);
+        descEl.textContent = weatherInfo.desc;
+        iconEl.textContent = weatherInfo.icon;
+    }
+}
+
+function getWeatherDescription(code) {
+    const codes = {
+        0: { desc: 'Clear sky', icon: '☀️' },
+        1: { desc: 'Mainly clear', icon: '🌤️' },
+        2: { desc: 'Partly cloudy', icon: '⛅' },
+        3: { desc: 'Overcast', icon: '☁️' },
+        45: { desc: 'Fog', icon: '🌫️' },
+        48: { desc: 'Depositing rime fog', icon: '🌫️' },
+        51: { desc: 'Light drizzle', icon: '🌧️' },
+        53: { desc: 'Moderate drizzle', icon: '🌧️' },
+        55: { desc: 'Dense drizzle', icon: '🌧️' },
+        56: { desc: 'Light freezing drizzle', icon: '🌧️' },
+        57: { desc: 'Dense freezing drizzle', icon: '🌧️' },
+        61: { desc: 'Slight rain', icon: '🌧️' },
+        63: { desc: 'Moderate rain', icon: '🌧️' },
+        65: { desc: 'Heavy rain', icon: '🌧️' },
+        66: { desc: 'Light freezing rain', icon: '🌧️' },
+        67: { desc: 'Heavy freezing rain', icon: '🌧️' },
+        71: { desc: 'Slight snow fall', icon: '🌨️' },
+        73: { desc: 'Moderate snow fall', icon: '🌨️' },
+        75: { desc: 'Heavy snow fall', icon: '🌨️' },
+        77: { desc: 'Snow grains', icon: '🌨️' },
+        80: { desc: 'Slight rain showers', icon: '🌦️' },
+        81: { desc: 'Moderate rain showers', icon: '🌦️' },
+        82: { desc: 'Violent rain showers', icon: '🌦️' },
+        85: { desc: 'Slight snow showers', icon: '🌨️' },
+        86: { desc: 'Heavy snow showers', icon: '🌨️' },
+        95: { desc: 'Thunderstorm', icon: '⚡' },
+        96: { desc: 'Thunderstorm with slight hail', icon: '⛈️' },
+        99: { desc: 'Thunderstorm with heavy hail', icon: '⛈️' }
+    };
+
+    return codes[code] || { desc: 'Unknown', icon: '❓' };
 }

@@ -117,6 +117,10 @@
             <div class="icon-img" style="background-color: #34495e; color: white;">🔢</div>
             <div class="icon-label">Sudoku</div>
         </div>
+        <div class="icon" onclick="openApp('weather')">
+            <div class="icon-img" style="background-color: #3498db; color: white;">☁️</div>
+            <div class="icon-label">Weather</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -228,6 +232,10 @@
         <div class="start-item" onclick="openApp('sudoku'); toggleStartMenu()">
             <div class="start-icon" style="background: #34495e; color: white;">🔢</div>
             <span>Sudoku</span>
+        </div>
+        <div class="start-item" onclick="openApp('weather'); toggleStartMenu()">
+            <div class="start-icon" style="background: #3498db; color: white;">☁️</div>
+            <span>Weather</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
