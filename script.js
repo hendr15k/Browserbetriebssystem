@@ -956,6 +956,23 @@ function openApp(appName, arg = null) {
         win.tabIndex = 0;
         win.addEventListener('keydown', (e) => handleSudokuInput(windowId, e));
         setTimeout(() => initSudoku(windowId), 0);
+    } else if (appName === 'voice-recorder') {
+        title = "Voice Recorder";
+        win.classList.add('voice-recorder-window');
+        content = `
+            <div class="voice-recorder-content">
+                <canvas id="voice-visualizer-${windowId}" width="300" height="100"></canvas>
+                <div class="voice-controls">
+                    <button id="voice-record-btn-${windowId}" class="voice-btn record" onclick="startVoiceRecording('${windowId}')" title="Record">●</button>
+                    <button id="voice-stop-btn-${windowId}" class="voice-btn stop" onclick="stopVoiceRecording('${windowId}')" disabled title="Stop">■</button>
+                </div>
+                <div class="voice-status" id="voice-status-${windowId}">Ready to Record</div>
+                <div class="voice-list" id="voice-list-${windowId}">
+                    <!-- List populated by JS -->
+                </div>
+            </div>
+        `;
+        setTimeout(() => initVoiceRecorder(windowId), 0);
     } else if (appName === 'weather') {
         title = "Weather";
         win.classList.add('weather-window');
@@ -1233,6 +1250,24 @@ function closeWindow(windowId) {
     // Cleanup Weather
     if (weatherStates[windowId]) {
         delete weatherStates[windowId];
+    }
+
+    // Cleanup Voice Recorder
+    if (voiceRecorderStates[windowId]) {
+        const state = voiceRecorderStates[windowId];
+        if (state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+            state.mediaRecorder.stop();
+        }
+        if (state.stream) {
+            state.stream.getTracks().forEach(track => track.stop());
+        }
+        if (state.audioContext) {
+            state.audioContext.close();
+        }
+        if (state.visualizerId) {
+            cancelAnimationFrame(state.visualizerId);
+        }
+        delete voiceRecorderStates[windowId];
     }
 
     // Cleanup Music Player
@@ -5152,4 +5187,189 @@ function renderWeather(windowId) {
             </div>
         </div>
     `;
+}
+
+// Voice Recorder Logic
+const voiceRecorderStates = {};
+
+function initVoiceRecorder(windowId) {
+    if (!voiceRecorderStates[windowId]) {
+        voiceRecorderStates[windowId] = {
+            mediaRecorder: null,
+            chunks: [],
+            stream: null,
+            audioContext: null,
+            analyser: null,
+            visualizerId: null
+        };
+    }
+    renderRecordingsList(windowId);
+}
+
+function startVoiceRecording(windowId) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Audio recording not supported.");
+        return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            const state = voiceRecorderStates[windowId];
+            if (!state) return;
+
+            state.stream = stream;
+            state.chunks = [];
+
+            // Visualizer Setup
+            state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = state.audioContext.createMediaStreamSource(stream);
+            state.analyser = state.audioContext.createAnalyser();
+            state.analyser.fftSize = 256;
+            source.connect(state.analyser);
+
+            const canvas = document.getElementById(`voice-visualizer-${windowId}`);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                const bufferLength = state.analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                const draw = () => {
+                    if (!voiceRecorderStates[windowId]) return;
+                    state.visualizerId = requestAnimationFrame(draw);
+                    state.analyser.getByteFrequencyData(dataArray);
+
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+
+                    for(let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i] / 2;
+                        ctx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
+                    }
+                };
+                draw();
+            }
+
+            // Recorder Setup
+            state.mediaRecorder = new MediaRecorder(stream);
+            state.mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) state.chunks.push(e.data);
+            };
+
+            state.mediaRecorder.onstop = () => {
+                const blob = new Blob(state.chunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result;
+                    const filename = `recording_${Date.now()}.webm`;
+                    fileSystem[filename] = base64;
+                    saveFileSystem();
+                    renderRecordingsList(windowId);
+                };
+                reader.readAsDataURL(blob);
+
+                // Cleanup stream
+                stream.getTracks().forEach(track => track.stop());
+                if (state.audioContext) state.audioContext.close();
+                if (state.visualizerId) cancelAnimationFrame(state.visualizerId);
+
+                state.stream = null;
+                state.audioContext = null;
+                state.analyser = null;
+                state.visualizerId = null;
+                state.mediaRecorder = null;
+            };
+
+            state.mediaRecorder.start();
+
+            // Update UI
+            document.getElementById(`voice-record-btn-${windowId}`).disabled = true;
+            document.getElementById(`voice-stop-btn-${windowId}`).disabled = false;
+            document.getElementById(`voice-status-${windowId}`).textContent = "Recording...";
+            document.getElementById(`voice-status-${windowId}`).style.color = "red";
+        })
+        .catch(err => {
+            console.error("Error accessing microphone:", err);
+            alert("Could not access microphone.");
+        });
+}
+
+function stopVoiceRecording(windowId) {
+    const state = voiceRecorderStates[windowId];
+    if (state && state.mediaRecorder && state.mediaRecorder.state === 'recording') {
+        state.mediaRecorder.stop();
+
+        // Update UI
+        document.getElementById(`voice-record-btn-${windowId}`).disabled = false;
+        document.getElementById(`voice-stop-btn-${windowId}`).disabled = true;
+        document.getElementById(`voice-status-${windowId}`).textContent = "Saved to system.";
+        document.getElementById(`voice-status-${windowId}`).style.color = "green";
+        setTimeout(() => {
+             const status = document.getElementById(`voice-status-${windowId}`);
+             if(status) {
+                 status.textContent = "Ready to Record";
+                 status.style.color = "#aaa";
+             }
+        }, 3000);
+    }
+}
+
+function renderRecordingsList(windowId) {
+    const list = document.getElementById(`voice-list-${windowId}`);
+    if (!list) return;
+
+    list.innerHTML = '';
+
+    const recordings = Object.keys(fileSystem).filter(k => k.startsWith('recording_') && k.endsWith('.webm'));
+
+    if (recordings.length === 0) {
+        list.innerHTML = '<div style="color: #666; font-size: 12px; padding: 10px; text-align: center;">No recordings found.</div>';
+        return;
+    }
+
+    recordings.sort().reverse(); // Newest first
+
+    recordings.forEach(filename => {
+        const item = document.createElement('div');
+        item.className = 'voice-item';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = filename;
+        nameSpan.style.flexGrow = '1';
+        nameSpan.style.overflow = 'hidden';
+        nameSpan.style.textOverflow = 'ellipsis';
+
+        const controls = document.createElement('div');
+        controls.style.display = 'flex';
+        controls.style.gap = '5px';
+
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '▶';
+        playBtn.title = 'Play';
+        playBtn.onclick = () => openApp('music-player', filename);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.title = 'Delete';
+        delBtn.onclick = () => {
+            if(confirm(`Delete ${filename}?`)) {
+                delete fileSystem[filename];
+                saveFileSystem();
+                renderRecordingsList(windowId);
+            }
+        };
+
+        controls.appendChild(playBtn);
+        controls.appendChild(delBtn);
+
+        item.appendChild(nameSpan);
+        item.appendChild(controls);
+
+        list.appendChild(item);
+    });
 }
