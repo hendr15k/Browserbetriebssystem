@@ -121,6 +121,10 @@
             <div class="icon-img" style="background-color: #3498db; color: white;">🌤️</div>
             <div class="icon-label">Weather</div>
         </div>
+        <div class="icon" onclick="openApp('voice-recorder')">
+            <div class="icon-img" style="background-color: #e91e63; color: white;">🎙️</div>
+            <div class="icon-label">Recorder</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -236,6 +240,10 @@
         <div class="start-item" onclick="openApp('weather'); toggleStartMenu()">
             <div class="start-icon" style="background: #3498db; color: white;">🌤️</div>
             <span>Weather</span>
+        </div>
+        <div class="start-item" onclick="openApp('voice-recorder'); toggleStartMenu()">
+            <div class="start-icon" style="background: #e91e63; color: white;">🎙️</div>
+            <span>Voice Recorder</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
