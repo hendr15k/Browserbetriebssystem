@@ -969,6 +969,33 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initWeather(windowId), 0);
+    } else if (appName === 'voice-recorder') {
+        title = "Voice Recorder";
+        win.classList.add('voice-recorder-window');
+        win.style.width = '400px';
+        win.style.height = '500px';
+
+        content = `
+            <div class="vr-container">
+                <canvas id="vr-visualizer-${windowId}" class="vr-visualizer" width="380" height="100"></canvas>
+                <div class="vr-time-display" id="vr-timer-${windowId}">00:00</div>
+                <div class="vr-controls">
+                    <button class="vr-btn record" id="vr-record-btn-${windowId}" onclick="startRecording('${windowId}')" title="Record">
+                        <div class="record-icon"></div>
+                    </button>
+                    <button class="vr-btn stop" id="vr-stop-btn-${windowId}" onclick="stopRecording('${windowId}')" disabled title="Stop">
+                        <div class="stop-icon"></div>
+                    </button>
+                </div>
+                <div class="vr-list-container">
+                    <h3>Recordings</h3>
+                    <div id="vr-list-${windowId}" class="vr-list">
+                        <div style="text-align: center; color: #888; padding: 10px;">No recordings yet</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initVoiceRecorder(windowId), 0);
     } else if (appName === 'markdown-editor') {
         title = "Markdown Editor";
         win.classList.add('markdown-editor-window');
@@ -1233,6 +1260,23 @@ function closeWindow(windowId) {
     // Cleanup Weather
     if (weatherStates[windowId]) {
         delete weatherStates[windowId];
+    }
+
+    // Cleanup Voice Recorder
+    if (voiceRecorderStates[windowId]) {
+        const state = voiceRecorderStates[windowId];
+        if (state.isRecording) {
+            stopRecording(windowId);
+        }
+        if (state.currentPlaybackAudio) {
+            state.currentPlaybackAudio.pause();
+            state.currentPlaybackAudio = null;
+        }
+        if (state.audioContext) {
+            state.audioContext.close();
+        }
+        state.recordings.forEach(rec => URL.revokeObjectURL(rec.url));
+        delete voiceRecorderStates[windowId];
     }
 
     // Cleanup Music Player
@@ -5152,4 +5196,209 @@ function renderWeather(windowId) {
             </div>
         </div>
     `;
+}
+
+// Voice Recorder Logic
+const voiceRecorderStates = {};
+
+function initVoiceRecorder(windowId) {
+    if (!voiceRecorderStates[windowId]) {
+        voiceRecorderStates[windowId] = {
+            audioContext: null,
+            analyser: null,
+            mediaRecorder: null,
+            chunks: [],
+            isRecording: false,
+            startTime: 0,
+            timerInterval: null,
+            visualizerAnimationFrame: null,
+            recordings: []
+        };
+    }
+    renderRecordingsList(windowId);
+}
+
+function renderRecordingsList(windowId) {
+    const state = voiceRecorderStates[windowId];
+    const list = document.getElementById(`vr-list-${windowId}`);
+    if (!list || !state) return;
+
+    if (state.recordings.length === 0) {
+        list.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No recordings yet</div>';
+        return;
+    }
+
+    list.innerHTML = '';
+    state.recordings.forEach((rec, index) => {
+        const item = document.createElement('div');
+        item.className = 'vr-recording-item';
+        item.innerHTML = `
+            <div class="vr-rec-info">
+                <span class="vr-rec-name">Recording ${index + 1}</span>
+                <span class="vr-rec-time">${rec.duration}</span>
+            </div>
+            <div class="vr-rec-actions">
+                <button onclick="playRecording('${windowId}', ${index})">▶</button>
+                <a href="${rec.url}" download="recording-${index + 1}.webm" class="vr-download-btn">⬇</a>
+                <button onclick="deleteRecording('${windowId}', ${index})" style="color: #e74c3c;">✕</button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+async function startRecording(windowId) {
+    const state = voiceRecorderStates[windowId];
+    if (!state || state.isRecording) return;
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = state.audioContext.createMediaStreamSource(stream);
+        state.analyser = state.audioContext.createAnalyser();
+        state.analyser.fftSize = 2048;
+        source.connect(state.analyser);
+
+        state.mediaRecorder = new MediaRecorder(stream);
+        state.chunks = [];
+
+        state.mediaRecorder.ondataavailable = (e) => {
+            state.chunks.push(e.data);
+        };
+
+        state.mediaRecorder.onstop = () => {
+            const blob = new Blob(state.chunks, { 'type' : 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            const duration = document.getElementById(`vr-timer-${windowId}`).innerText;
+            state.recordings.push({ url, blob, duration });
+            renderRecordingsList(windowId);
+            state.chunks = [];
+        };
+
+        state.mediaRecorder.start();
+        state.isRecording = true;
+        state.startTime = Date.now();
+
+        // Update UI
+        document.getElementById(`vr-record-btn-${windowId}`).disabled = true;
+        document.getElementById(`vr-stop-btn-${windowId}`).disabled = false;
+
+        // Start Timer
+        state.timerInterval = setInterval(() => {
+            const elapsed = Date.now() - state.startTime;
+            const minutes = Math.floor(elapsed / 60000).toString().padStart(2, '0');
+            const seconds = Math.floor((elapsed % 60000) / 1000).toString().padStart(2, '0');
+            const timerEl = document.getElementById(`vr-timer-${windowId}`);
+            if (timerEl) timerEl.innerText = `${minutes}:${seconds}`;
+        }, 1000);
+
+        // Start Visualizer
+        drawVisualizer(windowId);
+
+    } catch (err) {
+        console.error('Error accessing microphone:', err);
+        alert('Could not access microphone. Please ensure you have granted permission.');
+    }
+}
+
+function stopRecording(windowId) {
+    const state = voiceRecorderStates[windowId];
+    if (!state || !state.isRecording) return;
+
+    state.mediaRecorder.stop();
+    state.isRecording = false;
+
+    // Stop all tracks to release microphone
+    state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+
+    // Close AudioContext if not needed or suspend
+    // Actually, we might need it for playback? No, playback is via <audio> element or similar.
+    // But let's close it to be safe and release resources.
+    if (state.audioContext) {
+        state.audioContext.close();
+        state.audioContext = null;
+    }
+
+    clearInterval(state.timerInterval);
+    cancelAnimationFrame(state.visualizerAnimationFrame);
+
+    // Reset UI
+    document.getElementById(`vr-record-btn-${windowId}`).disabled = false;
+    document.getElementById(`vr-stop-btn-${windowId}`).disabled = true;
+
+    // Reset Timer Display after a short delay or keep it?
+    // Usually it resets on new recording. Let's keep it for now.
+}
+
+function drawVisualizer(windowId) {
+    const state = voiceRecorderStates[windowId];
+    if (!state || !state.isRecording) return;
+
+    const canvas = document.getElementById(`vr-visualizer-${windowId}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const bufferLength = state.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    state.analyser.getByteTimeDomainData(dataArray);
+
+    ctx.fillStyle = '#f0f0f0'; // Background color matches window content usually
+    // Or transparent? Let's check style.css later.
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#e74c3c'; // Red color
+    ctx.beginPath();
+
+    const sliceWidth = canvas.width * 1.0 / bufferLength;
+    let x = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * canvas.height / 2;
+
+        if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+    }
+
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+
+    state.visualizerAnimationFrame = requestAnimationFrame(() => drawVisualizer(windowId));
+}
+
+function playRecording(windowId, index) {
+    const state = voiceRecorderStates[windowId];
+    if (!state || !state.recordings[index]) return;
+
+    if (state.currentPlaybackAudio) {
+        state.currentPlaybackAudio.pause();
+        state.currentPlaybackAudio = null;
+    }
+
+    const url = state.recordings[index].url;
+    const audio = new Audio(url);
+    state.currentPlaybackAudio = audio;
+    audio.play().catch(e => console.error("Error playing audio:", e));
+    audio.onended = () => {
+        state.currentPlaybackAudio = null;
+    };
+}
+
+function deleteRecording(windowId, index) {
+    const state = voiceRecorderStates[windowId];
+    if (!state || !state.recordings[index]) return;
+
+    if (confirm("Are you sure you want to delete this recording?")) {
+        const rec = state.recordings[index];
+        URL.revokeObjectURL(rec.url); // Clean up blob URL
+        state.recordings.splice(index, 1);
+        renderRecordingsList(windowId);
+    }
 }
