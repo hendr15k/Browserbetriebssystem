@@ -1889,3 +1889,86 @@ body {
 .vr-rec-actions button:hover, .vr-rec-actions a:hover {
     background: #eee;
 }
+
+/* Piano Styles */
+.piano-window .window-content {
+    background: #222;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.piano-key {
+    position: absolute;
+    border: 1px solid #999;
+    border-radius: 0 0 5px 5px;
+    cursor: pointer;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+    transition: background 0.1s, transform 0.05s;
+    user-select: none;
+}
+
+.piano-key.white {
+    width: 40px;
+    height: 200px;
+    background: white;
+    z-index: 1;
+    color: #555;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.piano-key.white:active, .piano-key.white.active {
+    background: #e0e0e0;
+    transform: translateY(2px);
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+}
+
+.piano-key.black {
+    width: 30px;
+    height: 120px;
+    background: black;
+    z-index: 2;
+}
+
+.piano-key.black:active, .piano-key.black.active {
+    background: #333;
+    transform: translateY(2px);
+}
+
+/* PDF Viewer Styles */
+.pdf-viewer-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: #525659;
+}
+
+.pdf-toolbar {
+    background: #f0f0f0;
+    padding: 5px 10px;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.pdf-toolbar label {
+    font-size: 12px;
+    padding: 3px 10px;
+    cursor: pointer;
+    border: 1px solid #999;
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    border-radius: 3px;
+}
+
+.pdf-toolbar label:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
