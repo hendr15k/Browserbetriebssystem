@@ -1016,6 +1016,36 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => updateMarkdownPreview(windowId), 0);
+    } else if (appName === 'code-editor') {
+        title = "Code Editor";
+        win.classList.add('code-editor-window');
+        win.style.width = '800px';
+        win.style.height = '600px';
+
+        content = `
+            <div class="code-editor-toolbar">
+                <button onclick="saveCode('${windowId}')">Save</button>
+                <button onclick="downloadCode('${windowId}')">Download</button>
+                <label class="file-upload">
+                    Open <input type="file" onchange="openCodeFile('${windowId}', this)" accept=".js,.html,.css,.py,.json,.txt,.md">
+                </label>
+            </div>
+            <div class="code-editor-container">
+                <div id="code-gutter-${windowId}" class="code-gutter">1</div>
+                <textarea id="code-area-${windowId}" class="code-textarea" oninput="updateLineNumbers('${windowId}')" onkeydown="handleCodeInput('${windowId}', event)" spellcheck="false" placeholder="// Start coding..."></textarea>
+            </div>
+        `;
+        // Use timeout to allow DOM update
+        setTimeout(() => {
+            const gutter = document.getElementById(`code-gutter-${windowId}`);
+            const textarea = document.getElementById(`code-area-${windowId}`);
+            if (gutter && textarea) {
+                // Sync scroll
+                textarea.addEventListener('scroll', () => {
+                    gutter.scrollTop = textarea.scrollTop;
+                });
+            }
+        }, 0);
     } else if (appName === 'markdown-viewer') {
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
@@ -5850,6 +5880,102 @@ function loadSpreadsheet(windowId, input) {
             } catch (err) {
                 alert("Error loading file: " + err.message);
             }
+        };
+        reader.readAsText(input.files[0]);
+    }
+}
+
+// Code Editor Logic
+function initCodeEditor(windowId) {
+    const gutter = document.getElementById(`code-gutter-${windowId}`);
+    const textarea = document.getElementById(`code-area-${windowId}`);
+
+    if (gutter && textarea) {
+        // Sync scroll
+        textarea.addEventListener('scroll', () => {
+            gutter.scrollTop = textarea.scrollTop;
+        });
+
+        // Initialize line numbers
+        updateLineNumbers(windowId);
+    }
+}
+
+function updateLineNumbers(windowId) {
+    const textarea = document.getElementById(`code-area-${windowId}`);
+    const gutter = document.getElementById(`code-gutter-${windowId}`);
+
+    if (textarea && gutter) {
+        const lines = textarea.value.split('\n').length;
+        // Simple optimization: check if we really need to rebuild
+        // But for simplicity, just rebuild or be smarter?
+        // Let's rebuild for now.
+        let html = '';
+        for (let i = 1; i <= lines; i++) {
+            html += `<div>${i}</div>`;
+        }
+        gutter.innerHTML = html;
+    }
+}
+
+function handleCodeInput(windowId, e) {
+    const textarea = document.getElementById(`code-area-${windowId}`);
+    if (!textarea) return;
+
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+
+        // Insert 4 spaces
+        textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+
+        // Move cursor
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+
+        // Trigger input event manually or update line numbers
+        updateLineNumbers(windowId);
+    }
+}
+
+function saveCode(windowId) {
+    const textarea = document.getElementById(`code-area-${windowId}`);
+    const content = textarea.value;
+    const filename = prompt("Enter filename to save (e.g., script.js):", "script.js");
+
+    if (filename) {
+        if (filename.includes('/') || filename.includes('\\')) {
+             alert("Invalid name");
+             return;
+        }
+        fileSystem[filename] = content;
+        saveFileSystem();
+        alert(`File "${filename}" saved.`);
+    }
+}
+
+function downloadCode(windowId) {
+    const textarea = document.getElementById(`code-area-${windowId}`);
+    const content = textarea.value;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.download = 'code.txt';
+    link.href = url;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+function openCodeFile(windowId, input) {
+    const textarea = document.getElementById(`code-area-${windowId}`);
+
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            textarea.value = e.target.result;
+            updateLineNumbers(windowId);
         };
         reader.readAsText(input.files[0]);
     }

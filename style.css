@@ -2108,3 +2108,90 @@ body {
     z-index: 5;
     position: relative;
 }
+
+/* Code Editor Styles */
+.code-editor-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.code-editor-toolbar {
+    padding: 5px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.code-editor-toolbar button {
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.code-editor-toolbar button:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.code-editor-toolbar .file-upload {
+    font-size: 12px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 3px 10px;
+    cursor: pointer;
+    background: linear-gradient(to bottom, #fff, #e0e0e0);
+    display: inline-block;
+}
+
+.code-editor-toolbar .file-upload:hover {
+    background: linear-gradient(to bottom, #f0f0f0, #d0d0d0);
+}
+
+.code-editor-toolbar .file-upload input {
+    display: none;
+}
+
+.code-editor-container {
+    flex-grow: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.code-gutter {
+    width: 45px;
+    background: #f0f0f0;
+    border-right: 1px solid #ccc;
+    text-align: right;
+    padding: 10px 5px;
+    color: #999;
+    user-select: none;
+    overflow: hidden;
+    box-sizing: border-box;
+    line-height: 1.5;
+}
+
+.code-textarea {
+    flex-grow: 1;
+    border: none;
+    resize: none;
+    outline: none;
+    padding: 10px;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.5;
+    white-space: pre;
+    overflow: auto;
+    color: #333;
+    background: #fff;
+    tab-size: 4;
+}
