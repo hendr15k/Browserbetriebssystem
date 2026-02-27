@@ -283,7 +283,7 @@
     <div id="taskbar">
         <button id="start-button" onclick="toggleStartMenu()">Start</button>
         <div id="taskbar-apps"></div>
-        <div id="clock">00:00</div>
+        <div id="clock" onclick="openApp('clock')">00:00</div>
         <button id="show-desktop" onclick="toggleDesktop()" title="Show Desktop">┃</button>
     </div>
 
@@ -292,6 +292,9 @@
          but it might be easier to have a container for windows here. -->
     <div id="window-area"></div>
 
+    <div id="notification-area"></div>
+
+    <script src="notifications.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -109,6 +109,11 @@ window.addEventListener('load', () => {
 
     // Initialize Sticky Notes
     initStickyNotes();
+
+    // Welcome Notification
+    setTimeout(() => {
+        showNotification('Welcome', 'WebOS initialized successfully.');
+    }, 1000);
 });
 
 // Desktop Icon Logic
@@ -1128,6 +1133,31 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initSpreadsheet(windowId), 0);
+    } else if (appName === 'image-viewer') {
+        title = "Image Viewer";
+        win.classList.add('image-viewer-window');
+
+        let src = "";
+        let fileName = "No image selected";
+
+        if (arg && fileSystem[arg]) {
+            src = fileSystem[arg];
+            fileName = arg;
+        }
+
+        // Safe filename display
+        const safeFileName = fileName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        content = `
+            <div style="display: flex; flex-direction: column; height: 100%; background: #222;">
+                <div style="padding: 5px; background: #333; color: white; border-bottom: 1px solid #444; font-size: 12px; display: flex; justify-content: space-between;">
+                    <span>${safeFileName}</span>
+                </div>
+                <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 10px;">
+                    ${src ? `<img src="${src}" style="max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 10px rgba(0,0,0,0.5);">` : '<div style="color: #888;">No image to display</div>'}
+                </div>
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -1505,8 +1535,11 @@ const terminalStates = {};
 // Sticky Notes State
 let stickyNotes = {};
 
-function saveStickyNotesToStorage() {
+function saveStickyNotesToStorage(notify = false) {
     localStorage.setItem('stickyNotes', JSON.stringify(stickyNotes));
+    if (notify) {
+        showNotification('Sticky Notes', 'Notes saved successfully.');
+    }
 }
 
 function initStickyNotes() {
@@ -2143,7 +2176,7 @@ function savePaintToSystem(windowId) {
     if (filename) {
         fileSystem[filename] = dataURL;
         saveFileSystem();
-        alert(`Image "${filename}" saved to system.`);
+        showNotification('Paint', `Image "${filename}" saved to system.`);
     }
 }
 
@@ -2424,8 +2457,8 @@ function renderFileExplorer(windowId) {
                  explorerStates[windowId].path = currentPath === '/' ? '/' + displayName : currentPath + '/' + displayName;
                  renderFileExplorer(windowId);
              } else {
-                 if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) {
-                     openApp('paint', key); // Pass full key
+                 if (displayName.endsWith('.png') || displayName.endsWith('.jpg') || displayName.endsWith('.jpeg') || displayName.endsWith('.gif')) {
+                     openApp('image-viewer', key); // Pass full key
                  } else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) {
                      openApp('video-player', key); // Pass full key
                  } else if (displayName.endsWith('.mp3') || displayName.endsWith('.wav')) {
@@ -2454,7 +2487,7 @@ function saveNotepad(windowId) {
     if (filename) {
         fileSystem[filename] = text;
         saveFileSystem();
-        alert(`File "${filename}" saved to system.`);
+        showNotification('Notepad', `File "${filename}" saved to system.`);
     }
 }
 
@@ -4470,7 +4503,7 @@ function saveMarkdown(windowId) {
         }
         fileSystem[filename] = content;
         saveFileSystem();
-        alert(`File "${filename}" saved.`);
+        showNotification('Markdown Editor', `File "${filename}" saved.`);
     }
 }
 
@@ -5848,7 +5881,7 @@ function saveSpreadsheet(windowId) {
         // Save to virtual FileSystem
         fileSystem[filename] = json;
         saveFileSystem();
-        alert(`Saved ${filename} to system.`);
+        showNotification('Spreadsheet', `Saved ${filename} to system.`);
 
         // Also offer download
         const link = document.createElement('a');
@@ -5950,7 +5983,7 @@ function saveCode(windowId) {
         }
         fileSystem[filename] = content;
         saveFileSystem();
-        alert(`File "${filename}" saved.`);
+        showNotification('Code Editor', `File "${filename}" saved.`);
     }
 }
 

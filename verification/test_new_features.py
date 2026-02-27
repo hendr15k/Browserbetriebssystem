@@ -4,6 +4,7 @@ import os
 import time
 
 def test_new_features():
+    # Get absolute path to index.html
     cwd = os.getcwd()
     url = f"file://{cwd}/index.html"
 
@@ -12,87 +13,65 @@ def test_new_features():
         page = browser.new_page()
         page.goto(url)
 
-        # 1. Test Paint Fill Button
-        print("Testing Paint Fill Button...")
-        page.locator(".icon", has_text="Paint").click()
-        # Look for a fill button (assuming I'll add a button with text 'Fill' or specific class/id)
-        # For now I expect it to fail if not present
-        try:
-            expect(page.locator("button", has_text="Fill")).to_be_visible(timeout=2000)
-            print("PASS: Paint Fill Button found")
-        except:
-            print("FAIL: Paint Fill Button not found")
-
-        page.locator(".close-button").click()
-
-        # 2. Test Notepad Status Bar
-        print("Testing Notepad Status Bar...")
-        page.locator(".icon", has_text="Notepad").click()
-        try:
-            # I will assume ID notepad-status-{windowId} or class
-            # Since windowId is dynamic, I check for class inside window
-            expect(page.locator(".notepad-status")).to_be_visible(timeout=2000)
-            print("PASS: Notepad Status Bar found")
-        except:
-            print("FAIL: Notepad Status Bar not found")
-
-        page.locator(".close-button").click()
-
-        # 3. Test Calculator Backspace
-        print("Testing Calculator Backspace...")
-        page.locator(".icon", has_text="Calculator").click()
-        try:
-            # Expecting a button with ⌫ or similar. I'll use text ⌫ or class
-            expect(page.locator("button", has_text="⌫")).to_be_visible(timeout=2000)
-            print("PASS: Calculator Backspace found")
-        except:
-            print("FAIL: Calculator Backspace not found")
-
-        page.locator(".close-button").click()
-
-        # 4. Test Clock Date Title
-        print("Testing Clock Date...")
+        # 1. Test Taskbar Clock Click
+        # Ensure clock is visible
         clock = page.locator("#clock")
-        # Check if title attribute contains a year (e.g., 2024 or 2025)
-        # Note: current title is likely empty
-        try:
-            title = clock.get_attribute("title")
-            if title and "20" in title:
-                print(f"PASS: Clock has date title: {title}")
-            else:
-                print(f"FAIL: Clock title missing or invalid: {title}")
-        except:
-            print("FAIL: Clock element check failed")
+        expect(clock).to_be_visible()
 
-        # 5. Test Draggable Icons (Check for absolute position after drag)
-        print("Testing Draggable Icons...")
-        # Get position of an icon
-        icon = page.locator(".icon").first
-        box_before = icon.bounding_box()
+        # Click clock
+        clock.click()
 
-        # Drag it
-        # We need to ensure we drag enough to trigger movement
-        icon.drag_to(page.locator("#taskbar"), target_position={"x": 0, "y": 0})
+        # Verify Clock app opens
+        clock_window = page.locator(".clock-window")
+        expect(clock_window).to_be_visible()
 
-        # Check if style is absolute (or if position changed and stayed)
-        # Since logic isn't there, it might snap back or not move visually if handled by flex
-        # But if I implement absolute positioning, the style attribute should contain position: absolute
+        # Close Clock app
+        clock_window.locator(".close-button").click()
+        expect(clock_window).not_to_be_visible()
 
-        # Reload to check persistence (part of the feature)
-        # page.reload()
-        # icon_after = page.locator(".icon").first
-        # box_after = icon_after.bounding_box()
-        # ... logic to compare
+        # 2. Test Image Viewer
+        # We need to simulate having an image file.
+        # Since we can't easily upload a real image in this headless test without a file,
+        # we'll inject an image into the virtual fileSystem via JS.
 
-        # For now just check if position style is absolute
-        try:
-            style = icon.get_attribute("style")
-            if style and "position: absolute" in style:
-                print("PASS: Icon has absolute position")
-            else:
-                print(f"FAIL: Icon does not have absolute position. Style: {style}")
-        except:
-            print("FAIL: Icon check failed")
+        page.evaluate("""
+            fileSystem['test_image.png'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+            saveFileSystem();
+            // Refresh explorer if open, but it's not open yet.
+        """)
+
+        # Open File Explorer
+        page.locator(".icon", has_text="Explorer").click()
+
+        # Find the image file
+        image_file = page.locator("#window-area .window-content > div > div", has_text="test_image.png")
+        expect(image_file).to_be_visible()
+
+        # Click to open
+        image_file.click()
+
+        # Verify Image Viewer opens
+        image_viewer = page.locator(".image-viewer-window")
+        expect(image_viewer).to_be_visible()
+
+        # Verify content contains img tag with correct src start
+        img_tag = image_viewer.locator("img")
+        expect(img_tag).to_be_visible()
+        src = img_tag.get_attribute("src")
+        assert src.startswith("data:image/png;base64"), "Image source should be a data URL"
+
+        # Close Image Viewer
+        image_viewer.locator(".close-button").click()
+        expect(image_viewer).not_to_be_visible()
+
+        # 3. Test Notifications (Basic Check)
+        # We know a welcome notification fires on load.
+        # Or we can trigger one manually to be sure timing isn't an issue.
+        page.evaluate("showNotification('Test Title', 'Test Message')")
+
+        notification = page.locator(".notification-toast", has_text="Test Title")
+        expect(notification).to_be_visible()
+        expect(notification).to_contain_text("Test Message")
 
         browser.close()
 
