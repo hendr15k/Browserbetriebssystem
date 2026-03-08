@@ -1644,7 +1644,7 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     // Directories will be stored with trailing slash: 'folder/'
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], cp [src] [dst], mv [src] [dst], grep [pattern] [file], head [-n lines] [file], tail [-n lines] [file], wc [file], about, reboot, whoami, pwd, history';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], cp [src] [dst], mv [src] [dst], grep [pattern] [file], head [-n lines] [file], tail [-n lines] [file], wc [file], about, reboot, whoami, pwd, history [count], history -c';
     } else if (command === 'date') {
         const now = new Date();
         const year = now.getFullYear();
@@ -1845,12 +1845,32 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     } else if (command === 'pwd') {
         response = cwd;
     } else if (command === 'history') {
-        // We need to track history first.
-        // For now, let's just show a placeholder or implement simple tracking
-        // But since we didn't add history tracking array, let's just say "Not implemented yet" or try to implement it now.
-        // Actually, let's implement a simple history array.
         if (!window.terminalHistory) window.terminalHistory = [];
-        response = window.terminalHistory.join('\n');
+
+        if (args[0] === '-c') {
+            window.terminalHistory = [];
+            response = 'History cleared.';
+        } else {
+            let commandList = window.terminalHistory;
+
+            if (args[0] !== undefined) {
+                const count = parseInt(args[0], 10);
+                if (Number.isNaN(count) || count < 1) {
+                    response = 'Usage: history [count] | history -c';
+                } else {
+                    commandList = window.terminalHistory.slice(-count);
+                }
+            }
+
+            if (!response) {
+                response = commandList
+                    .map((entry, index) => {
+                        const commandIndex = window.terminalHistory.length - commandList.length + index + 1;
+                        return `${commandIndex}  ${entry}`;
+                    })
+                    .join('\n');
+            }
+        }
     } else if (command === 'grep') {
         if (args.length < 2) {
             response = 'Usage: grep [pattern] [filename]';
@@ -1938,9 +1958,14 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
         response = `Command not found: ${command}`;
     }
 
-    if (cmd.trim() !== '') {
+    if (cmd.trim() !== '' && !(command === 'history' && args[0] === '-c')) {
         if (!window.terminalHistory) window.terminalHistory = [];
         window.terminalHistory.push(cmd);
+
+        const maxHistory = 200;
+        if (window.terminalHistory.length > maxHistory) {
+            window.terminalHistory = window.terminalHistory.slice(-maxHistory);
+        }
     }
 
     if (response) {
