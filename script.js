@@ -223,15 +223,45 @@ function toggleStartMenu() {
     }
 }
 
+let selectedStartItemIndex = -1;
+
+function getVisibleStartItems() {
+    return Array.from(document.querySelectorAll('.start-item')).filter(item => item.style.display !== 'none');
+}
+
+function updateStartSelection(newIndex) {
+    const visibleItems = getVisibleStartItems();
+    visibleItems.forEach(item => item.classList.remove('selected'));
+
+    if (!visibleItems.length) {
+        selectedStartItemIndex = -1;
+        return;
+    }
+
+    if (newIndex < 0) {
+        newIndex = visibleItems.length - 1;
+    } else if (newIndex >= visibleItems.length) {
+        newIndex = 0;
+    }
+
+    selectedStartItemIndex = newIndex;
+    const selectedItem = visibleItems[selectedStartItemIndex];
+    selectedItem.classList.add('selected');
+    selectedItem.scrollIntoView({ block: 'nearest' });
+}
+
 function filterStartMenu(query) {
     const items = document.querySelectorAll('.start-item');
     const divider = document.querySelector('.start-divider');
+    const noResults = document.getElementById('start-no-results');
     const q = query.toLowerCase();
+    let visibleCount = 0;
 
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
         if (text.includes(q)) {
             item.style.display = 'flex';
+            visibleCount += 1;
         } else {
             item.style.display = 'none';
         }
@@ -240,6 +270,12 @@ function filterStartMenu(query) {
     if (divider) {
         divider.style.display = query !== '' ? 'none' : 'block';
     }
+
+    if (noResults) {
+        noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    updateStartSelection(visibleCount > 0 ? 0 : -1);
 }
 
 // Initialize Search Listener
@@ -249,10 +285,50 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', (e) => {
             filterStartMenu(e.target.value);
         });
-        // Stop propagation to prevent menu closing if we had click logic on items that bubbled?
-        // Actually, preventing default might be needed for keys?
-        // For now, simple input listener is enough.
+
+        searchInput.addEventListener('keydown', (e) => {
+            const menu = document.getElementById('start-menu');
+            if (menu.style.display !== 'flex') return;
+
+            const visibleItems = getVisibleStartItems();
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                updateStartSelection(selectedStartItemIndex + 1);
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                updateStartSelection(selectedStartItemIndex - 1);
+                return;
+            }
+
+            if (e.key === 'Enter' && visibleItems.length > 0) {
+                e.preventDefault();
+                const indexToLaunch = selectedStartItemIndex >= 0 ? selectedStartItemIndex : 0;
+                visibleItems[indexToLaunch].click();
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                toggleStartMenu();
+            }
+        });
     }
+
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey && e.key === 'Escape') || (e.altKey && e.key.toLowerCase() === 's')) {
+            e.preventDefault();
+            const menu = document.getElementById('start-menu');
+            const isOpen = menu.style.display === 'flex';
+
+            if (!isOpen) {
+                toggleStartMenu();
+            }
+        }
+    });
 });
 
 // Close start menu when clicking outside

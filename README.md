@@ -5,6 +5,7 @@ Ein einfaches Betriebssystem, das im Browser läuft. Es wurde mit HTML, CSS und 
 ## Features
 - Desktop-Umgebung mit Icons
 - Taskleiste mit Startmenü und Uhr
+- Startmenü-Suche mit Tastatursteuerung (↑/↓/Enter/Escape)
 - Fenstermanagement (Verschieben, Schließen, Fokussieren)
 - Funktionierendes Terminal
 - Notepad, Markdown Editor und About Anwendungen
