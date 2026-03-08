@@ -131,6 +131,14 @@ body {
     border-color: var(--theme-color);
 }
 
+#start-no-results {
+    display: none;
+    padding: 10px 15px;
+    color: #c7c7c7;
+    font-size: 13px;
+    font-style: italic;
+}
+
 .start-item {
     padding: 10px 15px;
     display: flex;
@@ -141,6 +149,11 @@ body {
 
 .start-item:hover {
     background-color: rgba(255,255,255,0.1);
+}
+
+.start-item.selected {
+    background-color: rgba(255,255,255,0.2);
+    outline: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .start-icon {
