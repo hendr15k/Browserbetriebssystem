@@ -229,6 +229,41 @@ function getVisibleStartItems() {
     return Array.from(document.querySelectorAll('.start-item')).filter(item => item.style.display !== 'none');
 }
 
+function renderStartItemLabel(labelEl, labelText, query) {
+    labelEl.textContent = '';
+
+    if (!query) {
+        labelEl.textContent = labelText;
+        return;
+    }
+
+    const normalizedLabel = labelText.toLowerCase();
+    const matchStart = normalizedLabel.indexOf(query);
+
+    if (matchStart === -1) {
+        labelEl.textContent = labelText;
+        return;
+    }
+
+    const matchEnd = matchStart + query.length;
+    labelEl.append(document.createTextNode(labelText.slice(0, matchStart)));
+
+    const match = document.createElement('span');
+    match.className = 'start-item-label-mark';
+    match.textContent = labelText.slice(matchStart, matchEnd);
+    labelEl.append(match);
+
+    labelEl.append(document.createTextNode(labelText.slice(matchEnd)));
+}
+
+function prepareStartSearchLabels() {
+    document.querySelectorAll('.start-item span').forEach(labelEl => {
+        if (!labelEl.dataset.baseLabel) {
+            labelEl.dataset.baseLabel = labelEl.textContent.trim();
+        }
+    });
+}
+
 function updateStartSelection(newIndex) {
     const visibleItems = getVisibleStartItems();
     visibleItems.forEach(item => item.classList.remove('selected'));
@@ -254,21 +289,35 @@ function filterStartMenu(query) {
     const items = document.querySelectorAll('.start-item');
     const divider = document.querySelector('.start-divider');
     const noResults = document.getElementById('start-no-results');
-    const q = query.toLowerCase();
+    const searchCount = document.getElementById('start-search-count');
+    const q = query.trim().toLowerCase();
     let visibleCount = 0;
 
     items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        if (text.includes(q)) {
-            item.style.display = 'flex';
+        const labelEl = item.querySelector('span');
+        const labelText = labelEl?.dataset.baseLabel || labelEl?.textContent.trim() || '';
+        const isVisible = labelText.toLowerCase().includes(q);
+
+        item.style.display = isVisible ? 'flex' : 'none';
+        renderStartItemLabel(labelEl, labelText, q);
+
+        if (isVisible) {
             visibleCount += 1;
-        } else {
-            item.style.display = 'none';
         }
     });
 
     if (divider) {
         divider.style.display = query !== '' ? 'none' : 'block';
+    }
+
+    if (searchCount) {
+        if (q) {
+            const noun = visibleCount === 1 ? 'app' : 'apps';
+            searchCount.textContent = `${visibleCount} ${noun} found`;
+            searchCount.style.display = 'block';
+        } else {
+            searchCount.style.display = 'none';
+        }
     }
 
     if (noResults) {
@@ -280,6 +329,8 @@ function filterStartMenu(query) {
 
 // Initialize Search Listener
 document.addEventListener('DOMContentLoaded', () => {
+    prepareStartSearchLabels();
+
     const searchInput = document.getElementById('start-search');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {

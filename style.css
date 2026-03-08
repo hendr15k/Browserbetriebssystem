@@ -131,6 +131,13 @@ body {
     border-color: var(--theme-color);
 }
 
+#start-search-count {
+    display: none;
+    padding: 0 15px 8px 15px;
+    color: #b8d7ff;
+    font-size: 12px;
+}
+
 #start-no-results {
     display: none;
     padding: 10px 15px;
@@ -154,6 +161,13 @@ body {
 .start-item.selected {
     background-color: rgba(255,255,255,0.2);
     outline: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.start-item-label-mark {
+    background: rgba(241, 196, 15, 0.35);
+    color: #fff6d6;
+    border-radius: 3px;
+    padding: 0 2px;
 }
 
 .start-icon {
