@@ -1101,6 +1101,28 @@ function openApp(appName, arg = null) {
             </div>
         `;
         setTimeout(() => initWeather(windowId), 0);
+    } else if (appName === 'pomodoro') {
+        title = "Pomodoro Timer";
+        win.classList.add('pomodoro-window');
+        win.style.width = '360px';
+        win.style.height = '360px';
+        content = `
+            <div class="pomodoro-container">
+                <div class="pomodoro-phase" id="pomodoro-phase-${windowId}">Focus</div>
+                <div class="pomodoro-time" id="pomodoro-time-${windowId}">25:00</div>
+                <div class="pomodoro-controls">
+                    <button onclick="togglePomodoro('${windowId}')" id="pomodoro-toggle-${windowId}">Start</button>
+                    <button onclick="resetPomodoro('${windowId}')">Reset</button>
+                    <button onclick="switchPomodoroMode('${windowId}')" id="pomodoro-mode-${windowId}">Break</button>
+                </div>
+                <div class="pomodoro-presets">
+                    <button onclick="setPomodoroPreset('${windowId}', 25, 5)">25/5</button>
+                    <button onclick="setPomodoroPreset('${windowId}', 50, 10)">50/10</button>
+                    <button onclick="setPomodoroPreset('${windowId}', 15, 3)">15/3</button>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initPomodoro(windowId), 0);
     } else if (appName === 'voice-recorder') {
         title = "Voice Recorder";
         win.classList.add('voice-recorder-window');
@@ -1512,6 +1534,12 @@ function closeWindow(windowId) {
     // Cleanup Weather
     if (weatherStates[windowId]) {
         delete weatherStates[windowId];
+    }
+
+    // Cleanup Pomodoro
+    if (pomodoroStates[windowId]) {
+        clearInterval(pomodoroStates[windowId].interval);
+        delete pomodoroStates[windowId];
     }
 
     // Cleanup Voice Recorder
@@ -5380,6 +5408,110 @@ function checkSudokuWin(windowId, alertUser = false) {
 
 // Weather App Logic
 const weatherStates = {};
+const pomodoroStates = {};
+
+function initPomodoro(windowId) {
+    if (!pomodoroStates[windowId]) {
+        pomodoroStates[windowId] = {
+            mode: 'focus',
+            focusMinutes: 25,
+            breakMinutes: 5,
+            remainingSeconds: 25 * 60,
+            running: false,
+            interval: null
+        };
+    }
+    renderPomodoro(windowId);
+}
+
+function renderPomodoro(windowId) {
+    const state = pomodoroStates[windowId];
+    if (!state) return;
+
+    const timeEl = document.getElementById(`pomodoro-time-${windowId}`);
+    const phaseEl = document.getElementById(`pomodoro-phase-${windowId}`);
+    const toggleEl = document.getElementById(`pomodoro-toggle-${windowId}`);
+    const modeEl = document.getElementById(`pomodoro-mode-${windowId}`);
+    if (!timeEl || !phaseEl || !toggleEl || !modeEl) return;
+
+    const minutes = Math.floor(state.remainingSeconds / 60).toString().padStart(2, '0');
+    const seconds = (state.remainingSeconds % 60).toString().padStart(2, '0');
+
+    timeEl.textContent = `${minutes}:${seconds}`;
+    phaseEl.textContent = state.mode === 'focus' ? 'Focus' : 'Break';
+    toggleEl.textContent = state.running ? 'Pause' : 'Start';
+    modeEl.textContent = state.mode === 'focus' ? 'Break' : 'Focus';
+}
+
+function togglePomodoro(windowId) {
+    const state = pomodoroStates[windowId];
+    if (!state) return;
+
+    if (state.running) {
+        clearInterval(state.interval);
+        state.interval = null;
+        state.running = false;
+        renderPomodoro(windowId);
+        return;
+    }
+
+    state.running = true;
+    state.interval = setInterval(() => {
+        if (!pomodoroStates[windowId]) return;
+        state.remainingSeconds -= 1;
+
+        if (state.remainingSeconds <= 0) {
+            switchPomodoroMode(windowId, true);
+            return;
+        }
+
+        renderPomodoro(windowId);
+    }, 1000);
+
+    renderPomodoro(windowId);
+}
+
+function resetPomodoro(windowId) {
+    const state = pomodoroStates[windowId];
+    if (!state) return;
+
+    clearInterval(state.interval);
+    state.interval = null;
+    state.running = false;
+    state.remainingSeconds = (state.mode === 'focus' ? state.focusMinutes : state.breakMinutes) * 60;
+    renderPomodoro(windowId);
+}
+
+function switchPomodoroMode(windowId, fromTimer = false) {
+    const state = pomodoroStates[windowId];
+    if (!state) return;
+
+    const wasRunning = state.running;
+    clearInterval(state.interval);
+    state.interval = null;
+
+    state.mode = state.mode === 'focus' ? 'break' : 'focus';
+    state.remainingSeconds = (state.mode === 'focus' ? state.focusMinutes : state.breakMinutes) * 60;
+    state.running = false;
+    renderPomodoro(windowId);
+
+    if (fromTimer) {
+        showNotification('Pomodoro', state.mode === 'focus' ? 'Break is over. Back to focus!' : 'Focus session done. Time for a break!');
+    }
+
+    if (fromTimer && wasRunning) {
+        togglePomodoro(windowId);
+    }
+}
+
+function setPomodoroPreset(windowId, focusMinutes, breakMinutes) {
+    const state = pomodoroStates[windowId];
+    if (!state) return;
+
+    state.focusMinutes = focusMinutes;
+    state.breakMinutes = breakMinutes;
+    resetPomodoro(windowId);
+}
 
 function initWeather(windowId) {
     if (!weatherStates[windowId]) {
