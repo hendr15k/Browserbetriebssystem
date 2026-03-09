@@ -29,6 +29,63 @@ function setThemeColor(color) {
     localStorage.setItem('themeColor', color);
 }
 
+const defaultSystemProfile = {
+    username: 'user',
+    hostname: 'webos-machine',
+    startupApps: ['file-explorer'],
+    createdAt: Date.now()
+};
+
+let sessionStartTime = Date.now();
+
+function getSystemProfile() {
+    const saved = localStorage.getItem('systemProfile');
+    if (!saved) return { ...defaultSystemProfile };
+
+    try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultSystemProfile, ...parsed };
+    } catch (error) {
+        return { ...defaultSystemProfile };
+    }
+}
+
+function saveSystemProfile(profile) {
+    localStorage.setItem('systemProfile', JSON.stringify(profile));
+}
+
+function getStorageStats() {
+    const entries = Object.entries(fileSystem);
+    let fileCount = 0;
+    let directoryCount = 0;
+    let totalBytes = 0;
+
+    entries.forEach(([_, value]) => {
+        if (value === 'directory') {
+            directoryCount += 1;
+            return;
+        }
+
+        fileCount += 1;
+        totalBytes += (typeof value === 'string' ? value.length : 0);
+    });
+
+    const noteCount = Object.keys(stickyNotes || {}).length;
+
+    return { fileCount, directoryCount, totalBytes, noteCount };
+}
+
+function runStartupApps() {
+    const profile = getSystemProfile();
+    const validApps = new Set(['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'browser']);
+
+    profile.startupApps
+        .filter(app => validApps.has(app))
+        .forEach((app, index) => {
+            setTimeout(() => openApp(app), 150 * index);
+        });
+}
+
 // Load Settings
 window.addEventListener('load', () => {
     const savedBg = localStorage.getItem('desktopBackground');
@@ -127,6 +184,10 @@ window.addEventListener('load', () => {
     setTimeout(() => {
         showNotification('Welcome', 'WebOS initialized successfully.');
     }, 1000);
+
+    setTimeout(() => {
+        runStartupApps();
+    }, 700);
 });
 
 // Desktop Icon Logic
@@ -677,6 +738,50 @@ function openApp(appName, arg = null) {
                         style="padding: 10px 20px; background: #d9534f; color: white; border: none; cursor: pointer; border-radius: 4px;">Reset to Defaults</button>
             </div>
         `;
+    } else if (appName === 'system-center') {
+        title = "System Center";
+        const profile = getSystemProfile();
+        const startupOptions = [
+            { id: 'terminal', label: 'Terminal' },
+            { id: 'file-explorer', label: 'File Explorer' },
+            { id: 'task-manager', label: 'Task Manager' },
+            { id: 'system-monitor', label: 'System Monitor' },
+            { id: 'browser', label: 'Web Browser' }
+        ];
+
+        content = `
+            <div class="system-center">
+                <h3 style="margin-top: 0;">System Center</h3>
+                <div class="system-center-grid">
+                    <div class="system-card">
+                        <h4>Account & Device</h4>
+                        <label>User name</label>
+                        <input id="sys-user-${windowId}" type="text" value="${profile.username}">
+                        <label>Host name</label>
+                        <input id="sys-host-${windowId}" type="text" value="${profile.hostname}">
+                        <button onclick="saveSystemIdentity('${windowId}')">Save identity</button>
+                    </div>
+                    <div class="system-card">
+                        <h4>Startup Apps</h4>
+                        <div class="system-startup-list">
+                            ${startupOptions.map(({ id, label }) => `
+                                <label><input type="checkbox" id="startup-${windowId}-${id}" ${profile.startupApps.includes(id) ? 'checked' : ''}> ${label}</label>
+                            `).join('')}
+                        </div>
+                        <div class="system-actions">
+                            <button onclick="saveStartupApps('${windowId}')">Save startup</button>
+                            <button onclick="runStartupApps()">Run now</button>
+                        </div>
+                    </div>
+                    <div class="system-card">
+                        <h4>System Status</h4>
+                        <div id="system-status-${windowId}" class="system-status"></div>
+                        <button onclick="refreshSystemStatus('${windowId}')">Refresh</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => refreshSystemStatus(windowId), 0);
     } else if (appName === 'system-monitor') {
         title = "System Monitor";
         content = `
@@ -1855,6 +1960,50 @@ function resolvePath(cwd, path) {
     return res;
 }
 
+function saveSystemIdentity(windowId) {
+    const usernameInput = document.getElementById(`sys-user-${windowId}`);
+    const hostnameInput = document.getElementById(`sys-host-${windowId}`);
+    if (!usernameInput || !hostnameInput) return;
+
+    const profile = getSystemProfile();
+    profile.username = usernameInput.value.trim() || defaultSystemProfile.username;
+    profile.hostname = hostnameInput.value.trim() || defaultSystemProfile.hostname;
+    saveSystemProfile(profile);
+    showNotification('System Center', 'Identity updated.');
+}
+
+function saveStartupApps(windowId) {
+    const profile = getSystemProfile();
+    const apps = ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'browser'];
+    profile.startupApps = apps.filter(app => {
+        const checkbox = document.getElementById(`startup-${windowId}-${app}`);
+        return checkbox && checkbox.checked;
+    });
+
+    saveSystemProfile(profile);
+    showNotification('System Center', `Saved ${profile.startupApps.length} startup app(s).`);
+}
+
+function refreshSystemStatus(windowId) {
+    const status = document.getElementById(`system-status-${windowId}`);
+    if (!status) return;
+
+    const profile = getSystemProfile();
+    const storage = getStorageStats();
+    const uptimeMs = Date.now() - sessionStartTime;
+    const uptimeMin = Math.floor(uptimeMs / 60000);
+
+    status.innerHTML = `
+        <div><strong>User:</strong> ${profile.username}</div>
+        <div><strong>Host:</strong> ${profile.hostname}</div>
+        <div><strong>Uptime:</strong> ${uptimeMin} min</div>
+        <div><strong>Files:</strong> ${storage.fileCount} | <strong>Folders:</strong> ${storage.directoryCount}</div>
+        <div><strong>Stored data:</strong> ${storage.totalBytes} bytes</div>
+        <div><strong>Sticky notes:</strong> ${storage.noteCount}</div>
+        <div><strong>Open windows:</strong> ${document.querySelectorAll('.window').length}</div>
+    `;
+}
+
 // Terminal Logic
 function handleTerminalCommand(cmd, outputDiv, windowId) {
     const line = document.createElement('div');
@@ -1886,7 +2035,7 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     // Directories will be stored with trailing slash: 'folder/'
 
     if (command === 'help') {
-        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], cp [src] [dst], mv [src] [dst], grep [pattern] [file], head [-n lines] [file], tail [-n lines] [file], wc [file], about, reboot, whoami, pwd, history [count], history -c';
+        response = 'Available commands: help, date, clear, echo [text], ls, cat [file], open [file], touch [file], rm [file], mkdir [dir], rmdir [dir], cd [dir], cp [src] [dst], mv [src] [dst], grep [pattern] [file], head [-n lines] [file], tail [-n lines] [file], wc [file], about, reboot, whoami, pwd, history [count], history -c, sysinfo, startup [list|add|remove|run] [app]';
     } else if (command === 'date') {
         const now = new Date();
         const year = now.getFullYear();
@@ -2083,7 +2232,44 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     } else if (command === 'reboot') {
         location.reload();
     } else if (command === 'whoami') {
-        response = 'user';
+        response = getSystemProfile().username;
+    } else if (command === 'sysinfo') {
+        const profile = getSystemProfile();
+        const storage = getStorageStats();
+        const uptimeMin = Math.floor((Date.now() - sessionStartTime) / 60000);
+        response = `WebOS\nUser: ${profile.username}\nHost: ${profile.hostname}\nUptime: ${uptimeMin} min\nFiles: ${storage.fileCount}\nFolders: ${storage.directoryCount}\nData: ${storage.totalBytes} bytes\nWindows: ${document.querySelectorAll('.window').length}`;
+    } else if (command === 'startup') {
+        const profile = getSystemProfile();
+        const validApps = ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'browser'];
+        const action = args[0] || 'list';
+        const app = args[1];
+
+        if (action === 'list') {
+            response = `Startup apps: ${profile.startupApps.join(', ') || '(none)'}`;
+        } else if (action === 'add') {
+            if (!app || !validApps.includes(app)) {
+                response = `Usage: startup add [${validApps.join('|')}]`;
+            } else if (profile.startupApps.includes(app)) {
+                response = `${app} is already in startup.`;
+            } else {
+                profile.startupApps.push(app);
+                saveSystemProfile(profile);
+                response = `Added ${app} to startup.`;
+            }
+        } else if (action === 'remove') {
+            if (!app) {
+                response = 'Usage: startup remove [app]';
+            } else {
+                profile.startupApps = profile.startupApps.filter(a => a !== app);
+                saveSystemProfile(profile);
+                response = `Removed ${app} from startup.`;
+            }
+        } else if (action === 'run') {
+            runStartupApps();
+            response = 'Starting configured startup apps...';
+        } else {
+            response = 'Usage: startup [list|add|remove|run] [app]';
+        }
     } else if (command === 'pwd') {
         response = cwd;
     } else if (command === 'history') {
