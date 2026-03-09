@@ -6,6 +6,13 @@ function updateClock() {
     const clock = document.getElementById('clock');
     clock.textContent = `${hours}:${minutes}`;
     clock.title = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const lockTime = document.getElementById('lock-time');
+    const lockDate = document.getElementById('lock-date');
+    if (lockTime && lockDate) {
+        lockTime.textContent = `${hours}:${minutes}`;
+        lockDate.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -101,6 +108,12 @@ window.addEventListener('load', () => {
     document.addEventListener('click', (e) => {
         if (!contextMenu.contains(e.target)) {
             contextMenu.style.display = 'none';
+        }
+
+        const powerMenu = document.getElementById('power-menu');
+        const powerButton = document.getElementById('power-button');
+        if (powerMenu && powerButton && !powerMenu.contains(e.target) && e.target !== powerButton) {
+            powerMenu.style.display = 'none';
         }
     });
 
@@ -443,6 +456,55 @@ function toggleDesktop() {
     }
 }
 
+function togglePowerMenu() {
+    const menu = document.getElementById('power-menu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+}
+
+function lockSystem() {
+    const lockScreen = document.getElementById('lock-screen');
+    const powerMenu = document.getElementById('power-menu');
+    if (powerMenu) powerMenu.style.display = 'none';
+    if (lockScreen) lockScreen.classList.remove('hidden');
+}
+
+function unlockSystem() {
+    const pinInput = document.getElementById('unlock-pin');
+    const error = document.getElementById('lock-error');
+    const lockScreen = document.getElementById('lock-screen');
+    const correctPin = localStorage.getItem('systemPin') || '1234';
+
+    if (!pinInput || !error || !lockScreen) return;
+
+    if (pinInput.value === correctPin) {
+        lockScreen.classList.add('hidden');
+        pinInput.value = '';
+        error.textContent = '';
+    } else {
+        error.textContent = 'Falscher PIN. Bitte erneut versuchen.';
+    }
+}
+
+function restartSystem() {
+    location.reload();
+}
+
+function shutdownSystem() {
+    const lockScreen = document.getElementById('lock-screen');
+    if (!lockScreen) return;
+
+    lockScreen.classList.remove('hidden');
+    lockScreen.innerHTML = `
+        <div class="lock-card">
+            <div id="lock-time">System</div>
+            <div id="lock-date">WebOS wurde heruntergefahren.</div>
+            <p>Zum Starten auf den Button klicken.</p>
+            <button onclick="restartSystem()">Einschalten</button>
+        </div>
+    `;
+}
+
 // Window Management
 let zIndex = 100;
 let windowCount = 0;
@@ -607,10 +669,29 @@ function openApp(appName, arg = null) {
                 </div>
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
                 <h3>System</h3>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                    <input id="pin-input-${windowId}" type="password" placeholder="PIN setzen" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <button onclick="saveSystemPin('${windowId}')" style="padding: 8px 10px; border: none; background: #34495e; color: white; border-radius: 4px; cursor: pointer;">PIN speichern</button>
+                </div>
                 <button onclick="if(confirm('Are you sure you want to reset all settings and data? This will clear localStorage and reload the page.')) { localStorage.clear(); location.reload(); }"
                         style="padding: 10px 20px; background: #d9534f; color: white; border: none; cursor: pointer; border-radius: 4px;">Reset to Defaults</button>
             </div>
         `;
+    } else if (appName === 'system-monitor') {
+        title = "System Monitor";
+        content = `
+            <div style="padding: 14px; background: #fff; height: 100%; box-sizing: border-box; overflow: auto;">
+                <h3 style="margin-top: 0;">Systemüberwachung</h3>
+                <div class="system-monitor-grid">
+                    <div class="system-stat"><h4>CPU-Auslastung</h4><div id="sys-cpu-${windowId}">0%</div></div>
+                    <div class="system-stat"><h4>RAM-Verbrauch</h4><div id="sys-ram-${windowId}">0 MB</div></div>
+                    <div class="system-stat"><h4>Offene Fenster</h4><div id="sys-win-${windowId}">0</div></div>
+                </div>
+                <h4 style="margin-bottom: 8px;">Laufende Anwendungen</h4>
+                <div id="sys-apps-${windowId}" style="font-family: monospace; font-size: 13px; white-space: pre-line;"></div>
+            </div>
+        `;
+        setTimeout(() => initSystemMonitor(windowId), 0);
     } else if (appName === 'speak') {
         title = "Speak";
         content = `
@@ -1493,6 +1574,11 @@ function closeWindow(windowId) {
         delete tictactoeGames[windowId];
     }
 
+    if (systemMonitorStates[windowId]) {
+        clearInterval(systemMonitorStates[windowId]);
+        delete systemMonitorStates[windowId];
+    }
+
     // Cleanup Calendar state
     if (calendarStates[windowId]) {
         delete calendarStates[windowId];
@@ -1686,6 +1772,7 @@ window.fileSystem = fileSystem;
 
 // Terminal State
 const terminalStates = {};
+const systemMonitorStates = {};
 
 // Sticky Notes State
 let stickyNotes = {};
@@ -2436,8 +2523,29 @@ function handleFileUpload(windowId, input) {
     }
 }
 
+function initSystemMonitor(windowId) {
+    const update = () => {
+        const cpuEl = document.getElementById(`sys-cpu-${windowId}`);
+        const ramEl = document.getElementById(`sys-ram-${windowId}`);
+        const winEl = document.getElementById(`sys-win-${windowId}`);
+        const appsEl = document.getElementById(`sys-apps-${windowId}`);
+        if (!cpuEl || !ramEl || !winEl || !appsEl) return;
+
+        const openWindows = Array.from(document.querySelectorAll('.window'));
+        const appNames = openWindows.map(w => w.querySelector('.window-title')?.textContent || 'Application');
+        cpuEl.textContent = `${Math.floor(Math.random() * 45) + 10}%`;
+        ramEl.textContent = `${Math.floor(Math.random() * 2200) + 900} MB`;
+        winEl.textContent = String(openWindows.length);
+        appsEl.textContent = appNames.length ? appNames.join('\n') : 'Keine Apps aktiv';
+    };
+
+    update();
+    systemMonitorStates[windowId] = setInterval(update, 1500);
+}
+
 // File Explorer Logic
 function renderFileExplorer(windowId) {
+
     const container = document.getElementById(`explorer-content-${windowId}`);
     const pathInput = document.getElementById(`explorer-path-${windowId}`);
     if (!container) return;
@@ -2933,6 +3041,19 @@ function loadFileSystem() {
 }
 
 // Speak App Logic
+
+function saveSystemPin(windowId) {
+    const input = document.getElementById(`pin-input-${windowId}`);
+    if (!input || input.value.trim().length < 4) {
+        alert('PIN muss mindestens 4 Zeichen lang sein.');
+        return;
+    }
+
+    localStorage.setItem('systemPin', input.value.trim());
+    input.value = '';
+    alert('System-PIN gespeichert.');
+}
+
 function speakText(windowId) {
     const text = document.getElementById(`speak-text-${windowId}`).value;
     if (text) {

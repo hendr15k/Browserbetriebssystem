@@ -2331,3 +2331,111 @@ body {
 .pomodoro-presets button:hover {
     background: #cf6d18;
 }
+
+#power-button {
+    background: transparent;
+    border: none;
+    color: #ddd;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+#power-button:hover {
+    background: #333;
+    color: #fff;
+}
+
+#power-menu {
+    position: absolute;
+    right: 40px;
+    bottom: 46px;
+    display: none;
+    flex-direction: column;
+    min-width: 180px;
+    background: rgba(24, 24, 24, 0.96);
+    border: 1px solid #555;
+    border-radius: 6px;
+    z-index: 10001;
+    overflow: hidden;
+}
+
+#power-menu button {
+    border: none;
+    background: transparent;
+    color: #fff;
+    text-align: left;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+#power-menu button:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+#lock-screen {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at top, rgba(40, 77, 134, 0.95), rgba(7, 16, 32, 0.98));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20000;
+}
+
+#lock-screen.hidden {
+    display: none;
+}
+
+.lock-card {
+    width: 320px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+#lock-time {
+    font-size: 38px;
+    font-weight: 700;
+}
+
+#lock-date {
+    opacity: 0.85;
+    margin-bottom: 14px;
+}
+
+#unlock-pin {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #789;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+#lock-error {
+    color: #ffb3b3;
+    min-height: 18px;
+    font-size: 12px;
+}
+
+.system-monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.system-stat {
+    background: #f4f7fb;
+    border: 1px solid #d8e2f1;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.system-stat h4 {
+    margin: 0 0 6px;
+}

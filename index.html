@@ -283,6 +283,10 @@
             <div class="start-icon" style="background: #e74c3c; color: white;">📄</div>
             <span>PDF Viewer</span>
         </div>
+        <div class="start-item" onclick="openApp('system-monitor'); toggleStartMenu()">
+            <div class="start-icon" style="background: #34495e; color: white;">🖥️</div>
+            <span>System Monitor</span>
+        </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">
             <div class="start-icon" style="background: #e81123; color: white;">R</div>
@@ -293,8 +297,25 @@
     <div id="taskbar">
         <button id="start-button" onclick="toggleStartMenu()">Start</button>
         <div id="taskbar-apps"></div>
+        <button id="power-button" onclick="togglePowerMenu()" title="Power">⏻</button>
+        <div id="power-menu">
+            <button onclick="lockSystem()">🔒 Sperren</button>
+            <button onclick="restartSystem()">🔄 Neustarten</button>
+            <button onclick="shutdownSystem()">⏻ Herunterfahren</button>
+        </div>
         <div id="clock" onclick="openApp('clock')">00:00</div>
         <button id="show-desktop" onclick="toggleDesktop()" title="Show Desktop">┃</button>
+    </div>
+
+    <div id="lock-screen" class="hidden">
+        <div class="lock-card">
+            <div id="lock-time">00:00</div>
+            <div id="lock-date"></div>
+            <p>System gesperrt</p>
+            <input id="unlock-pin" type="password" placeholder="PIN (Standard: 1234)">
+            <button onclick="unlockSystem()">Entsperren</button>
+            <div id="lock-error"></div>
+        </div>
     </div>
 
     <!-- Application Templates (Hidden by default, cloned when opened) -->
