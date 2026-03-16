@@ -4267,7 +4267,7 @@ function renderWorldClock(windowId) {
         delBtn.style.border = 'none';
         delBtn.style.cursor = 'pointer';
         delBtn.style.marginLeft = '10px';
-        delBtn.onclick = () => removeWorldCity(windowId, index);
+        delBtn.onclick = (e) => { e.stopPropagation(); removeWorldCity(windowId, index); };
 
         const leftDiv = document.createElement('div');
         leftDiv.style.display = 'flex';
