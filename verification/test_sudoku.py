@@ -57,7 +57,8 @@ def test_sudoku():
             # Click the cell to select it
             # We need to re-query right before clicking to be safe, though initially it's fine
             cells = page.query_selector_all(".sudoku-cell")
-            cells[target_index].click()
+            cells[target_index].click(force=True)
+
 
             # Wait for re-render
             time.sleep(0.5)

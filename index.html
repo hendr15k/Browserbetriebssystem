@@ -145,6 +145,22 @@
             <div class="icon-img" style="background-color: #27ae60; color: white;">📊</div>
             <div class="icon-label">Sheets</div>
         </div>
+        <div class="icon" onclick="openApp('email')">
+            <div class="icon-img" style="background-color: #e67e22; color: white;">📧</div>
+            <div class="icon-label">Email</div>
+        </div>
+        <div class="icon" onclick="openApp('chat')">
+            <div class="icon-img" style="background-color: #9b59b6; color: white;">💬</div>
+            <div class="icon-label">Chat</div>
+        </div>
+        <div class="icon" onclick="openApp('gallery')">
+            <div class="icon-img" style="background-color: #f39c12; color: white;">🖼️</div>
+            <div class="icon-label">Gallery</div>
+        </div>
+        <div class="icon" onclick="openApp('printer')">
+            <div class="icon-img" style="background-color: #34495e; color: white;">🖨️</div>
+            <div class="icon-label">Printer</div>
+        </div>
     </div>
 
     <div id="start-menu">
@@ -294,6 +310,22 @@
         <div class="start-item" onclick="openApp('system-monitor'); toggleStartMenu()">
             <div class="start-icon" style="background: #34495e; color: white;">🖥️</div>
             <span>System Monitor</span>
+        </div>
+        <div class="start-item" onclick="openApp('email'); toggleStartMenu()">
+            <div class="start-icon" style="background: #e67e22; color: white;">📧</div>
+            <span>Email</span>
+        </div>
+        <div class="start-item" onclick="openApp('chat'); toggleStartMenu()">
+            <div class="start-icon" style="background: #9b59b6; color: white;">💬</div>
+            <span>Chat</span>
+        </div>
+        <div class="start-item" onclick="openApp('gallery'); toggleStartMenu()">
+            <div class="start-icon" style="background: #f39c12; color: white;">🖼️</div>
+            <span>Gallery</span>
+        </div>
+        <div class="start-item" onclick="openApp('printer'); toggleStartMenu()">
+            <div class="start-icon" style="background: #34495e; color: white;">🖨️</div>
+            <span>Printer Settings</span>
         </div>
         <div class="start-divider"></div>
         <div class="start-item" onclick="location.reload()">

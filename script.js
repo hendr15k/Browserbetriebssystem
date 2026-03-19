@@ -1493,6 +1493,133 @@ function openApp(appName, arg = null) {
                 </div>
             </div>
         `;
+    } else if (appName === 'email') {
+        title = "Email";
+        win.classList.add('email-window');
+        win.style.width = '700px';
+        win.style.height = '500px';
+        content = `
+            <div style="display: flex; height: 100%; background: #f5f5f5; font-family: sans-serif;">
+                <div style="width: 150px; background: #e0e0e0; border-right: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    <button onclick="composeEmail('${windowId}')" style="margin-bottom: 10px; padding: 8px; background: #0078d7; color: white; border: none; cursor: pointer;">Compose</button>
+                    <div style="cursor: pointer; padding: 5px; background: #d0d0d0;" onclick="renderEmailList('${windowId}', 'inbox')">Inbox</div>
+                    <div style="cursor: pointer; padding: 5px;" onclick="renderEmailList('${windowId}', 'sent')">Sent</div>
+                </div>
+                <div id="email-list-pane-${windowId}" style="width: 250px; background: white; border-right: 1px solid #ccc; overflow-y: auto;">
+                    <!-- Email List -->
+                </div>
+                <div id="email-view-pane-${windowId}" style="flex-grow: 1; background: white; padding: 20px; overflow-y: auto;">
+                    <div style="color: #888; text-align: center; margin-top: 50px;">Select an email to read</div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initEmail(windowId), 0);
+    } else if (appName === 'chat') {
+        title = "Chat";
+        win.classList.add('chat-window');
+        win.style.width = '500px';
+        win.style.height = '400px';
+        content = `
+            <div style="display: flex; height: 100%; background: #fff; font-family: sans-serif;">
+                <div id="chat-sidebar-${windowId}" style="width: 150px; border-right: 1px solid #ccc; background: #f9f9f9; overflow-y: auto;">
+                    <!-- Contacts List -->
+                </div>
+                <div style="flex-grow: 1; display: flex; flex-direction: column;">
+                    <div id="chat-header-${windowId}" style="padding: 10px; background: #eee; border-bottom: 1px solid #ccc; font-weight: bold;">Select a contact</div>
+                    <div id="chat-messages-${windowId}" style="flex-grow: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fafafa;">
+                        <!-- Messages -->
+                    </div>
+                    <div style="padding: 10px; border-top: 1px solid #ccc; display: flex; gap: 5px; background: #fff;">
+                        <input type="text" id="chat-input-${windowId}" placeholder="Type a message..." style="flex-grow: 1; padding: 5px;" onkeydown="if(event.key === 'Enter') sendChatMessage('${windowId}')">
+                        <button onclick="sendChatMessage('${windowId}')" style="padding: 5px 10px;">Send</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initChat(windowId), 0);
+    } else if (appName === 'gallery') {
+        title = "Photo Gallery";
+        win.classList.add('gallery-window');
+        win.style.width = '600px';
+        win.style.height = '450px';
+        content = `
+            <div style="display: flex; flex-direction: column; height: 100%; background: #fff;">
+                <div style="padding: 10px; background: #eee; border-bottom: 1px solid #ccc; display: flex; gap: 10px; align-items: center;">
+                    <button onclick="startSlideshow('${windowId}')" id="gallery-slideshow-btn-${windowId}">Start Slideshow</button>
+                    <div style="flex-grow: 1;"></div>
+                    <label style="cursor: pointer; background: #0078d7; color: white; padding: 5px 10px; border-radius: 3px;">
+                        Upload Image
+                        <input type="file" accept="image/*" style="display: none;" onchange="handleGalleryUpload('${windowId}', event)">
+                    </label>
+                </div>
+                <div id="gallery-grid-${windowId}" style="flex-grow: 1; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; overflow-y: auto; background: #fafafa; position: relative;"
+                    ondragover="event.preventDefault()" ondrop="handleGalleryDrop('${windowId}', event)">
+                    <!-- Thumbnails -->
+                    <div style="grid-column: 1 / -1; text-align: center; color: #888; margin-top: 50px;" id="gallery-empty-${windowId}">
+                        No images. Upload or drag & drop here.
+                    </div>
+                </div>
+
+                <!-- Fullscreen Overlay within App -->
+                <div id="gallery-overlay-${windowId}" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10; flex-direction: column;">
+                    <div style="padding: 10px; text-align: right;">
+                        <button onclick="closeGalleryView('${windowId}')" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+                    </div>
+                    <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative;">
+                        <button onclick="prevGalleryImage('${windowId}')" style="position: absolute; left: 10px; background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; padding: 10px; cursor: pointer;">&#10094;</button>
+                        <img id="gallery-main-img-${windowId}" style="max-width: 90%; max-height: 90%; object-fit: contain;">
+                        <button onclick="nextGalleryImage('${windowId}')" style="position: absolute; right: 10px; background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; padding: 10px; cursor: pointer;">&#10095;</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initGallery(windowId), 0);
+    } else if (appName === 'printer') {
+        title = "Printer Settings";
+        win.classList.add('printer-window');
+        win.style.width = '550px';
+        win.style.height = '400px';
+        content = `
+            <div style="display: flex; height: 100%; background: #f0f0f0; font-family: sans-serif;">
+                <div style="width: 250px; padding: 20px; background: white; border-right: 1px solid #ccc; display: flex; flex-direction: column; gap: 15px;">
+                    <h3 style="margin: 0; padding-bottom: 10px; border-bottom: 1px solid #eee;">Print</h3>
+
+                    <div>
+                        <label style="display: block; font-size: 12px; margin-bottom: 5px;">Printer</label>
+                        <select id="printer-select-${windowId}" style="width: 100%; padding: 5px;">
+                            <option>Virtual PDF Printer</option>
+                            <option>Local Network Printer (Offline)</option>
+                            <option>Save to FileSystem</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-size: 12px; margin-bottom: 5px;">Copies</label>
+                        <input type="number" id="printer-copies-${windowId}" value="1" min="1" style="width: 60px; padding: 5px;">
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-size: 12px; margin-bottom: 5px;">Color Mode</label>
+                        <select id="printer-color-${windowId}" style="width: 100%; padding: 5px;" onchange="updatePrinterPreview('${windowId}')">
+                            <option value="color">Color</option>
+                            <option value="bw">Black & White</option>
+                        </select>
+                    </div>
+
+                    <div style="flex-grow: 1;"></div>
+                    <button onclick="executePrint('${windowId}')" style="padding: 10px; background: #0078d7; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Print</button>
+                </div>
+                <div style="flex-grow: 1; padding: 20px; display: flex; align-items: center; justify-content: center; background: #525659;">
+                    <div id="printer-preview-${windowId}" style="width: 210px; height: 297px; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.5); padding: 20px; box-sizing: border-box; display: flex; flex-direction: column;">
+                        <h2 style="color: #333; text-align: center; margin-top: 20px;">Sample Document</h2>
+                        <div style="height: 10px; background: #3498db; margin: 10px 0;"></div>
+                        <p style="font-size: 10px; color: #666; flex-grow: 1;">This is a print preview showing how the document will look when printed.</p>
+                        <div style="height: 50px; background: #e74c3c; width: 50px; border-radius: 25px; align-self: center; margin-bottom: 20px;"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        setTimeout(() => initPrinter(windowId), 0);
     }
 
     win.innerHTML = `
@@ -1722,6 +1849,12 @@ function closeWindow(windowId) {
         delete sudokuGames[windowId];
     }
 
+    // Cleanup Gallery Slideshow
+    if (galleryStates[windowId] && galleryStates[windowId].slideshowInterval) {
+        clearInterval(galleryStates[windowId].slideshowInterval);
+        delete galleryStates[windowId];
+    }
+
     // Cleanup Weather
     if (weatherStates[windowId]) {
         delete weatherStates[windowId];
@@ -1878,6 +2011,11 @@ window.fileSystem = fileSystem;
 // Terminal State
 const terminalStates = {};
 const systemMonitorStates = {};
+
+const emailStates = {};
+const chatStates = {};
+const galleryStates = {};
+const printerStates = {};
 
 // Sticky Notes State
 let stickyNotes = {};
@@ -2990,6 +3128,435 @@ function openNotepadFile(windowId) {
             textarea.value = e.target.result;
         };
         reader.readAsText(input.files[0]);
+    }
+}
+
+// Printer Logic
+function initPrinter(windowId) {
+    if (!printerStates[windowId]) {
+        printerStates[windowId] = {
+            colorMode: 'color'
+        };
+    }
+    updatePrinterPreview(windowId);
+}
+
+function updatePrinterPreview(windowId) {
+    const colorSelect = document.getElementById(`printer-color-${windowId}`);
+    const preview = document.getElementById(`printer-preview-${windowId}`);
+
+    if (colorSelect && preview) {
+        if (colorSelect.value === 'bw') {
+            preview.style.filter = 'grayscale(100%)';
+        } else {
+            preview.style.filter = 'none';
+        }
+    }
+}
+
+function executePrint(windowId) {
+    const copies = document.getElementById(`printer-copies-${windowId}`).value;
+    const printer = document.getElementById(`printer-select-${windowId}`).value;
+
+    showNotification('Print Spooler', `Sent ${copies} page(s) to ${printer}`);
+    closeWindow(windowId);
+}
+
+// Email App Logic
+function initEmail(windowId) {
+    if (!emailStates[windowId]) {
+        // Mock initial data
+        emailStates[windowId] = {
+            inbox: [
+                { id: 1, sender: 'system@webos.local', subject: 'Welcome to WebOS', body: 'Hello,\n\nWelcome to your new WebOS environment. Enjoy exploring the features!', date: new Date().toLocaleDateString() }
+            ],
+            sent: [],
+            currentFolder: 'inbox'
+        };
+    }
+    renderEmailList(windowId, 'inbox');
+}
+
+function renderEmailList(windowId, folder) {
+    const state = emailStates[windowId];
+    if (!state) return;
+
+    state.currentFolder = folder;
+    const listPane = document.getElementById(`email-list-pane-${windowId}`);
+    if (!listPane) return;
+
+    let html = '';
+    const emails = state[folder];
+    if (emails.length === 0) {
+        html = '<div style="padding: 10px; color: #888; text-align: center;">No emails</div>';
+    } else {
+        emails.forEach(email => {
+            html += `
+                <div style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; hover:background: #f0f0f0;" onclick="viewEmail('${windowId}', ${email.id})">
+                    <div style="font-weight: bold; font-size: 14px; margin-bottom: 3px;">${folder === 'inbox' ? email.sender : 'To: ' + email.recipient}</div>
+                    <div style="font-size: 13px; color: #333; margin-bottom: 3px;">${email.subject}</div>
+                    <div style="font-size: 11px; color: #888;">${email.date}</div>
+                </div>
+            `;
+        });
+    }
+    listPane.innerHTML = html;
+}
+
+function viewEmail(windowId, id) {
+    const state = emailStates[windowId];
+    if (!state) return;
+
+    const email = state[state.currentFolder].find(e => e.id === id);
+    const viewPane = document.getElementById(`email-view-pane-${windowId}`);
+    if (!email || !viewPane) return;
+
+    viewPane.innerHTML = `
+        <h2 style="margin-top: 0;">${email.subject}</h2>
+        <div style="color: #666; font-size: 13px; margin-bottom: 20px;">
+            ${state.currentFolder === 'inbox' ? 'From: ' + email.sender : 'To: ' + email.recipient} <br>
+            Date: ${email.date}
+        </div>
+        <div style="white-space: pre-wrap; font-family: sans-serif;">${email.body}</div>
+    `;
+}
+
+function composeEmail(windowId) {
+    const viewPane = document.getElementById(`email-view-pane-${windowId}`);
+    if (!viewPane) return;
+
+    viewPane.innerHTML = `
+        <h2 style="margin-top: 0;">New Email</h2>
+        <div style="display: flex; flex-direction: column; gap: 10px; height: calc(100% - 40px);">
+            <input type="text" id="email-compose-to-${windowId}" placeholder="To:" style="padding: 8px; border: 1px solid #ccc;">
+            <input type="text" id="email-compose-subject-${windowId}" placeholder="Subject:" style="padding: 8px; border: 1px solid #ccc;">
+            <textarea id="email-compose-body-${windowId}" placeholder="Write your message here..." style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; resize: none;"></textarea>
+            <div>
+                <button onclick="sendEmail('${windowId}')" style="padding: 8px 15px; background: #0078d7; color: white; border: none; cursor: pointer;">Send</button>
+            </div>
+        </div>
+    `;
+}
+
+function sendEmail(windowId) {
+    const state = emailStates[windowId];
+    if (!state) return;
+
+    const toInput = document.getElementById(`email-compose-to-${windowId}`);
+    const subjectInput = document.getElementById(`email-compose-subject-${windowId}`);
+    const bodyInput = document.getElementById(`email-compose-body-${windowId}`);
+
+    if (!toInput || !subjectInput || !bodyInput) return;
+
+    const newEmail = {
+        id: Date.now(),
+        recipient: toInput.value || 'unknown',
+        subject: subjectInput.value || '(No Subject)',
+        body: bodyInput.value,
+        date: new Date().toLocaleDateString()
+    };
+
+    state.sent.push(newEmail);
+    showNotification('Email', 'Message sent successfully.');
+
+    // Refresh sent folder if currently viewing it, else switch to it or just stay
+    renderEmailList(windowId, 'sent');
+
+    // Clear view pane
+    document.getElementById(`email-view-pane-${windowId}`).innerHTML = '<div style="color: #888; text-align: center; margin-top: 50px;">Select an email to read</div>';
+}
+
+// Chat App Logic
+function initChat(windowId) {
+    if (!chatStates[windowId]) {
+        chatStates[windowId] = {
+            contacts: ['Alice', 'Bob', 'Charlie'],
+            messages: {
+                'Alice': [{ sender: 'Alice', text: 'Hey there!' }],
+                'Bob': [],
+                'Charlie': [{ sender: 'me', text: 'Did you see the new update?' }, { sender: 'Charlie', text: 'Yes, looks great!' }]
+            },
+            currentContact: null
+        };
+    }
+    renderChatContacts(windowId);
+}
+
+function renderChatContacts(windowId) {
+    const state = chatStates[windowId];
+    if (!state) return;
+
+    const sidebar = document.getElementById(`chat-sidebar-${windowId}`);
+    if (!sidebar) return;
+
+    let html = '';
+    state.contacts.forEach(contact => {
+        const isActive = state.currentContact === contact;
+        html += `
+            <div style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; background: ${isActive ? '#e0e0e0' : 'transparent'};" onclick="openChat('${windowId}', '${contact}')">
+                ${contact}
+            </div>
+        `;
+    });
+    sidebar.innerHTML = html;
+}
+
+function openChat(windowId, contact) {
+    const state = chatStates[windowId];
+    if (!state) return;
+
+    state.currentContact = contact;
+    renderChatContacts(windowId); // Update active state in sidebar
+
+    document.getElementById(`chat-header-${windowId}`).textContent = `Chat with ${contact}`;
+
+    renderChatMessages(windowId);
+}
+
+function renderChatMessages(windowId) {
+    const state = chatStates[windowId];
+    if (!state || !state.currentContact) return;
+
+    const messagesPane = document.getElementById(`chat-messages-${windowId}`);
+    if (!messagesPane) return;
+
+    const messages = state.messages[state.currentContact] || [];
+    let html = '';
+
+    if (messages.length === 0) {
+        html = '<div style="color: #888; text-align: center; margin-top: 20px;">No messages yet. Say hi!</div>';
+    } else {
+        messages.forEach(msg => {
+            const isMe = msg.sender === 'me';
+            html += `
+                <div style="display: flex; justify-content: ${isMe ? 'flex-end' : 'flex-start'};">
+                    <div style="max-width: 70%; padding: 8px 12px; border-radius: 15px; background: ${isMe ? '#dcf8c6' : '#fff'}; border: 1px solid #ddd;">
+                        ${msg.text}
+                    </div>
+                </div>
+            `;
+        });
+    }
+    messagesPane.innerHTML = html;
+    messagesPane.scrollTop = messagesPane.scrollHeight;
+}
+
+function sendChatMessage(windowId) {
+    const state = chatStates[windowId];
+    if (!state || !state.currentContact) return;
+
+    const input = document.getElementById(`chat-input-${windowId}`);
+    const text = input.value.trim();
+
+    if (text) {
+        if (!state.messages[state.currentContact]) {
+            state.messages[state.currentContact] = [];
+        }
+        state.messages[state.currentContact].push({ sender: 'me', text: text });
+        input.value = '';
+        renderChatMessages(windowId);
+
+        // Simulate auto-reply
+        setTimeout(() => {
+            if (chatStates[windowId] && chatStates[windowId].messages[state.currentContact]) {
+                chatStates[windowId].messages[state.currentContact].push({ sender: state.currentContact, text: 'Got it!' });
+                if (chatStates[windowId].currentContact === state.currentContact) {
+                    renderChatMessages(windowId);
+                }
+            }
+        }, 1000);
+    }
+}
+
+// Gallery App Logic
+function initGallery(windowId) {
+    if (!galleryStates[windowId]) {
+        galleryStates[windowId] = {
+            images: [], // array of data URLs
+            currentIndex: -1,
+            slideshowInterval: null
+        };
+        // Load from local storage if any
+        const saved = localStorage.getItem('galleryImages');
+        if (saved) {
+            try {
+                galleryStates[windowId].images = JSON.parse(saved);
+            } catch (e) {}
+        }
+    }
+    renderGallery(windowId);
+}
+
+function saveGallery(windowId) {
+    if (galleryStates[windowId]) {
+        try {
+            localStorage.setItem('galleryImages', JSON.stringify(galleryStates[windowId].images));
+        } catch (e) {
+            console.error('Failed to save gallery images. Quota exceeded?', e);
+            showNotification('Gallery Error', 'Failed to save images. Storage might be full.');
+        }
+    }
+}
+
+function renderGallery(windowId) {
+    const state = galleryStates[windowId];
+    if (!state) return;
+
+    const grid = document.getElementById(`gallery-grid-${windowId}`);
+    const emptyMsg = document.getElementById(`gallery-empty-${windowId}`);
+    if (!grid || !emptyMsg) return;
+
+    // Remove existing thumbnails but keep the empty message element
+    Array.from(grid.children).forEach(child => {
+        if (child.id !== `gallery-empty-${windowId}`) {
+            child.remove();
+        }
+    });
+
+    if (state.images.length === 0) {
+        emptyMsg.style.display = 'block';
+    } else {
+        emptyMsg.style.display = 'none';
+        state.images.forEach((src, index) => {
+            const thumb = document.createElement('div');
+            thumb.style.height = '100px';
+            thumb.style.background = `url(${src}) center/cover`;
+            thumb.style.cursor = 'pointer';
+            thumb.style.borderRadius = '5px';
+            thumb.style.boxShadow = '0 2px 5px rgba(0,0,0,0.1)';
+            thumb.onclick = () => openGalleryImage(windowId, index);
+
+            // Add delete button on hover or top right
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '&times;';
+            delBtn.style.position = 'absolute';
+            delBtn.style.top = '2px';
+            delBtn.style.right = '2px';
+            delBtn.style.background = 'rgba(255,0,0,0.7)';
+            delBtn.style.color = 'white';
+            delBtn.style.border = 'none';
+            delBtn.style.borderRadius = '3px';
+            delBtn.style.cursor = 'pointer';
+            delBtn.style.display = 'none';
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                state.images.splice(index, 1);
+                saveGallery(windowId);
+                renderGallery(windowId);
+            };
+
+            thumb.style.position = 'relative';
+            thumb.appendChild(delBtn);
+            thumb.onmouseenter = () => delBtn.style.display = 'block';
+            thumb.onmouseleave = () => delBtn.style.display = 'none';
+
+            grid.appendChild(thumb);
+        });
+    }
+}
+
+function handleGalleryUpload(windowId, event) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+        processGalleryFiles(windowId, files);
+    }
+}
+
+function handleGalleryDrop(windowId, event) {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        processGalleryFiles(windowId, event.dataTransfer.files);
+    }
+}
+
+function processGalleryFiles(windowId, files) {
+    const state = galleryStates[windowId];
+    if (!state) return;
+
+    Array.from(files).forEach(file => {
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                state.images.push(e.target.result);
+                saveGallery(windowId);
+                renderGallery(windowId);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+function openGalleryImage(windowId, index) {
+    const state = galleryStates[windowId];
+    if (!state || state.images.length === 0) return;
+
+    state.currentIndex = index;
+    const overlay = document.getElementById(`gallery-overlay-${windowId}`);
+    const mainImg = document.getElementById(`gallery-main-img-${windowId}`);
+
+    if (overlay && mainImg) {
+        mainImg.src = state.images[index];
+        overlay.style.display = 'flex';
+    }
+}
+
+function closeGalleryView(windowId) {
+    const overlay = document.getElementById(`gallery-overlay-${windowId}`);
+    if (overlay) overlay.style.display = 'none';
+    stopSlideshow(windowId);
+}
+
+function prevGalleryImage(windowId) {
+    const state = galleryStates[windowId];
+    if (!state || state.images.length === 0) return;
+
+    state.currentIndex = (state.currentIndex - 1 + state.images.length) % state.images.length;
+    document.getElementById(`gallery-main-img-${windowId}`).src = state.images[state.currentIndex];
+}
+
+function nextGalleryImage(windowId) {
+    const state = galleryStates[windowId];
+    if (!state || state.images.length === 0) return;
+
+    state.currentIndex = (state.currentIndex + 1) % state.images.length;
+    document.getElementById(`gallery-main-img-${windowId}`).src = state.images[state.currentIndex];
+}
+
+function startSlideshow(windowId) {
+    const state = galleryStates[windowId];
+    if (!state || state.images.length === 0) {
+        showNotification('Gallery', 'No images to show.');
+        return;
+    }
+
+    const btn = document.getElementById(`gallery-slideshow-btn-${windowId}`);
+
+    if (state.slideshowInterval) {
+        stopSlideshow(windowId);
+    } else {
+        openGalleryImage(windowId, state.currentIndex === -1 ? 0 : state.currentIndex);
+        state.slideshowInterval = setInterval(() => nextGalleryImage(windowId), 3000);
+        if (btn) {
+            btn.textContent = 'Stop Slideshow';
+            btn.style.background = '#e74c3c';
+            btn.style.color = 'white';
+        }
+    }
+}
+
+function stopSlideshow(windowId) {
+    const state = galleryStates[windowId];
+    if (!state) return;
+
+    if (state.slideshowInterval) {
+        clearInterval(state.slideshowInterval);
+        state.slideshowInterval = null;
+    }
+    const btn = document.getElementById(`gallery-slideshow-btn-${windowId}`);
+    if (btn) {
+        btn.textContent = 'Start Slideshow';
+        btn.style.background = '';
+        btn.style.color = '';
     }
 }
 
