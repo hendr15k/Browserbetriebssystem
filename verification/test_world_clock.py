@@ -70,7 +70,7 @@ def run(playwright):
     # Since we are using standard playwright practices now, and `delBtn.onclick` is fixed via `stopPropagation()`,
     # let's try `click(force=True)` again, and then manually refresh the DOM view.
     del_btn = item.locator("button", has_text="✕").first
-    del_btn.click(force=True)
+    del_btn.dispatch_event('click')
 
     # Check if list is empty
     expect(list_container).to_be_empty()
