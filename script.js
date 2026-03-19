@@ -3165,16 +3165,31 @@ function executePrint(windowId) {
 // Email App Logic
 function initEmail(windowId) {
     if (!emailStates[windowId]) {
-        // Mock initial data
-        emailStates[windowId] = {
-            inbox: [
-                { id: 1, sender: 'system@webos.local', subject: 'Welcome to WebOS', body: 'Hello,\n\nWelcome to your new WebOS environment. Enjoy exploring the features!', date: new Date().toLocaleDateString() }
-            ],
-            sent: [],
-            currentFolder: 'inbox'
-        };
+        const saved = localStorage.getItem('emailStates');
+        if (saved) {
+            try {
+                emailStates[windowId] = JSON.parse(saved);
+            } catch(e) {}
+        }
+
+        if (!emailStates[windowId]) {
+            // Mock initial data
+            emailStates[windowId] = {
+                inbox: [
+                    { id: 1, sender: 'system@webos.local', subject: 'Welcome to WebOS', body: 'Hello,\n\nWelcome to your new WebOS environment. Enjoy exploring the features!', date: new Date().toLocaleDateString() }
+                ],
+                sent: [],
+                currentFolder: 'inbox'
+            };
+        }
     }
     renderEmailList(windowId, 'inbox');
+}
+
+function saveEmailData(windowId) {
+    if (emailStates[windowId]) {
+        localStorage.setItem('emailStates', JSON.stringify(emailStates[windowId]));
+    }
 }
 
 function renderEmailList(windowId, folder) {
@@ -3257,6 +3272,7 @@ function sendEmail(windowId) {
     };
 
     state.sent.push(newEmail);
+    saveEmailData(windowId);
     showNotification('Email', 'Message sent successfully.');
 
     // Refresh sent folder if currently viewing it, else switch to it or just stay
@@ -3269,17 +3285,32 @@ function sendEmail(windowId) {
 // Chat App Logic
 function initChat(windowId) {
     if (!chatStates[windowId]) {
-        chatStates[windowId] = {
-            contacts: ['Alice', 'Bob', 'Charlie'],
-            messages: {
-                'Alice': [{ sender: 'Alice', text: 'Hey there!' }],
-                'Bob': [],
-                'Charlie': [{ sender: 'me', text: 'Did you see the new update?' }, { sender: 'Charlie', text: 'Yes, looks great!' }]
-            },
-            currentContact: null
-        };
+        const saved = localStorage.getItem('chatStates');
+        if (saved) {
+            try {
+                chatStates[windowId] = JSON.parse(saved);
+            } catch(e) {}
+        }
+
+        if (!chatStates[windowId]) {
+            chatStates[windowId] = {
+                contacts: ['Alice', 'Bob', 'Charlie'],
+                messages: {
+                    'Alice': [{ sender: 'Alice', text: 'Hey there!' }],
+                    'Bob': [],
+                    'Charlie': [{ sender: 'me', text: 'Did you see the new update?' }, { sender: 'Charlie', text: 'Yes, looks great!' }]
+                },
+                currentContact: null
+            };
+        }
     }
     renderChatContacts(windowId);
+}
+
+function saveChatData(windowId) {
+    if (chatStates[windowId]) {
+        localStorage.setItem('chatStates', JSON.stringify(chatStates[windowId]));
+    }
 }
 
 function renderChatContacts(windowId) {
@@ -3354,12 +3385,14 @@ function sendChatMessage(windowId) {
         }
         state.messages[state.currentContact].push({ sender: 'me', text: text });
         input.value = '';
+        saveChatData(windowId);
         renderChatMessages(windowId);
 
         // Simulate auto-reply
         setTimeout(() => {
             if (chatStates[windowId] && chatStates[windowId].messages[state.currentContact]) {
                 chatStates[windowId].messages[state.currentContact].push({ sender: state.currentContact, text: 'Got it!' });
+                saveChatData(windowId);
                 if (chatStates[windowId].currentContact === state.currentContact) {
                     renderChatMessages(windowId);
                 }
@@ -4834,7 +4867,7 @@ function renderWorldClock(windowId) {
         delBtn.style.border = 'none';
         delBtn.style.cursor = 'pointer';
         delBtn.style.marginLeft = '10px';
-        delBtn.onclick = (e) => { e.stopPropagation(); removeWorldCity(windowId, index); };
+        delBtn.onclick = (e) => { e.stopPropagation(); e.preventDefault(); removeWorldCity(windowId, index); };
 
         const leftDiv = document.createElement('div');
         leftDiv.style.display = 'flex';
