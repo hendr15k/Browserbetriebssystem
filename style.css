@@ -2498,3 +2498,594 @@ body {
     font-size: 13px;
     line-height: 1.5;
 }
+
+/* Email App Styles */
+.email-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.email-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    background: #f5f5f5;
+}
+
+.email-sidebar {
+    width: 150px;
+    background: #e1e1e1;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.email-btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.email-btn.compose {
+    background: var(--theme-color);
+    color: white;
+    font-weight: bold;
+}
+
+.email-btn.primary {
+    background: var(--theme-color);
+    color: white;
+}
+
+.email-btn.danger {
+    background: #e74c3c;
+    color: white;
+}
+
+.email-folder {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.email-folder.active {
+    background: rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+}
+
+.email-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.email-header {
+    padding: 15px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+}
+
+.email-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.email-list {
+    flex: 1;
+    overflow-y: auto;
+    background: white;
+}
+
+.email-item {
+    display: grid;
+    grid-template-columns: 150px 1fr 120px;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.email-item:hover {
+    background: #f9f9f9;
+}
+
+.email-item.unread {
+    font-weight: bold;
+    background: #f4f8ff;
+}
+
+.email-item-from {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-item-subject {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.email-item-date {
+    text-align: right;
+    color: #666;
+    font-size: 12px;
+}
+
+.email-compose-form {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    background: white;
+}
+
+.email-input {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.email-textarea {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    resize: none;
+}
+
+.email-read-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.email-read-meta {
+    font-size: 13px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.email-read-body {
+    padding: 20px;
+    background: white;
+    flex: 1;
+    overflow-y: auto;
+    line-height: 1.6;
+}
+
+/* Chat App Styles */
+.chat-window .window-content {
+    padding: 0;
+}
+
+.chat-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    background: white;
+}
+
+.chat-sidebar {
+    width: 200px;
+    border-right: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-sidebar-header {
+    padding: 15px;
+    background: #f5f5f5;
+    font-weight: bold;
+    border-bottom: 1px solid #eee;
+}
+
+.chat-contact-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.chat-contact {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f9f9f9;
+}
+
+.chat-contact:hover {
+    background: #f5f5f5;
+}
+
+.chat-contact.active {
+    background: #e3f2fd;
+}
+
+.chat-contact-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--theme-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+    margin-right: 10px;
+}
+
+.chat-contact-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.chat-contact-name {
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.chat-contact-lastmsg {
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    padding: 10px 15px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+}
+
+.chat-header .chat-contact-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-msg-wrapper {
+    display: flex;
+    width: 100%;
+}
+
+.chat-msg-wrapper.me {
+    justify-content: flex-end;
+}
+
+.chat-msg {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 15px;
+    position: relative;
+}
+
+.chat-msg-wrapper.me .chat-msg {
+    background: var(--theme-color);
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+.chat-msg-wrapper.them .chat-msg {
+    background: #e1e1e1;
+    color: #333;
+    border-bottom-left-radius: 5px;
+}
+
+.chat-msg-time {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 5px;
+    text-align: right;
+}
+
+.chat-input-area {
+    padding: 15px;
+    background: white;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    outline: none;
+}
+
+.chat-send-btn {
+    padding: 10px 20px;
+    background: var(--theme-color);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Photo Gallery Styles */
+.gallery-window .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.gallery-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background: #111;
+    color: white;
+}
+
+.gallery-toolbar {
+    padding: 10px;
+    background: #222;
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid #333;
+}
+
+.gallery-btn {
+    padding: 8px 15px;
+    background: #444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-block;
+    font-size: 14px;
+}
+
+.gallery-btn:hover {
+    background: #555;
+}
+
+.gallery-btn.primary {
+    background: var(--theme-color);
+}
+
+.gallery-btn.primary:hover {
+    background: #005a9e;
+}
+
+.gallery-grid {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.gallery-item {
+    position: relative;
+    background: #222;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    aspect-ratio: 1;
+    transition: transform 0.2s;
+}
+
+.gallery-item:hover {
+    transform: scale(1.05);
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gallery-item-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 5px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gallery-item-delete {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(231, 76, 60, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.gallery-item:hover .gallery-item-delete {
+    display: flex;
+}
+
+.gallery-viewer {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.gallery-viewer-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.gallery-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.gallery-nav:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.gallery-nav.prev {
+    left: 20px;
+}
+
+.gallery-nav.next {
+    right: 20px;
+}
+
+.gallery-viewer-caption {
+    position: absolute;
+    bottom: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px 20px;
+    border-radius: 20px;
+}
+
+/* Printer Settings Styles */
+.printer-window .window-content {
+    background: #f5f5f5;
+}
+
+.printer-container {
+    padding: 20px;
+}
+
+.printer-header {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.printer-header h2 {
+    margin: 0;
+    color: #333;
+}
+
+.printer-btn {
+    padding: 8px 15px;
+    background: #e1e1e1;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    align-self: flex-start;
+}
+
+.printer-btn:hover {
+    background: #d1d1d1;
+}
+
+.printer-btn.primary {
+    background: var(--theme-color);
+    color: white;
+}
+
+.printer-btn.small {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.printer-btn.danger {
+    background: transparent;
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+}
+
+.printer-btn.danger:hover {
+    background: #e74c3c;
+    color: white;
+}
+
+.printer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.printer-item {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.printer-item-icon {
+    font-size: 32px;
+    margin-right: 15px;
+}
+
+.printer-item-info {
+    flex: 1;
+}
+
+.printer-item-name {
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.printer-item-status {
+    font-size: 13px;
+    color: #666;
+}
+
+.printer-item-status.ready { color: #27ae60; }
+.printer-item-status.offline { color: #7f8c8d; }
+
+.printer-item-actions {
+    display: flex;
+    gap: 10px;
+}

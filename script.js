@@ -1493,6 +1493,54 @@ function openApp(appName, arg = null) {
                 </div>
             </div>
         `;
+    } else if (appName === 'email') {
+        title = "Email";
+        win.classList.add('email-window');
+        win.style.width = '700px';
+        win.style.height = '500px';
+
+        content = `
+            <div class="email-container" id="email-container-${windowId}">
+                <!-- App rendered by JS -->
+            </div>
+        `;
+        setTimeout(() => initEmail(windowId), 0);
+    } else if (appName === 'chat') {
+        title = "Chat";
+        win.classList.add('chat-window');
+        win.style.width = '600px';
+        win.style.height = '450px';
+
+        content = `
+            <div class="chat-container" id="chat-container-${windowId}">
+                <!-- App rendered by JS -->
+            </div>
+        `;
+        setTimeout(() => initChat(windowId), 0);
+    } else if (appName === 'photo-gallery') {
+        title = "Photo Gallery";
+        win.classList.add('gallery-window');
+        win.style.width = '800px';
+        win.style.height = '600px';
+
+        content = `
+            <div class="gallery-container" id="gallery-container-${windowId}">
+                <!-- App rendered by JS -->
+            </div>
+        `;
+        setTimeout(() => initGallery(windowId), 0);
+    } else if (appName === 'printer') {
+        title = "Printer Settings";
+        win.classList.add('printer-window');
+        win.style.width = '500px';
+        win.style.height = '400px';
+
+        content = `
+            <div class="printer-container" id="printer-container-${windowId}">
+                <!-- App rendered by JS -->
+            </div>
+        `;
+        setTimeout(() => initPrinter(windowId), 0);
     }
 
     win.innerHTML = `
@@ -1797,6 +1845,29 @@ function closeWindow(windowId) {
     // Cleanup Spreadsheet
     if (spreadsheetStates[windowId]) {
         delete spreadsheetStates[windowId];
+    }
+
+    // Cleanup Gallery
+    if (galleryStates[windowId]) {
+        if (galleryStates[windowId].slideshowInterval) {
+            clearInterval(galleryStates[windowId].slideshowInterval);
+        }
+        delete galleryStates[windowId];
+    }
+
+    // Cleanup Email
+    if (emailStates[windowId]) {
+        delete emailStates[windowId];
+    }
+
+    // Cleanup Chat
+    if (chatStates[windowId]) {
+        delete chatStates[windowId];
+    }
+
+    // Cleanup Printer Settings
+    if (printerStates[windowId]) {
+        delete printerStates[windowId];
     }
 
     const win = document.getElementById(windowId);
@@ -6506,6 +6577,696 @@ function loadSpreadsheet(windowId, input) {
             }
         };
         reader.readAsText(input.files[0]);
+    }
+}
+
+// Email App Logic
+const emailStates = {};
+
+function initEmail(windowId) {
+    if (!emailStates[windowId]) {
+        let emails = [];
+        try {
+            const stored = localStorage.getItem('webos-emails');
+            if (stored) {
+                emails = JSON.parse(stored);
+            } else {
+                emails = [
+                    { id: 1, from: 'system@webos.local', subject: 'Welcome to WebOS Email', body: 'This is a simulated email client. Your emails are stored in your browser.', date: new Date().toISOString(), read: false }
+                ];
+                localStorage.setItem('webos-emails', JSON.stringify(emails));
+            }
+        } catch (e) {
+            console.error('Error loading emails:', e);
+            emails = [];
+        }
+
+        emailStates[windowId] = {
+            emails: emails,
+            view: 'inbox', // 'inbox', 'compose', 'read'
+            currentEmailId: null
+        };
+    }
+
+    renderEmailApp(windowId);
+}
+
+function renderEmailApp(windowId) {
+    const container = document.getElementById(`email-container-${windowId}`);
+    if (!container) return;
+
+    const state = emailStates[windowId];
+
+    let html = `
+        <div class="email-sidebar">
+            <button class="email-btn compose" onclick="switchEmailView('${windowId}', 'compose')">Compose</button>
+            <div class="email-folder active" onclick="switchEmailView('${windowId}', 'inbox')">Inbox</div>
+        </div>
+        <div class="email-main">
+    `;
+
+    if (state.view === 'inbox') {
+        html += `
+            <div class="email-header">
+                <h2>Inbox</h2>
+            </div>
+            <div class="email-list">
+        `;
+
+        if (state.emails.length === 0) {
+            html += '<div style="padding: 20px; text-align: center; color: #888;">No emails found.</div>';
+        } else {
+            // Sort by date desc
+            const sortedEmails = [...state.emails].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            sortedEmails.forEach(email => {
+                const dateObj = new Date(email.date);
+                const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            // XSS prevention
+            const safeFrom = email.from.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const safeSubject = email.subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+                html += `
+                    <div class="email-item ${email.read ? '' : 'unread'}" onclick="viewEmail('${windowId}', ${email.id})">
+                    <div class="email-item-from">${safeFrom}</div>
+                    <div class="email-item-subject">${safeSubject}</div>
+                        <div class="email-item-date">${dateStr}</div>
+                    </div>
+                `;
+            });
+        }
+
+        html += `</div>`;
+    } else if (state.view === 'compose') {
+        html += `
+            <div class="email-header">
+                <h2>New Message</h2>
+            </div>
+            <div class="email-compose-form">
+                <input type="email" id="email-to-${windowId}" placeholder="To:" class="email-input">
+                <input type="text" id="email-subject-${windowId}" placeholder="Subject:" class="email-input">
+                <textarea id="email-body-${windowId}" placeholder="Write your message here..." class="email-textarea"></textarea>
+                <div class="email-actions">
+                    <button class="email-btn primary" onclick="sendEmail('${windowId}')">Send</button>
+                    <button class="email-btn" onclick="switchEmailView('${windowId}', 'inbox')">Cancel</button>
+                </div>
+            </div>
+        `;
+    } else if (state.view === 'read' && state.currentEmailId) {
+        const email = state.emails.find(e => e.id === state.currentEmailId);
+        if (email) {
+            if (!email.read) {
+                email.read = true;
+                saveEmails(windowId);
+            }
+
+            const dateObj = new Date(email.date);
+            const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString();
+
+            // XSS prevention
+            const safeFrom = email.from.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const safeSubject = email.subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const safeBody = email.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+
+            html += `
+                <div class="email-header email-read-header">
+                    <div>
+                        <h2>${safeSubject}</h2>
+                        <div class="email-read-meta">From: ${safeFrom} | ${dateStr}</div>
+                    </div>
+                    <div>
+                        <button class="email-btn" onclick="switchEmailView('${windowId}', 'inbox')">Back</button>
+                        <button class="email-btn danger" onclick="deleteEmail('${windowId}', ${email.id})">Delete</button>
+                    </div>
+                </div>
+                <div class="email-read-body">
+                    ${safeBody}
+                </div>
+            `;
+        } else {
+            html += '<div style="padding: 20px;">Email not found.</div>';
+        }
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function switchEmailView(windowId, viewName) {
+    const state = emailStates[windowId];
+    if (state) {
+        state.view = viewName;
+        renderEmailApp(windowId);
+    }
+}
+
+function viewEmail(windowId, emailId) {
+    const state = emailStates[windowId];
+    if (state) {
+        state.currentEmailId = emailId;
+        switchEmailView(windowId, 'read');
+    }
+}
+
+function sendEmail(windowId) {
+    const toInput = document.getElementById(`email-to-${windowId}`);
+    const subjectInput = document.getElementById(`email-subject-${windowId}`);
+    const bodyInput = document.getElementById(`email-body-${windowId}`);
+
+    if (!toInput || !subjectInput || !bodyInput) return;
+
+    const to = toInput.value.trim();
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+
+    if (!to) {
+        alert("Please enter a recipient.");
+        return;
+    }
+
+    const state = emailStates[windowId];
+    if (state) {
+        // Since this is simulated, we'll just act as if sending to ourselves or save it in 'sent' (but we only have inbox).
+        // Let's simulate receiving a copy if sent, or just show a notification.
+        // Actually, to simulate it working, we can just add it to our own inbox to see it,
+        // or just show "Sent" and go back. We'll just show "Sent" and return to Inbox.
+
+        // Let's add it to inbox to simulate "sending to self" or just having a record
+        const newEmail = {
+            id: Date.now(),
+            from: `Me (to: ${to})`,
+            subject: subject || '(No Subject)',
+            body: body,
+            date: new Date().toISOString(),
+            read: true
+        };
+
+        state.emails.push(newEmail);
+        saveEmails(windowId);
+
+        showNotification('Email', 'Message sent successfully.');
+        switchEmailView(windowId, 'inbox');
+    }
+}
+
+function deleteEmail(windowId, emailId) {
+    const state = emailStates[windowId];
+    if (state) {
+        if (confirm("Are you sure you want to delete this email?")) {
+            state.emails = state.emails.filter(e => e.id !== emailId);
+            saveEmails(windowId);
+            switchEmailView(windowId, 'inbox');
+        }
+    }
+}
+
+function saveEmails(windowId) {
+    const state = emailStates[windowId];
+    if (state) {
+        localStorage.setItem('webos-emails', JSON.stringify(state.emails));
+    }
+}
+
+// Chat App Logic
+const chatStates = {};
+
+function initChat(windowId) {
+    if (!chatStates[windowId]) {
+        let contacts = [
+            { id: 'contact1', name: 'Alice' },
+            { id: 'contact2', name: 'Bob' },
+            { id: 'contact3', name: 'Charlie' }
+        ];
+
+        let messages = {};
+        try {
+            const stored = localStorage.getItem('webos-chat-messages');
+            if (stored) {
+                messages = JSON.parse(stored);
+            } else {
+                messages = {
+                    'contact1': [{ sender: 'them', text: 'Hey there!', time: new Date().toISOString() }],
+                    'contact2': [],
+                    'contact3': [{ sender: 'them', text: 'Did you see the new update?', time: new Date().toISOString() }]
+                };
+                localStorage.setItem('webos-chat-messages', JSON.stringify(messages));
+            }
+        } catch (e) {
+            console.error('Error loading chat messages:', e);
+        }
+
+        chatStates[windowId] = {
+            contacts: contacts,
+            messages: messages,
+            activeContactId: null
+        };
+    }
+
+    renderChatApp(windowId);
+}
+
+function renderChatApp(windowId) {
+    const container = document.getElementById(`chat-container-${windowId}`);
+    if (!container) return;
+
+    const state = chatStates[windowId];
+
+    let html = `
+        <div class="chat-sidebar">
+            <div class="chat-sidebar-header">Contacts</div>
+            <div class="chat-contact-list">
+    `;
+
+    state.contacts.forEach(contact => {
+        const isActive = contact.id === state.activeContactId;
+        const lastMsg = state.messages[contact.id] && state.messages[contact.id].length > 0 ?
+            state.messages[contact.id][state.messages[contact.id].length - 1].text : 'No messages';
+
+        html += `
+            <div class="chat-contact ${isActive ? 'active' : ''}" onclick="selectChatContact('${windowId}', '${contact.id}')">
+                <div class="chat-contact-avatar">${contact.name.charAt(0)}</div>
+                <div class="chat-contact-info">
+                    <div class="chat-contact-name">${contact.name}</div>
+                    <div class="chat-contact-lastmsg">${lastMsg}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+            </div>
+        </div>
+        <div class="chat-main">
+    `;
+
+    if (state.activeContactId) {
+        const activeContact = state.contacts.find(c => c.id === state.activeContactId);
+
+        html += `
+            <div class="chat-header">
+                <div class="chat-contact-avatar">${activeContact.name.charAt(0)}</div>
+                <div class="chat-contact-name">${activeContact.name}</div>
+            </div>
+            <div class="chat-messages" id="chat-messages-${windowId}">
+        `;
+
+        const contactMessages = state.messages[state.activeContactId] || [];
+        contactMessages.forEach(msg => {
+            const timeObj = new Date(msg.time);
+            const timeStr = timeObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            // XSS prevention
+            const safeText = msg.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            html += `
+                <div class="chat-msg-wrapper ${msg.sender === 'me' ? 'me' : 'them'}">
+                    <div class="chat-msg">
+                        <div class="chat-msg-text">${safeText}</div>
+                        <div class="chat-msg-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input-${windowId}" class="chat-input" placeholder="Type a message..." onkeydown="if(event.key === 'Enter') sendChatMessage('${windowId}')">
+                <button class="chat-send-btn" onclick="sendChatMessage('${windowId}')">Send</button>
+            </div>
+        `;
+    } else {
+        html += `
+            <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: #888;">
+                Select a contact to start chatting
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Scroll to bottom of messages
+    if (state.activeContactId) {
+        const msgContainer = document.getElementById(`chat-messages-${windowId}`);
+        if (msgContainer) {
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+
+        // Focus input
+        const input = document.getElementById(`chat-input-${windowId}`);
+        if (input) input.focus();
+    }
+}
+
+function selectChatContact(windowId, contactId) {
+    const state = chatStates[windowId];
+    if (state) {
+        state.activeContactId = contactId;
+        renderChatApp(windowId);
+    }
+}
+
+function sendChatMessage(windowId) {
+    const input = document.getElementById(`chat-input-${windowId}`);
+    if (!input) return;
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    const state = chatStates[windowId];
+    if (state && state.activeContactId) {
+        if (!state.messages[state.activeContactId]) {
+            state.messages[state.activeContactId] = [];
+        }
+
+        state.messages[state.activeContactId].push({
+            sender: 'me',
+            text: text,
+            time: new Date().toISOString()
+        });
+
+        saveChatMessages(windowId);
+        input.value = '';
+        renderChatApp(windowId);
+
+        // Simulate reply
+        setTimeout(() => {
+            const activeContactName = state.contacts.find(c => c.id === state.activeContactId).name;
+            state.messages[state.activeContactId].push({
+                sender: 'them',
+                text: `${activeContactName} says: That's interesting!`,
+                time: new Date().toISOString()
+            });
+            saveChatMessages(windowId);
+            renderChatApp(windowId);
+        }, 2000);
+    }
+}
+
+function saveChatMessages(windowId) {
+    const state = chatStates[windowId];
+    if (state) {
+        localStorage.setItem('webos-chat-messages', JSON.stringify(state.messages));
+    }
+}
+
+// Photo Gallery Logic
+const galleryStates = {};
+
+function initGallery(windowId) {
+    if (!galleryStates[windowId]) {
+        let images = [];
+        try {
+            const stored = localStorage.getItem('webos-gallery-images');
+            if (stored) {
+                images = JSON.parse(stored);
+            }
+        } catch (e) {
+            console.error('Error loading gallery images:', e);
+        }
+
+        galleryStates[windowId] = {
+            images: images,
+            view: 'grid', // 'grid', 'single', 'slideshow'
+            currentIndex: 0,
+            slideshowInterval: null
+        };
+    }
+
+    renderGalleryApp(windowId);
+}
+
+function renderGalleryApp(windowId) {
+    const container = document.getElementById(`gallery-container-${windowId}`);
+    if (!container) return;
+
+    const state = galleryStates[windowId];
+    let html = '';
+
+    if (state.view === 'grid') {
+        html = `
+            <div class="gallery-toolbar">
+                <button class="gallery-btn" onclick="startGallerySlideshow('${windowId}')">Slideshow</button>
+                <label class="gallery-btn primary">
+                    Upload Images
+                    <input type="file" multiple accept="image/*" style="display: none;" onchange="uploadGalleryImages('${windowId}', this)">
+                </label>
+            </div>
+            <div class="gallery-grid">
+        `;
+
+        if (state.images.length === 0) {
+            html += '<div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #888;">No images uploaded yet.</div>';
+        } else {
+            state.images.forEach((img, index) => {
+                html += `
+                    <div class="gallery-item" onclick="viewGalleryImage('${windowId}', ${index})">
+                        <img src="${img.data}" alt="${img.name}">
+                        <div class="gallery-item-name">${img.name}</div>
+                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryImage('${windowId}', ${index})">✕</button>
+                    </div>
+                `;
+            });
+        }
+
+        html += `</div>`;
+    } else if (state.view === 'single' || state.view === 'slideshow') {
+        const img = state.images[state.currentIndex];
+
+        html = `
+            <div class="gallery-toolbar">
+                <button class="gallery-btn" onclick="stopGallerySlideshow('${windowId}'); switchGalleryView('${windowId}', 'grid')">Back to Grid</button>
+                ${state.view === 'slideshow' ?
+                    `<button class="gallery-btn" onclick="stopGallerySlideshow('${windowId}')">Stop Slideshow</button>` :
+                    `<button class="gallery-btn" onclick="startGallerySlideshow('${windowId}')">Start Slideshow</button>`
+                }
+            </div>
+            <div class="gallery-viewer">
+                ${state.view === 'single' ? `<button class="gallery-nav prev" onclick="navigateGallery('${windowId}', -1)">❮</button>` : ''}
+
+                ${img ? `<img src="${img.data}" alt="${img.name}" class="gallery-viewer-img">` : '<div style="color: white;">No image</div>'}
+
+                ${state.view === 'single' ? `<button class="gallery-nav next" onclick="navigateGallery('${windowId}', 1)">❯</button>` : ''}
+
+                ${img ? `<div class="gallery-viewer-caption">${img.name} (${state.currentIndex + 1} / ${state.images.length})</div>` : ''}
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function switchGalleryView(windowId, viewName) {
+    const state = galleryStates[windowId];
+    if (state) {
+        state.view = viewName;
+        renderGalleryApp(windowId);
+    }
+}
+
+function uploadGalleryImages(windowId, input) {
+    const state = galleryStates[windowId];
+    if (!state || !input.files || input.files.length === 0) return;
+
+    const files = Array.from(input.files);
+    let loadedCount = 0;
+
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            state.images.push({
+                id: Date.now() + Math.random(),
+                name: file.name,
+                data: e.target.result,
+                date: new Date().toISOString()
+            });
+
+            loadedCount++;
+            if (loadedCount === files.length) {
+                saveGalleryImages(windowId);
+                renderGalleryApp(windowId);
+                showNotification('Photo Gallery', `${files.length} image(s) uploaded successfully.`);
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function saveGalleryImages(windowId) {
+    const state = galleryStates[windowId];
+    if (state) {
+        try {
+            localStorage.setItem('webos-gallery-images', JSON.stringify(state.images));
+        } catch (e) {
+            alert("Storage limit exceeded. Some images may not be saved.");
+        }
+    }
+}
+
+function viewGalleryImage(windowId, index) {
+    const state = galleryStates[windowId];
+    if (state && state.images[index]) {
+        state.currentIndex = index;
+        switchGalleryView(windowId, 'single');
+    }
+}
+
+function deleteGalleryImage(windowId, index) {
+    const state = galleryStates[windowId];
+    if (state && state.images[index]) {
+        if (confirm("Delete this image?")) {
+            state.images.splice(index, 1);
+            saveGalleryImages(windowId);
+            renderGalleryApp(windowId);
+        }
+    }
+}
+
+function navigateGallery(windowId, direction) {
+    const state = galleryStates[windowId];
+    if (state && state.images.length > 0) {
+        state.currentIndex += direction;
+        if (state.currentIndex < 0) state.currentIndex = state.images.length - 1;
+        if (state.currentIndex >= state.images.length) state.currentIndex = 0;
+        renderGalleryApp(windowId);
+    }
+}
+
+function startGallerySlideshow(windowId) {
+    const state = galleryStates[windowId];
+    if (state && state.images.length > 0) {
+        state.view = 'slideshow';
+        if (state.slideshowInterval) clearInterval(state.slideshowInterval);
+
+        state.slideshowInterval = setInterval(() => {
+            navigateGallery(windowId, 1);
+        }, 3000); // 3 seconds per slide
+
+        renderGalleryApp(windowId);
+    } else {
+        alert("Upload some images first to start a slideshow.");
+    }
+}
+
+function stopGallerySlideshow(windowId) {
+    const state = galleryStates[windowId];
+    if (state) {
+        if (state.slideshowInterval) {
+            clearInterval(state.slideshowInterval);
+            state.slideshowInterval = null;
+        }
+        state.view = 'single';
+        renderGalleryApp(windowId);
+    }
+}
+
+// Printer Settings Logic
+const printerStates = {};
+
+function initPrinter(windowId) {
+    if (!printerStates[windowId]) {
+        printerStates[windowId] = {
+            printers: [
+                { id: 'p1', name: 'WebOS PDF Printer', status: 'Ready', default: true },
+                { id: 'p2', name: 'Office LaserJet Pro', status: 'Offline', default: false }
+            ]
+        };
+    }
+
+    renderPrinterApp(windowId);
+}
+
+function renderPrinterApp(windowId) {
+    const container = document.getElementById(`printer-container-${windowId}`);
+    if (!container) return;
+
+    const state = printerStates[windowId];
+
+    let html = `
+        <div class="printer-header">
+            <h2>Printers & Scanners</h2>
+            <button class="printer-btn primary" onclick="addMockPrinter('${windowId}')">+ Add a printer or scanner</button>
+        </div>
+        <div class="printer-list">
+    `;
+
+    if (state.printers.length === 0) {
+        html += '<div style="padding: 20px; color: #888;">No printers installed.</div>';
+    } else {
+        state.printers.forEach((printer, index) => {
+            html += `
+                <div class="printer-item">
+                    <div class="printer-item-icon">🖨️</div>
+                    <div class="printer-item-info">
+                        <div class="printer-item-name">${printer.name}</div>
+                        <div class="printer-item-status ${printer.status.toLowerCase()}">${printer.status} ${printer.default ? '(Default)' : ''}</div>
+                    </div>
+                    <div class="printer-item-actions">
+                        ${!printer.default ? `<button class="printer-btn small" onclick="setDefaultPrinter('${windowId}', ${index})">Set Default</button>` : ''}
+                        <button class="printer-btn small danger" onclick="removePrinter('${windowId}', ${index})">Remove</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function addMockPrinter(windowId) {
+    const state = printerStates[windowId];
+    if (state) {
+        // Simulate searching
+        const btn = document.querySelector(`#printer-container-${windowId} .printer-header .primary`);
+        if (btn) {
+            const originalText = btn.textContent;
+            btn.textContent = 'Searching...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                const newPrinterName = prompt("Found a generic network printer. Enter a name for it:", "New Network Printer");
+                if (newPrinterName) {
+                    state.printers.push({
+                        id: 'p' + Date.now(),
+                        name: newPrinterName,
+                        status: 'Ready',
+                        default: state.printers.length === 0
+                    });
+                    showNotification('Printers', `Added ${newPrinterName}`);
+                }
+                btn.textContent = originalText;
+                btn.disabled = false;
+                renderPrinterApp(windowId);
+            }, 1500);
+        }
+    }
+}
+
+function removePrinter(windowId, index) {
+    const state = printerStates[windowId];
+    if (state && state.printers[index]) {
+        if (confirm(`Are you sure you want to remove ${state.printers[index].name}?`)) {
+            state.printers.splice(index, 1);
+
+            // If we removed the default, make the first one default if any exist
+            if (state.printers.length > 0 && !state.printers.some(p => p.default)) {
+                state.printers[0].default = true;
+            }
+
+            renderPrinterApp(windowId);
+        }
+    }
+}
+
+function setDefaultPrinter(windowId, index) {
+    const state = printerStates[windowId];
+    if (state && state.printers[index]) {
+        state.printers.forEach(p => p.default = false);
+        state.printers[index].default = true;
+        renderPrinterApp(windowId);
     }
 }
 
