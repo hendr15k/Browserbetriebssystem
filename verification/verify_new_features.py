@@ -1,55 +1,83 @@
-
-from playwright.sync_api import sync_playwright, expect
+import asyncio
 import os
 import time
 
-def verify_new_features():
+def run():
+    from playwright.sync_api import sync_playwright
+
     cwd = os.getcwd()
     url = f"file://{cwd}/index.html"
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto(url)
+        browser = p.chromium.launch(headless=True, args=['--window-size=1280,800'])
+        context = browser.new_context(record_video_dir="verification/videos", viewport={'width': 1280, 'height': 800})
+        page = context.new_page()
 
-        # 1. Trigger Notification (for screenshot)
-        page.evaluate("showNotification('Verification', 'This is a test notification for screenshot.')")
+        try:
+            page.goto(url)
+            page.wait_for_timeout(1000)
 
-        # Test XSS safety in notification
-        page.evaluate("showNotification('XSS Test', '<img src=x onerror=alert(1)>')")
+            # 1. Email App
+            page.evaluate("openApp('email')")
+            page.wait_for_timeout(500)
 
-        # Verify the HTML tag is rendered as text, not HTML
-        # We look for the text literal "<img..."
-        xss_notification = page.locator(".notification-toast", has_text="XSS Test")
-        expect(xss_notification).to_contain_text("<img src=x onerror=alert(1)>")
+            # Use broader locators
+            page.locator("button.email-btn.compose").click()
+            page.wait_for_timeout(500)
 
-        # Ensure no alert was triggered (Playwright handles dialogs via event, but we'd see it if we hooked it)
-        # The content check is sufficient.
+            page.locator("input.email-input[type='email']").fill("test@example.com")
+            page.locator("input.email-input[type='text']").fill("Test Subject")
+            page.locator("textarea.email-textarea").fill("This is a test email body.")
+            page.wait_for_timeout(500)
 
-        time.sleep(0.5) # Wait for animation
+            page.locator("button.email-btn.primary").click()
+            page.wait_for_timeout(500)
 
-        # 2. Open Clock App (for screenshot)
-        page.locator("#clock").click()
-        time.sleep(0.5)
+            # Move window out of the way
+            page.locator(".email-window .title-bar").hover()
+            page.mouse.down()
+            page.mouse.move(800, 50)
+            page.mouse.up()
+            page.wait_for_timeout(500)
 
-        # 3. Open Image Viewer (for screenshot)
-        page.evaluate("""
-            fileSystem['screenshot_test.png'] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-            saveFileSystem();
-        """)
-        page.evaluate("openApp('image-viewer', 'screenshot_test.png')")
-        time.sleep(0.5)
+            # 2. Chat App
+            page.evaluate("openApp('chat')")
+            page.wait_for_timeout(500)
 
-        # Arrange windows for screenshot
-        # Move Image Viewer
-        page.evaluate("""
-            const win = document.querySelector('.image-viewer-window');
-            if(win) { win.style.left = '300px'; win.style.top = '100px'; }
-        """)
+            page.locator(".chat-contact").nth(0).click()
+            page.wait_for_timeout(500)
 
-        # Take screenshot
-        page.screenshot(path="verification/verification.png")
-        browser.close()
+            page.locator("input.chat-input").fill("Hello Alice!")
+            page.locator("button.chat-send-btn").click()
+            page.wait_for_timeout(2500) # Wait for auto-reply
+
+            # Move window so we can click others
+            page.locator(".chat-window .title-bar").hover()
+            page.mouse.down()
+            page.mouse.move(50, 450)
+            page.mouse.up()
+            page.wait_for_timeout(500)
+
+            # 3. Gallery App
+            page.evaluate("openApp('photo-gallery')")
+            page.wait_for_timeout(500)
+
+            # Move window
+            page.locator(".gallery-window .title-bar").hover()
+            page.mouse.down()
+            page.mouse.move(600, 300)
+            page.mouse.up()
+            page.wait_for_timeout(500)
+
+            # 4. Printers App
+            page.evaluate("openApp('printer')")
+            page.wait_for_timeout(500)
+
+            page.screenshot(path="verification/screenshots/new_features_final.png")
+            page.wait_for_timeout(1000)
+        finally:
+            context.close()
+            browser.close()
 
 if __name__ == "__main__":
-    verify_new_features()
+    run()
