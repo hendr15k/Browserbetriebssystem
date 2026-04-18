@@ -180,6 +180,9 @@ window.addEventListener('load', () => {
     // Initialize Sticky Notes
     initStickyNotes();
 
+    // Restore window states from previous session
+    restoreWindowStates();
+
     // Welcome Notification
     setTimeout(() => {
         showNotification('Welcome', 'WebOS initialized successfully.');
@@ -570,22 +573,37 @@ function shutdownSystem() {
 let zIndex = 100;
 let windowCount = 0;
 
-function openApp(appName, arg = null) {
-    const windowId = `window-${windowCount++}`;
+function openApp(appName, arg = null, restoreData = null) {
+    const windowId = restoreData && restoreData.id ? restoreData.id : `window-${windowCount++}`;
     const windowArea = document.getElementById('window-area');
 
     const win = document.createElement('div');
     win.className = 'window';
-    if (window.innerWidth <= 768) {
+    if (restoreData && restoreData.restoredMaximized) {
+        win.classList.add('maximized');
+    } else if (window.innerWidth <= 768) {
         win.classList.add('maximized');
     }
     win.id = windowId;
-    win.style.zIndex = ++zIndex;
+    win.dataset.appName = appName;
+    if (restoreData && restoreData.restoredZIndex) {
+        win.style.zIndex = restoreData.restoredZIndex;
+    } else {
+        win.style.zIndex = ++zIndex;
+    }
 
-    // Randomize position slightly
-    const offsetPos = windowCount * 20;
-    win.style.left = `${50 + (offsetPos % 200)}px`;
-    win.style.top = `${50 + (offsetPos % 200)}px`;
+    if (restoreData && restoreData.left && restoreData.top) {
+        win.style.left = restoreData.left;
+        win.style.top = restoreData.top;
+        if (restoreData.width) win.style.width = restoreData.width;
+        if (restoreData.height) win.style.height = restoreData.height;
+        if (restoreData.restoredDisplay) win.style.display = restoreData.restoredDisplay;
+    } else {
+        // Randomize position slightly
+        const offsetPos = (windowCount || 0) * 20;
+        win.style.left = `${50 + (offsetPos % 200)}px`;
+        win.style.top = `${50 + (offsetPos % 200)}px`;
+    }
 
     let title = "Application";
     let content = "";
@@ -1878,6 +1896,9 @@ function closeWindow(windowId) {
     if (taskbarItem) {
         taskbarItem.remove();
     }
+
+    // Save window states after close
+    saveWindowStates();
 }
 
 function focusWindow(windowId) {
@@ -3296,6 +3317,73 @@ function loadFileSystem() {
         }
     }
 }
+
+// Window State Persistence
+function saveWindowStates() {
+    const windows = document.querySelectorAll('.window');
+    const states = [];
+    windows.forEach(win => {
+        states.push({
+            id: win.id,
+            left: win.style.left,
+            top: win.style.top,
+            width: win.style.width,
+            height: win.style.height,
+            display: win.style.display,
+            appName: win.dataset.appName || '',
+            maximized: win.classList.contains('maximized'),
+            zIndex: win.style.zIndex
+        });
+    });
+    localStorage.setItem('windowStates', JSON.stringify(states));
+}
+
+function restoreWindowStates() {
+    const saved = localStorage.getItem('windowStates');
+    if (!saved) return;
+
+    try {
+        const states = JSON.parse(saved);
+        if (!Array.isArray(states) || states.length === 0) return;
+
+        // Compute max zIndex from saved state (handles NaN)
+        const zValues = states.map(s => parseInt(s.zIndex) || 0).filter(v => !isNaN(v));
+        if (zValues.length > 0) {
+            zIndex = Math.max(zIndex, ...zValues);
+        }
+
+        states.forEach(state => {
+            openApp(state.appName, null, {
+                id: state.id,
+                left: state.left,
+                top: state.top,
+                width: state.width,
+                height: state.height,
+                restoredDisplay: state.display,
+                restoredMaximized: state.maximized,
+                restoredZIndex: state.zIndex
+            });
+        });
+    } catch (e) {
+        console.error('Failed to restore window states:', e);
+    }
+}
+
+// Auto-save window states on window close and interactions
+// (closeWindow is modified in-place; openApp already handles save via mouseup)
+document.addEventListener('mouseup', () => {
+    // Debounced save on drag/resize end
+    clearTimeout(window._saveWindowStateTimer);
+    window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
+});
+
+// Also save state when minimize/restore happens
+const _origMinimize = minimizeWindow;
+window.minimizeWindow = function(windowId) {
+    _origMinimize(windowId);
+    clearTimeout(window._saveWindowStateTimer);
+    window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
+};
 
 // Speak App Logic
 
