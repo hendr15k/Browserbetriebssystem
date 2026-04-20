@@ -1,5 +1,7 @@
 # Browserbetriebssystem 🖥️
 
+[![Deploy](https://github.com/hendr15k/Browserbetriebssystem/actions/workflows/deploy.yml/badge.svg)](https://github.com/hendr15k/Browserbetriebssystem/actions/workflows/deploy.yml)
+
 Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nötig.
 
 **[Live Demo →](https://hendr15k.github.io/Browserbetriebssystem/)**

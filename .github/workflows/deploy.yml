@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, webos-basic-setup-10146383386570946041]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate HTML
+        run: |
+          if [ -f index.html ]; then
+            echo "index.html found"
+            grep -c "</html>" index.html && echo "HTML complete"
+          fi
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
