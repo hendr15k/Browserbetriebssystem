@@ -3,14 +3,10 @@ import os
 import time
 from playwright.sync_api import sync_playwright, expect
 
-def run(playwright):
-    browser = playwright.chromium.launch(headless=True)
-    context = browser.new_context(viewport={"width": 1920, "height": 1080})
-    page = context.new_page()
+def test_world_clock(page):
 
     # Load the index.html file directly
-    file_path = os.path.abspath("index.html")
-    page.goto(f"file://{file_path}")
+    page.goto("file://" + os.path.abspath("index.html"))
 
     # Wait for desktop to load
     expect(page.locator("#desktop")).to_be_visible()
@@ -75,7 +71,4 @@ def run(playwright):
     # Check if list is empty
     expect(list_container).to_be_empty()
 
-    browser.close()
 
-with sync_playwright() as playwright:
-    run(playwright)
