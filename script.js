@@ -861,38 +861,48 @@ function openApp(appName, arg = null, restoreData = null) {
     } else if (appName === 'settings') {
         title = "Settings";
         content = `
-            <div style="padding: 20px;">
-                <h3>Desktop Background</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <div onclick="setBackground('linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)')"
-                         style="width: 100px; height: 80px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('linear-gradient(to right, #8e2de2, #4a00e0')"
-                         style="width: 100px; height: 80px; background: linear-gradient(to right, #8e2de2, #4a00e0); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('linear-gradient(to right, #f12711, #f5af19)')"
-                         style="width: 100px; height: 80px; background: linear-gradient(to right, #f12711, #f5af19); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('#222')"
-                         style="width: 100px; height: 80px; background: #222; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')"
-                         style="width: 100px; height: 80px; background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                </div>
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
-                <h3>Window Theme</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                    <div onclick="setThemeColor('#0078d7')" style="width: 30px; height: 30px; background: #0078d7; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#2ecc71')" style="width: 30px; height: 30px; background: #2ecc71; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#e74c3c')" style="width: 30px; height: 30px; background: #e74c3c; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#9b59b6')" style="width: 30px; height: 30px; background: #9b59b6; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#34495e')" style="width: 30px; height: 30px; background: #34495e; cursor: pointer; border: 1px solid #999;"></div>
-                    <input type="color" onchange="setThemeColor(this.value)" value="#0078d7" style="height: 35px; cursor: pointer;">
-                </div>
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
-                <h3>System</h3>
-                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-                    <input id="pin-input-${windowId}" type="password" placeholder="PIN setzen" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <button onclick="saveSystemPin('${windowId}')" style="padding: 8px 10px; border: none; background: #34495e; color: white; border-radius: 4px; cursor: pointer;">PIN speichern</button>
-                </div>
-                <button onclick="if(confirm('Are you sure you want to reset all settings and data? This will clear localStorage and reload the page.')) { localStorage.clear(); location.reload(); }"
-                        style="padding: 10px 20px; background: #d9534f; color: white; border: none; cursor: pointer; border-radius: 4px;">Reset to Defaults</button>
+            <div class="settings-container">
+                <section class="settings-section">
+                    <h3>🖼️ Desktop Background</h3>
+                    <div class="settings-grid">
+                        <div class="bg-option" onclick="setBackground('linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)')" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);" title="Ocean Blue"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #8e2de2, #4a00e0')" style="background: linear-gradient(to right, #8e2de2, #4a00e0);" title="Purple Haze"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #f12711, #f5af19)')" style="background: linear-gradient(to right, #f12711, #f5af19);" title="Sunset"></div>
+                        <div class="bg-option" onclick="setBackground('#222')" style="background: #222;" title="Dark"></div>
+                        <div class="bg-option" onclick="setBackground('#1a1a2e')" style="background: #1a1a2e;" title="Midnight"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(135deg, #667eea 0%, #764ba2 100%)')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" title="Lavender"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #00b09b, #96c93d)')" style="background: linear-gradient(to right, #00b09b, #96c93d);" title="Nature"></div>
+                        <div class="bg-option" style="background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);" onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')" title="Random Nature"></div>
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>🎨 Window Theme</h3>
+                    <div class="settings-grid">
+                        <div class="color-swatch" onclick="setThemeColor('#0078d7')" style="background: #0078d7;" title="Blue"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#2ecc71')" style="background: #2ecc71;" title="Green"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#e74c3c')" style="background: #e74c3c;" title="Red"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#9b59b6')" style="background: #9b59b6;" title="Purple"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#34495e')" style="background: #34495e;" title="Dark Slate"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#e67e22')" style="background: #e67e22;" title="Orange"></div>
+                        <input type="color" onchange="setThemeColor(this.value)" value="#0078d7" title="Custom color">
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>🔒 Security</h3>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <input id="pin-input-${windowId}" type="password" placeholder="PIN setzen (min. 4 Zeichen)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1;">
+                        <button onclick="saveSystemPin('${windowId}')" style="padding: 8px 16px; border: none; background: var(--theme-color); color: white; border-radius: 4px; cursor: pointer;">Speichern</button>
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>⚠️ Danger Zone</h3>
+                    <button onclick="if(confirm('All settings and data will be cleared. Continue?')) { localStorage.clear(); location.reload(); }" class="danger-btn">
+                        🗑️ Reset to Defaults
+                    </button>
+                </section>
             </div>
         `;
     } else if (appName === 'system-center') {
@@ -1739,7 +1749,26 @@ function openApp(appName, arg = null, restoreData = null) {
     const taskbarItem = document.createElement('div');
     taskbarItem.className = 'taskbar-item active';
     taskbarItem.id = `taskbar-${windowId}`;
-    taskbarItem.textContent = title;
+
+    if (app) {
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'taskbar-icon';
+        iconSpan.textContent = app.icon;
+        taskbarItem.appendChild(iconSpan);
+    }
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = title;
+    taskbarItem.appendChild(titleSpan);
+
+    // Add preview tooltip
+    const preview = document.createElement('div');
+    preview.className = 'taskbar-preview';
+    preview.innerHTML = `
+        <div class="taskbar-preview-title">${title}</div>
+        <div class="taskbar-preview-status">App läuft</div>
+    `;
+    taskbarItem.appendChild(preview);
 
     // Updated click logic: toggle minimize/restore
     taskbarItem.onclick = () => {
