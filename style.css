@@ -396,15 +396,71 @@ body {
     border-radius: 2px;
     display: flex;
     align-items: center;
+    color: #ccc;
+    font-size: 12px;
+    transition: all 0.15s ease;
+    position: relative;
+    max-width: 150px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .taskbar-item:hover {
     background-color: #444;
+    color: white;
 }
 
 .taskbar-item.active {
     background-color: #555;
     border-bottom: 2px solid var(--theme-color);
+    color: white;
+}
+
+.taskbar-item .taskbar-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+/* Taskbar Hover Preview */
+.taskbar-preview {
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: 5px;
+    background: rgba(30, 30, 30, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    color: white;
+    font-size: 12px;
+    display: none;
+    z-index: 10001;
+    pointer-events: none;
+}
+
+.taskbar-item:hover .taskbar-preview {
+    display: block;
+}
+
+.taskbar-preview-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+    color: var(--theme-color);
+}
+
+.taskbar-preview-status {
+    color: #aaa;
+    font-size: 11px;
 }
 
 #clock {
@@ -442,14 +498,95 @@ body {
     color: white;
 }
 
-/* Window Styles (Preparing for next step) */
+/* Ripple Effect for Desktop Icons */
+.icon {
+    width: 80px;
+    height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 10px;
+    color: white;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+}
+
+.icon .ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(0);
+    animation: ripple-anim 0.6s linear;
+    pointer-events: none;
+}
+
+@keyframes ripple-anim {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* Window Animations */
+@keyframes windowOpen {
+    from {
+        transform: scale(0.85);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes windowClose {
+    to {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+}
+
+@keyframes minimizeToTaskbar {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(0.1);
+        opacity: 0;
+    }
+}
+
+.window.window-opening {
+    animation: windowOpen 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.window.window-closing {
+    animation: windowClose 0.15s ease forwards;
+}
+
+.window.minimizing {
+    animation: minimizeToTaskbar 0.25s ease forwards;
+}
+
+/* Window Styles */
 #window-area {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: calc(100% - 40px);
-    pointer-events: none; /* Let clicks pass through to icons if no window is there */
+    pointer-events: none;
+    z-index: 5000;
 }
 
 .window {
@@ -459,7 +596,7 @@ body {
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     display: flex;
     flex-direction: column;
-    pointer-events: auto; /* Enable interaction */
+    pointer-events: auto;
     border-radius: 4px;
     overflow: hidden;
     min-width: 200px;
@@ -3283,4 +3420,188 @@ body {
 .printer-item-actions {
     display: flex;
     gap: 10px;
+}
+
+/* Settings Styles */
+.settings-container {
+    padding: 20px;
+    color: #333;
+}
+
+.settings-section {
+    margin-bottom: 10px;
+}
+
+.settings-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #444;
+}
+
+.settings-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.bg-option {
+    width: 80px;
+    height: 60px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.bg-option:hover {
+    transform: scale(1.08);
+    border-color: var(--theme-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.color-swatch {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.color-swatch:hover {
+    transform: scale(1.15);
+    border-color: var(--theme-color);
+}
+
+.settings-grid input[type="color"] {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #ddd;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 2px;
+}
+
+.settings-grid input[type="color"]:hover {
+    border-color: var(--theme-color);
+}
+
+.danger-btn {
+    padding: 10px 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.danger-btn:hover {
+    background: #c0392b;
+}
+
+/* Scheduled Notification Badge */
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #e74c3c;
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+/* Schedule Notification Panel */
+.schedule-panel {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+
+.schedule-panel h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #555;
+}
+
+.schedule-panel input,
+.schedule-panel select,
+.schedule-panel textarea {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 13px;
+}
+
+.schedule-panel button {
+    padding: 8px 16px;
+    background: var(--theme-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.schedule-panel button:hover {
+    opacity: 0.9;
+}
+
+.schedule-list {
+    margin-top: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.schedule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: white;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    border: 1px solid #eee;
+}
+
+.schedule-item .sched-time {
+    color: var(--theme-color);
+    font-weight: bold;
+}
+
+.schedule-item .sched-delete {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+}
+
+.schedule-item .sched-delete:hover {
+    color: #c0392b;
+}
+
+/* Pomodoro Enhancements */
+.pomodoro-display {
+    font-size: 64px;
+    font-weight: 300;
+    color: #3c2a1e;
+    font-family: 'Courier New', monospace;
 }

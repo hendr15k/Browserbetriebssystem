@@ -322,7 +322,8 @@ window.addEventListener('load', () => {
         }
     });
 
-    // Initialize Desktop Icons
+    // Initialize Desktop Icons (dynamically generated)
+    renderDesktopIcons();
     initDesktopIcons();
 
     // Initialize Sticky Notes
@@ -340,6 +341,73 @@ window.addEventListener('load', () => {
         runStartupApps();
     }, 700);
 });
+
+// Desktop Icons Rendering (dynamic from appData)
+function renderDesktopIcons() {
+    const container = document.getElementById('desktop-icons');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const categoryOrder = ['system', 'productivity', 'games', 'creative', 'internet'];
+    const added = new Set();
+
+    categoryOrder.forEach(cat => {
+        const apps = appCategories[cat] || [];
+        apps.forEach(appId => {
+            if (added.has(appId)) return;
+            added.add(appId);
+
+            const app = appData[appId];
+            if (!app) return;
+
+            const icon = document.createElement('div');
+            icon.className = 'icon';
+            icon.dataset.app = appId;
+            icon.onclick = (e) => {
+                createRipple(e, icon);
+                openApp(appId);
+            };
+
+            const iconImg = document.createElement('div');
+            iconImg.className = 'icon-img';
+            iconImg.style.background = app.bg;
+            iconImg.style.color = app.color;
+            if (app.bg === 'white') iconImg.style.border = '1px solid #ccc';
+            iconImg.textContent = app.icon;
+
+            const iconLabel = document.createElement('div');
+            iconLabel.className = 'icon-label';
+            iconLabel.textContent = app.name;
+
+            icon.appendChild(iconImg);
+            icon.appendChild(iconLabel);
+            container.appendChild(icon);
+        });
+    });
+}
+
+// Ripple Effect for Desktop Icons
+function createRipple(event, element) {
+    const circle = document.createElement('span');
+    const diameter = Math.max(element.clientWidth, element.clientHeight);
+    const radius = diameter / 2;
+
+    const rect = element.getBoundingClientRect();
+    const x = event.clientX - rect.left - radius;
+    const y = event.clientY - rect.top - radius;
+
+    circle.style.width = circle.style.height = `${diameter}px`;
+    circle.style.left = `${x}px`;
+    circle.style.top = `${y}px`;
+    circle.classList.add('ripple-effect');
+
+    const ripple = element.querySelector('.ripple-effect');
+    if (ripple) ripple.remove();
+
+    element.appendChild(circle);
+
+    setTimeout(() => circle.remove(), 600);
+}
 
 // Desktop Icon Logic
 function initDesktopIcons() {
@@ -646,6 +714,7 @@ let windowCount = 0;
 function openApp(appName, arg = null, restoreData = null) {
     const windowId = restoreData && restoreData.id ? restoreData.id : `window-${windowCount++}`;
     const windowArea = document.getElementById('window-area');
+    if (!windowArea) return;
 
     const win = document.createElement('div');
     win.className = 'window';
@@ -792,38 +861,48 @@ function openApp(appName, arg = null, restoreData = null) {
     } else if (appName === 'settings') {
         title = "Settings";
         content = `
-            <div style="padding: 20px;">
-                <h3>Desktop Background</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <div onclick="setBackground('linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)')"
-                         style="width: 100px; height: 80px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('linear-gradient(to right, #8e2de2, #4a00e0')"
-                         style="width: 100px; height: 80px; background: linear-gradient(to right, #8e2de2, #4a00e0); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('linear-gradient(to right, #f12711, #f5af19)')"
-                         style="width: 100px; height: 80px; background: linear-gradient(to right, #f12711, #f5af19); cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('#222')"
-                         style="width: 100px; height: 80px; background: #222; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                    <div onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')"
-                         style="width: 100px; height: 80px; background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>
-                </div>
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
-                <h3>Window Theme</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-                    <div onclick="setThemeColor('#0078d7')" style="width: 30px; height: 30px; background: #0078d7; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#2ecc71')" style="width: 30px; height: 30px; background: #2ecc71; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#e74c3c')" style="width: 30px; height: 30px; background: #e74c3c; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#9b59b6')" style="width: 30px; height: 30px; background: #9b59b6; cursor: pointer; border: 1px solid #999;"></div>
-                    <div onclick="setThemeColor('#34495e')" style="width: 30px; height: 30px; background: #34495e; cursor: pointer; border: 1px solid #999;"></div>
-                    <input type="color" onchange="setThemeColor(this.value)" value="#0078d7" style="height: 35px; cursor: pointer;">
-                </div>
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
-                <h3>System</h3>
-                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
-                    <input id="pin-input-${windowId}" type="password" placeholder="PIN setzen" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                    <button onclick="saveSystemPin('${windowId}')" style="padding: 8px 10px; border: none; background: #34495e; color: white; border-radius: 4px; cursor: pointer;">PIN speichern</button>
-                </div>
-                <button onclick="if(confirm('Are you sure you want to reset all settings and data? This will clear localStorage and reload the page.')) { localStorage.clear(); location.reload(); }"
-                        style="padding: 10px 20px; background: #d9534f; color: white; border: none; cursor: pointer; border-radius: 4px;">Reset to Defaults</button>
+            <div class="settings-container">
+                <section class="settings-section">
+                    <h3>🖼️ Desktop Background</h3>
+                    <div class="settings-grid">
+                        <div class="bg-option" onclick="setBackground('linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)')" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);" title="Ocean Blue"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #8e2de2, #4a00e0')" style="background: linear-gradient(to right, #8e2de2, #4a00e0);" title="Purple Haze"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #f12711, #f5af19)')" style="background: linear-gradient(to right, #f12711, #f5af19);" title="Sunset"></div>
+                        <div class="bg-option" onclick="setBackground('#222')" style="background: #222;" title="Dark"></div>
+                        <div class="bg-option" onclick="setBackground('#1a1a2e')" style="background: #1a1a2e;" title="Midnight"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(135deg, #667eea 0%, #764ba2 100%)')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" title="Lavender"></div>
+                        <div class="bg-option" onclick="setBackground('linear-gradient(to right, #00b09b, #96c93d)')" style="background: linear-gradient(to right, #00b09b, #96c93d);" title="Nature"></div>
+                        <div class="bg-option" style="background: url(https://source.unsplash.com/random/1600x900/?nature); background-size: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 0 5px rgba(0,0,0,0.5);" onclick="setBackground('url(https://source.unsplash.com/random/1600x900/?nature)')" title="Random Nature"></div>
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>🎨 Window Theme</h3>
+                    <div class="settings-grid">
+                        <div class="color-swatch" onclick="setThemeColor('#0078d7')" style="background: #0078d7;" title="Blue"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#2ecc71')" style="background: #2ecc71;" title="Green"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#e74c3c')" style="background: #e74c3c;" title="Red"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#9b59b6')" style="background: #9b59b6;" title="Purple"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#34495e')" style="background: #34495e;" title="Dark Slate"></div>
+                        <div class="color-swatch" onclick="setThemeColor('#e67e22')" style="background: #e67e22;" title="Orange"></div>
+                        <input type="color" onchange="setThemeColor(this.value)" value="#0078d7" title="Custom color">
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>🔒 Security</h3>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <input id="pin-input-${windowId}" type="password" placeholder="PIN setzen (min. 4 Zeichen)" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1;">
+                        <button onclick="saveSystemPin('${windowId}')" style="padding: 8px 16px; border: none; background: var(--theme-color); color: white; border-radius: 4px; cursor: pointer;">Speichern</button>
+                    </div>
+                </section>
+                <hr>
+                <section class="settings-section">
+                    <h3>⚠️ Danger Zone</h3>
+                    <button onclick="if(confirm('All settings and data will be cleared. Continue?')) { localStorage.clear(); location.reload(); }" class="danger-btn">
+                        🗑️ Reset to Defaults
+                    </button>
+                </section>
             </div>
         `;
     } else if (appName === 'system-center') {
@@ -1651,12 +1730,45 @@ function openApp(appName, arg = null, restoreData = null) {
     windowArea.appendChild(win);
     focusWindow(windowId);
 
+    // Trigger opening animation
+    requestAnimationFrame(() => {
+        win.classList.add('window-opening');
+        win.addEventListener('animationend', () => {
+            win.classList.remove('window-opening');
+        }, { once: true });
+    });
+
+    // Show launch toast for desktop-launched apps
+    const app = appData[appName];
+    if (app) {
+        showToast(app.name, 'Wird gestartet...', app.icon);
+    }
+
     // Add to taskbar
     const taskbarApps = document.getElementById('taskbar-apps');
     const taskbarItem = document.createElement('div');
     taskbarItem.className = 'taskbar-item active';
     taskbarItem.id = `taskbar-${windowId}`;
-    taskbarItem.textContent = title;
+
+    if (app) {
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'taskbar-icon';
+        iconSpan.textContent = app.icon;
+        taskbarItem.appendChild(iconSpan);
+    }
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = title;
+    taskbarItem.appendChild(titleSpan);
+
+    // Add preview tooltip
+    const preview = document.createElement('div');
+    preview.className = 'taskbar-preview';
+    preview.innerHTML = `
+        <div class="taskbar-preview-title">${title}</div>
+        <div class="taskbar-preview-status">App läuft</div>
+    `;
+    taskbarItem.appendChild(preview);
 
     // Updated click logic: toggle minimize/restore
     taskbarItem.onclick = () => {
@@ -1804,6 +1916,21 @@ function openApp(appName, arg = null, restoreData = null) {
 }
 
 function closeWindow(windowId) {
+    const win = document.getElementById(windowId);
+    if (!win) return;
+
+    // Prevent double-close
+    if (win.classList.contains('window-closing')) return;
+
+    // Play closing animation
+    win.classList.add('window-closing');
+    win.addEventListener('animationend', () => {
+        // Perform actual cleanup
+        performWindowCleanup(windowId);
+    }, { once: true });
+}
+
+function performWindowCleanup(windowId) {
     // Cleanup Snake game if active
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -1886,29 +2013,6 @@ function closeWindow(windowId) {
         delete voiceRecorderStates[windowId];
     }
 
-    // Cleanup Music Player
-    const winRef = document.getElementById(windowId);
-    if (winRef && winRef.querySelector('audio')) {
-        const audio = winRef.querySelector('audio');
-        if (audio.src && audio.src.startsWith('blob:')) {
-            URL.revokeObjectURL(audio.src);
-        }
-    }
-
-    // Cleanup Video Player
-    if (winRef && winRef.querySelector('video')) {
-        const video = winRef.querySelector('video');
-        if (video.src && video.src.startsWith('blob:')) {
-            URL.revokeObjectURL(video.src);
-        }
-    }
-
-    // Cleanup Task Manager
-    if (taskManagerIntervals[windowId]) {
-        clearInterval(taskManagerIntervals[windowId]);
-        delete taskManagerIntervals[windowId];
-    }
-
     // Cleanup Clock
     if (clockStates[windowId]) {
         clearInterval(clockStates[windowId].clockInterval);
@@ -1920,14 +2024,6 @@ function closeWindow(windowId) {
     // Cleanup Browser
     if (browserStates[windowId]) {
         delete browserStates[windowId];
-    }
-
-    // Cleanup Piano
-    if (pianoStates[windowId]) {
-        if (pianoStates[windowId].audioContext) {
-            pianoStates[windowId].audioContext.close();
-        }
-        delete pianoStates[windowId];
     }
 
     // Cleanup Spreadsheet
@@ -1958,9 +2054,25 @@ function closeWindow(windowId) {
         delete printerStates[windowId];
     }
 
-    const win = document.getElementById(windowId);
-    if (win) {
-        win.remove();
+    const winRef = document.getElementById(windowId);
+    if (winRef) {
+        // Cleanup Music Player
+        if (winRef.querySelector('audio')) {
+            const audio = winRef.querySelector('audio');
+            if (audio.src && audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audio.src);
+            }
+        }
+
+        // Cleanup Video Player
+        if (winRef.querySelector('video')) {
+            const video = winRef.querySelector('video');
+            if (video.src && video.src.startsWith('blob:')) {
+                URL.revokeObjectURL(video.src);
+            }
+        }
+
+        winRef.remove();
     }
     const taskbarItem = document.getElementById(`taskbar-${windowId}`);
     if (taskbarItem) {
@@ -1970,6 +2082,78 @@ function closeWindow(windowId) {
     // Save window states after close
     saveWindowStates();
 }
+
+// Toast Notification
+function showToast(title, message, icon = 'ℹ️') {
+    if (typeof showNotification === 'function') {
+        showNotification(title, message);
+        return;
+    }
+    const container = document.getElementById('notification-area');
+    if (!container) {
+        const area = document.createElement('div');
+        area.id = 'notification-area';
+        document.body.appendChild(area);
+    }
+    const notifArea = document.getElementById('notification-area');
+    const toast = document.createElement('div');
+    toast.className = 'notification-toast';
+    toast.innerHTML = `
+        <div class="notification-title">${icon} ${title}</div>
+        <div class="notification-message">${message}</div>
+    `;
+    notifArea.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Scheduled Notifications System
+let scheduledNotifications = JSON.parse(localStorage.getItem('scheduledNotifications') || '[]');
+
+function scheduleNotification(title, message, time, icon = '🔔') {
+    const id = Date.now().toString();
+    scheduledNotifications.push({ id, title, message, time, icon });
+    saveScheduledNotifications();
+    updateScheduleBadge();
+    return id;
+}
+
+function saveScheduledNotifications() {
+    localStorage.setItem('scheduledNotifications', JSON.stringify(scheduledNotifications));
+}
+
+function updateScheduleBadge() {
+    const badge = document.getElementById('schedule-badge');
+    if (badge) {
+        const activeCount = scheduledNotifications.filter(n => n.time > Date.now()).length;
+        badge.textContent = activeCount;
+        badge.style.display = activeCount > 0 ? 'flex' : 'none';
+    }
+}
+
+function checkScheduledNotifications() {
+    const now = Date.now();
+    const due = scheduledNotifications.filter(n => n.time <= now);
+    due.forEach(n => {
+        showToast(n.title, n.message, n.icon);
+    });
+    scheduledNotifications = scheduledNotifications.filter(n => n.time > now);
+    saveScheduledNotifications();
+    updateScheduleBadge();
+}
+
+function cancelScheduledNotification(id) {
+    scheduledNotifications = scheduledNotifications.filter(n => n.id !== id);
+    saveScheduledNotifications();
+    updateScheduleBadge();
+}
+
+// Check for due notifications every 30 seconds
+setInterval(checkScheduledNotifications, 30000);
+checkScheduledNotifications();
 
 function focusWindow(windowId) {
     const win = document.getElementById(windowId);
@@ -3311,11 +3495,18 @@ function minimizeWindow(windowId) {
 
     if (win.style.display === 'none') {
         // Restore
+        win.classList.remove('minimizing');
         win.style.display = 'flex';
         focusWindow(windowId);
     } else {
-        // Minimize
-        win.style.display = 'none';
+        // Minimize with animation
+        win.style.animation = 'none'; // Reset
+        void win.offsetWidth; // Trigger reflow
+        win.classList.add('minimizing');
+        setTimeout(() => {
+            win.style.display = 'none';
+            win.classList.remove('minimizing');
+        }, 250);
         if (taskbarItem) {
             taskbarItem.classList.remove('active');
         }
