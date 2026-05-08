@@ -2085,29 +2085,75 @@ function performWindowCleanup(windowId) {
 
 // Toast Notification
 function showToast(title, message, icon = 'ℹ️') {
+    if (typeof showNotification === 'function') {
+        showNotification(title, message);
+        return;
+    }
     const container = document.getElementById('notification-area');
-    if (!container) return;
-
+    if (!container) {
+        const area = document.createElement('div');
+        area.id = 'notification-area';
+        document.body.appendChild(area);
+    }
+    const notifArea = document.getElementById('notification-area');
     const toast = document.createElement('div');
     toast.className = 'notification-toast';
     toast.innerHTML = `
         <div class="notification-title">${icon} ${title}</div>
         <div class="notification-message">${message}</div>
     `;
-
-    container.appendChild(toast);
-
-    // Trigger animation
-    requestAnimationFrame(() => {
-        toast.classList.add('show');
-    });
-
-    // Auto-remove after 3 seconds
+    notifArea.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+// Scheduled Notifications System
+let scheduledNotifications = JSON.parse(localStorage.getItem('scheduledNotifications') || '[]');
+
+function scheduleNotification(title, message, time, icon = '🔔') {
+    const id = Date.now().toString();
+    scheduledNotifications.push({ id, title, message, time, icon });
+    saveScheduledNotifications();
+    updateScheduleBadge();
+    return id;
+}
+
+function saveScheduledNotifications() {
+    localStorage.setItem('scheduledNotifications', JSON.stringify(scheduledNotifications));
+}
+
+function updateScheduleBadge() {
+    const badge = document.getElementById('schedule-badge');
+    if (badge) {
+        const activeCount = scheduledNotifications.filter(n => n.time > Date.now()).length;
+        badge.textContent = activeCount;
+        badge.style.display = activeCount > 0 ? 'flex' : 'none';
+    }
+}
+
+function checkScheduledNotifications() {
+    const now = Date.now();
+    const due = scheduledNotifications.filter(n => n.time <= now);
+    due.forEach(n => {
+        showToast(n.title, n.message, n.icon);
+    });
+    scheduledNotifications = scheduledNotifications.filter(n => n.time > now);
+    saveScheduledNotifications();
+    updateScheduleBadge();
+}
+
+function cancelScheduledNotification(id) {
+    scheduledNotifications = scheduledNotifications.filter(n => n.id !== id);
+    saveScheduledNotifications();
+    updateScheduleBadge();
+}
+
+// Check for due notifications every 30 seconds
+setInterval(checkScheduledNotifications, 30000);
+checkScheduledNotifications();
 
 function focusWindow(windowId) {
     const win = document.getElementById(windowId);
