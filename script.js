@@ -1,3 +1,151 @@
+const appCategories = {
+    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about'],
+    productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
+    games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
+    creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery'],
+    internet: ['browser', 'weather', 'chat']
+};
+
+const appData = {
+    terminal: { name: 'Terminal', icon: '>_', bg: '#333', color: 'white' },
+    notepad: { name: 'Notepad', icon: 'Txt', bg: 'white', color: 'black' },
+    'file-explorer': { name: 'Explorer', icon: '📂', bg: '#f1c40f', color: 'white' },
+    calculator: { name: 'Calculator', icon: '=', bg: '#27ae60', color: 'white' },
+    snake: { name: 'Snake', icon: 'S', bg: '#9b59b6', color: 'white' },
+    paint: { name: 'Paint', icon: 'P', bg: '#e67e22', color: 'white' },
+    tictactoe: { name: 'Tic Tac Toe', icon: '#', bg: '#e74c3c', color: 'white' },
+    settings: { name: 'Settings', icon: '⚙', bg: '#777', color: 'white' },
+    'system-center': { name: 'System Center', icon: '🖥️', bg: '#1f2937', color: 'white' },
+    about: { name: 'About', icon: '?', bg: '#0078d7', color: 'white' },
+    speak: { name: 'Speak', icon: '🔊', bg: '#e91e63', color: 'white' },
+    camera: { name: 'Camera', icon: '📷', bg: '#000', color: 'white' },
+    minesweeper: { name: 'Minesweeper', icon: '💣', bg: '#c0392b', color: 'white' },
+    calendar: { name: 'Calendar', icon: '📅', bg: '#2980b9', color: 'white' },
+    clock: { name: 'Clock', icon: '⏰', bg: '#2c3e50', color: 'white' },
+    memory: { name: 'Memory', icon: '🧠', bg: '#f39c12', color: 'white' },
+    'music-player': { name: 'Music Player', icon: '🎵', bg: '#e91e63', color: 'white' },
+    'video-player': { name: 'Video Player', icon: '🎬', bg: '#673ab7', color: 'white' },
+    'task-manager': { name: 'Task Manager', icon: '📊', bg: '#34495e', color: 'white' },
+    tetris: { name: 'Tetris', icon: 'T', bg: '#9b59b6', color: 'white' },
+    browser: { name: 'Web Browser', icon: '🌐', bg: '#00a8e8', color: 'white' },
+    'unit-converter': { name: 'Unit Converter', icon: '⚖️', bg: '#16a085', color: 'white' },
+    'sticky-notes': { name: 'Sticky Notes', icon: '📝', bg: '#f1c40f', color: 'white' },
+    'markdown-editor': { name: 'Markdown Editor', icon: 'Md', bg: '#333', color: 'white' },
+    'code-editor': { name: 'Code Editor', icon: '</>', bg: '#2c3e50', color: '#ecf0f1' },
+    solitaire: { name: 'Solitaire', icon: '🃏', bg: '#27ae60', color: 'white' },
+    pong: { name: 'Pong', icon: '🏓', bg: '#000', color: 'white' },
+    '2048': { name: '2048', icon: '2048', bg: '#edc22e', color: 'white' },
+    sudoku: { name: 'Sudoku', icon: '🔢', bg: '#34495e', color: 'white' },
+    weather: { name: 'Weather', icon: '🌤️', bg: '#3498db', color: 'white' },
+    pomodoro: { name: 'Pomodoro Timer', icon: '🍅', bg: '#e67e22', color: 'white' },
+    'voice-recorder': { name: 'Voice Recorder', icon: '🎙️', bg: '#e74c3c', color: 'white' },
+    piano: { name: 'Piano', icon: '🎹', bg: '#333', color: 'white' },
+    spreadsheet: { name: 'Spreadsheet', icon: '📊', bg: '#27ae60', color: 'white' },
+    'pdf-viewer': { name: 'PDF Viewer', icon: '📄', bg: '#e74c3c', color: 'white' },
+    email: { name: 'Email', icon: '📧', bg: '#0078d7', color: 'white' },
+    chat: { name: 'Chat', icon: '💬', bg: '#2ecc71', color: 'white' },
+    'photo-gallery': { name: 'Photo Gallery', icon: '🖼️', bg: '#9b59b6', color: 'white' },
+    printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' }
+};
+
+let currentCategory = 'all';
+
+function renderStartApps(category = 'all') {
+    const container = document.getElementById('start-apps-container');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    let apps = [];
+    if (category === 'all') {
+        apps = Object.keys(appData);
+    } else if (appCategories[category]) {
+        apps = appCategories[category];
+    }
+    
+    apps.forEach(appId => {
+        const app = appData[appId];
+        if (!app) return;
+        
+        const item = document.createElement('div');
+        item.className = 'start-item';
+        item.dataset.app = appId;
+        item.onclick = () => { openApp(appId); toggleStartMenu(); };
+        
+        const icon = document.createElement('div');
+        icon.className = 'start-item-icon';
+        icon.style.background = app.bg;
+        icon.style.color = app.color;
+        if (app.bg === 'white') icon.style.border = '1px solid #ccc';
+        icon.textContent = app.icon;
+        
+        const label = document.createElement('div');
+        label.className = 'start-item-label';
+        label.textContent = app.name;
+        
+        item.appendChild(icon);
+        item.appendChild(label);
+        container.appendChild(item);
+    });
+}
+
+function switchStartCategory(category) {
+    currentCategory = category;
+    
+    document.querySelectorAll('.start-nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.category === category);
+    });
+    
+    renderStartApps(category);
+    filterStartMenu(document.getElementById('start-search')?.value || '');
+}
+
+function filterStartMenu(query) {
+    const items = document.querySelectorAll('.start-item');
+    const noResults = document.getElementById('start-no-results');
+    const searchCount = document.getElementById('start-search-count');
+    const q = query.trim().toLowerCase();
+    let visibleCount = 0;
+    
+    items.forEach(item => {
+        const appId = item.dataset.app;
+        const app = appData[appId];
+        const labelEl = item.querySelector('.start-item-label');
+        const labelText = app?.name || '';
+        const isVisible = labelText.toLowerCase().includes(q);
+        
+        item.style.display = isVisible ? 'flex' : 'none';
+        
+        if (q) {
+            const matchStart = labelText.toLowerCase().indexOf(q);
+            if (matchStart !== -1) {
+                const before = labelText.slice(0, matchStart);
+                const match = labelText.slice(matchStart, matchStart + q.length);
+                const after = labelText.slice(matchStart + q.length);
+                labelEl.innerHTML = before + '<span class="start-item-label-mark">' + match + '</span>' + after;
+            }
+        } else {
+            labelEl.textContent = labelText;
+        }
+        
+        if (isVisible) visibleCount++;
+    });
+    
+    if (searchCount) {
+        if (q) {
+            const noun = visibleCount === 1 ? 'app' : 'apps';
+            searchCount.textContent = `${visibleCount} ${noun} found`;
+            searchCount.style.display = 'block';
+        } else {
+            searchCount.style.display = 'none';
+        }
+    }
+    
+    if (noResults) {
+        noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+}
+
 // Clock
 function updateClock() {
     const now = new Date();
@@ -287,8 +435,9 @@ function toggleStartMenu() {
     const searchInput = document.getElementById('start-search');
 
     if (menu.style.display === 'none' || menu.style.display === '') {
-        menu.style.display = 'flex';
+        menu.style.display = 'block';
         btn.classList.add('active');
+        renderStartApps(currentCategory);
         if (searchInput) {
             searchInput.value = '';
             filterStartMenu('');
@@ -304,41 +453,6 @@ let selectedStartItemIndex = -1;
 
 function getVisibleStartItems() {
     return Array.from(document.querySelectorAll('.start-item')).filter(item => item.style.display !== 'none');
-}
-
-function renderStartItemLabel(labelEl, labelText, query) {
-    labelEl.textContent = '';
-
-    if (!query) {
-        labelEl.textContent = labelText;
-        return;
-    }
-
-    const normalizedLabel = labelText.toLowerCase();
-    const matchStart = normalizedLabel.indexOf(query);
-
-    if (matchStart === -1) {
-        labelEl.textContent = labelText;
-        return;
-    }
-
-    const matchEnd = matchStart + query.length;
-    labelEl.append(document.createTextNode(labelText.slice(0, matchStart)));
-
-    const match = document.createElement('span');
-    match.className = 'start-item-label-mark';
-    match.textContent = labelText.slice(matchStart, matchEnd);
-    labelEl.append(match);
-
-    labelEl.append(document.createTextNode(labelText.slice(matchEnd)));
-}
-
-function prepareStartSearchLabels() {
-    document.querySelectorAll('.start-item span').forEach(labelEl => {
-        if (!labelEl.dataset.baseLabel) {
-            labelEl.dataset.baseLabel = labelEl.textContent.trim();
-        }
-    });
 }
 
 function updateStartSelection(newIndex) {
@@ -362,52 +476,8 @@ function updateStartSelection(newIndex) {
     selectedItem.scrollIntoView({ block: 'nearest' });
 }
 
-function filterStartMenu(query) {
-    const items = document.querySelectorAll('.start-item');
-    const divider = document.querySelector('.start-divider');
-    const noResults = document.getElementById('start-no-results');
-    const searchCount = document.getElementById('start-search-count');
-    const q = query.trim().toLowerCase();
-    let visibleCount = 0;
-
-    items.forEach(item => {
-        const labelEl = item.querySelector('span');
-        const labelText = labelEl?.dataset.baseLabel || labelEl?.textContent.trim() || '';
-        const isVisible = labelText.toLowerCase().includes(q);
-
-        item.style.display = isVisible ? 'flex' : 'none';
-        renderStartItemLabel(labelEl, labelText, q);
-
-        if (isVisible) {
-            visibleCount += 1;
-        }
-    });
-
-    if (divider) {
-        divider.style.display = query !== '' ? 'none' : 'block';
-    }
-
-    if (searchCount) {
-        if (q) {
-            const noun = visibleCount === 1 ? 'app' : 'apps';
-            searchCount.textContent = `${visibleCount} ${noun} found`;
-            searchCount.style.display = 'block';
-        } else {
-            searchCount.style.display = 'none';
-        }
-    }
-
-    if (noResults) {
-        noResults.style.display = visibleCount === 0 ? 'block' : 'none';
-    }
-
-    updateStartSelection(visibleCount > 0 ? 0 : -1);
-}
-
 // Initialize Search Listener
 document.addEventListener('DOMContentLoaded', () => {
-    prepareStartSearchLabels();
-
     const searchInput = document.getElementById('start-search');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -416,7 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         searchInput.addEventListener('keydown', (e) => {
             const menu = document.getElementById('start-menu');
-            if (menu.style.display !== 'flex') return;
+            if (menu.style.display !== 'block') return;
 
             const visibleItems = getVisibleStartItems();
 
@@ -450,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if ((e.ctrlKey && e.key === 'Escape') || (e.altKey && e.key.toLowerCase() === 's')) {
             e.preventDefault();
             const menu = document.getElementById('start-menu');
-            const isOpen = menu.style.display === 'flex';
+            const isOpen = menu.style.display === 'block';
 
             if (!isOpen) {
                 toggleStartMenu();
@@ -464,7 +534,7 @@ document.addEventListener('click', function(e) {
     const menu = document.getElementById('start-menu');
     const btn = document.getElementById('start-button');
 
-    if (menu.style.display === 'flex' &&
+    if (menu.style.display === 'block' &&
         !menu.contains(e.target) &&
         !btn.contains(e.target)) {
         menu.style.display = 'none';
