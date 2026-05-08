@@ -322,7 +322,8 @@ window.addEventListener('load', () => {
         }
     });
 
-    // Initialize Desktop Icons
+    // Initialize Desktop Icons (dynamically generated)
+    renderDesktopIcons();
     initDesktopIcons();
 
     // Initialize Sticky Notes
@@ -340,6 +341,73 @@ window.addEventListener('load', () => {
         runStartupApps();
     }, 700);
 });
+
+// Desktop Icons Rendering (dynamic from appData)
+function renderDesktopIcons() {
+    const container = document.getElementById('desktop-icons');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const categoryOrder = ['system', 'productivity', 'games', 'creative', 'internet'];
+    const added = new Set();
+
+    categoryOrder.forEach(cat => {
+        const apps = appCategories[cat] || [];
+        apps.forEach(appId => {
+            if (added.has(appId)) return;
+            added.add(appId);
+
+            const app = appData[appId];
+            if (!app) return;
+
+            const icon = document.createElement('div');
+            icon.className = 'icon';
+            icon.dataset.app = appId;
+            icon.onclick = (e) => {
+                createRipple(e, icon);
+                openApp(appId);
+            };
+
+            const iconImg = document.createElement('div');
+            iconImg.className = 'icon-img';
+            iconImg.style.background = app.bg;
+            iconImg.style.color = app.color;
+            if (app.bg === 'white') iconImg.style.border = '1px solid #ccc';
+            iconImg.textContent = app.icon;
+
+            const iconLabel = document.createElement('div');
+            iconLabel.className = 'icon-label';
+            iconLabel.textContent = app.name;
+
+            icon.appendChild(iconImg);
+            icon.appendChild(iconLabel);
+            container.appendChild(icon);
+        });
+    });
+}
+
+// Ripple Effect for Desktop Icons
+function createRipple(event, element) {
+    const circle = document.createElement('span');
+    const diameter = Math.max(element.clientWidth, element.clientHeight);
+    const radius = diameter / 2;
+
+    const rect = element.getBoundingClientRect();
+    const x = event.clientX - rect.left - radius;
+    const y = event.clientY - rect.top - radius;
+
+    circle.style.width = circle.style.height = `${diameter}px`;
+    circle.style.left = `${x}px`;
+    circle.style.top = `${y}px`;
+    circle.classList.add('ripple-effect');
+
+    const ripple = element.querySelector('.ripple-effect');
+    if (ripple) ripple.remove();
+
+    element.appendChild(circle);
+
+    setTimeout(() => circle.remove(), 600);
+}
 
 // Desktop Icon Logic
 function initDesktopIcons() {
@@ -646,6 +714,7 @@ let windowCount = 0;
 function openApp(appName, arg = null, restoreData = null) {
     const windowId = restoreData && restoreData.id ? restoreData.id : `window-${windowCount++}`;
     const windowArea = document.getElementById('window-area');
+    if (!windowArea) return;
 
     const win = document.createElement('div');
     win.className = 'window';
@@ -1651,6 +1720,20 @@ function openApp(appName, arg = null, restoreData = null) {
     windowArea.appendChild(win);
     focusWindow(windowId);
 
+    // Trigger opening animation
+    requestAnimationFrame(() => {
+        win.classList.add('window-opening');
+        win.addEventListener('animationend', () => {
+            win.classList.remove('window-opening');
+        }, { once: true });
+    });
+
+    // Show launch toast for desktop-launched apps
+    const app = appData[appName];
+    if (app) {
+        showToast(app.name, 'Wird gestartet...', app.icon);
+    }
+
     // Add to taskbar
     const taskbarApps = document.getElementById('taskbar-apps');
     const taskbarItem = document.createElement('div');
@@ -1804,6 +1887,21 @@ function openApp(appName, arg = null, restoreData = null) {
 }
 
 function closeWindow(windowId) {
+    const win = document.getElementById(windowId);
+    if (!win) return;
+
+    // Prevent double-close
+    if (win.classList.contains('window-closing')) return;
+
+    // Play closing animation
+    win.classList.add('window-closing');
+    win.addEventListener('animationend', () => {
+        // Perform actual cleanup
+        performWindowCleanup(windowId);
+    }, { once: true });
+}
+
+function performWindowCleanup(windowId) {
     // Cleanup Snake game if active
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -1886,29 +1984,6 @@ function closeWindow(windowId) {
         delete voiceRecorderStates[windowId];
     }
 
-    // Cleanup Music Player
-    const winRef = document.getElementById(windowId);
-    if (winRef && winRef.querySelector('audio')) {
-        const audio = winRef.querySelector('audio');
-        if (audio.src && audio.src.startsWith('blob:')) {
-            URL.revokeObjectURL(audio.src);
-        }
-    }
-
-    // Cleanup Video Player
-    if (winRef && winRef.querySelector('video')) {
-        const video = winRef.querySelector('video');
-        if (video.src && video.src.startsWith('blob:')) {
-            URL.revokeObjectURL(video.src);
-        }
-    }
-
-    // Cleanup Task Manager
-    if (taskManagerIntervals[windowId]) {
-        clearInterval(taskManagerIntervals[windowId]);
-        delete taskManagerIntervals[windowId];
-    }
-
     // Cleanup Clock
     if (clockStates[windowId]) {
         clearInterval(clockStates[windowId].clockInterval);
@@ -1920,14 +1995,6 @@ function closeWindow(windowId) {
     // Cleanup Browser
     if (browserStates[windowId]) {
         delete browserStates[windowId];
-    }
-
-    // Cleanup Piano
-    if (pianoStates[windowId]) {
-        if (pianoStates[windowId].audioContext) {
-            pianoStates[windowId].audioContext.close();
-        }
-        delete pianoStates[windowId];
     }
 
     // Cleanup Spreadsheet
@@ -1958,9 +2025,25 @@ function closeWindow(windowId) {
         delete printerStates[windowId];
     }
 
-    const win = document.getElementById(windowId);
-    if (win) {
-        win.remove();
+    const winRef = document.getElementById(windowId);
+    if (winRef) {
+        // Cleanup Music Player
+        if (winRef.querySelector('audio')) {
+            const audio = winRef.querySelector('audio');
+            if (audio.src && audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audio.src);
+            }
+        }
+
+        // Cleanup Video Player
+        if (winRef.querySelector('video')) {
+            const video = winRef.querySelector('video');
+            if (video.src && video.src.startsWith('blob:')) {
+                URL.revokeObjectURL(video.src);
+            }
+        }
+
+        winRef.remove();
     }
     const taskbarItem = document.getElementById(`taskbar-${windowId}`);
     if (taskbarItem) {
@@ -1969,6 +2052,32 @@ function closeWindow(windowId) {
 
     // Save window states after close
     saveWindowStates();
+}
+
+// Toast Notification
+function showToast(title, message, icon = 'ℹ️') {
+    const container = document.getElementById('notification-area');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'notification-toast';
+    toast.innerHTML = `
+        <div class="notification-title">${icon} ${title}</div>
+        <div class="notification-message">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 function focusWindow(windowId) {
@@ -3311,11 +3420,18 @@ function minimizeWindow(windowId) {
 
     if (win.style.display === 'none') {
         // Restore
+        win.classList.remove('minimizing');
         win.style.display = 'flex';
         focusWindow(windowId);
     } else {
-        // Minimize
-        win.style.display = 'none';
+        // Minimize with animation
+        win.style.animation = 'none'; // Reset
+        void win.offsetWidth; // Trigger reflow
+        win.classList.add('minimizing');
+        setTimeout(() => {
+            win.style.display = 'none';
+            win.classList.remove('minimizing');
+        }, 250);
         if (taskbarItem) {
             taskbarItem.classList.remove('active');
         }
