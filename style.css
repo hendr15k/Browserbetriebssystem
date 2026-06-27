@@ -612,6 +612,27 @@ body {
     transform: none !important;
 }
 
+.window.snapped-left,
+.window.snapped-right {
+    border-radius: 0;
+    top: 0 !important;
+    height: calc(100% - 40px) !important;
+    transform: none !important;
+}
+
+/* Aero Snap preview overlay shown while dragging a window toward a screen edge */
+.snap-preview {
+    position: fixed;
+    display: none;
+    background: rgba(0, 120, 215, 0.25);
+    border: 2px solid rgba(0, 120, 215, 0.7);
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 9000;
+    transition: opacity 0.12s ease;
+    box-shadow: 0 0 16px rgba(0, 120, 215, 0.3) inset;
+}
+
 .title-bar {
     background-color: var(--theme-color); /* Active color */
     color: white;
@@ -3604,4 +3625,473 @@ body {
     font-weight: 300;
     color: #3c2a1e;
     font-family: 'Courier New', monospace;
+}
+
+/* Context Menu Styles */
+.context-menu {
+    position: fixed;
+    background: rgba(30, 30, 30, 0.97);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 6px 0;
+    min-width: 200px;
+    z-index: 99999;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    display: none;
+    overflow: hidden;
+}
+
+.context-menu.hidden {
+    display: none !important;
+}
+
+.context-menu-header {
+    padding: 8px 15px;
+    font-size: 13px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 0;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    transition: all 0.1s ease;
+}
+
+.context-menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.context-menu-item.context-danger {
+    color: #e74c3c;
+}
+
+.context-menu-item.context-danger:hover {
+    background: rgba(231, 76, 60, 0.15);
+}
+
+.context-icon {
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
+}
+
+/* Clock Tooltip */
+#clock-tooltip {
+    position: absolute;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 30, 0.97);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 15px 20px;
+    min-width: 220px;
+    z-index: 10001;
+    color: white;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+#clock-tooltip.visible {
+    display: flex;
+}
+
+.clock-tooltip-time {
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+
+.clock-tooltip-date {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    text-align: center;
+}
+
+.clock-tooltip-day {
+    font-size: 12px;
+    color: var(--theme-color);
+    font-weight: 500;
+}
+
+/* Pinned Apps Bar */
+#pinned-apps {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 5px;
+    background: rgba(255, 255, 255, 0.03);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    margin-right: 5px;
+    max-width: 200px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+#pinned-apps::-webkit-scrollbar {
+    display: none;
+}
+
+.pinned-app-item {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.pinned-app-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
+}
+
+.pinned-app-item .pinned-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 30, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: white;
+    white-space: nowrap;
+    display: none;
+    z-index: 10002;
+    pointer-events: none;
+}
+
+.pinned-app-item:hover .pinned-tooltip {
+    display: block;
+}
+
+/* Wallpaper Panel */
+.wallpaper-panel {
+    margin-top: 15px;
+}
+
+.wallpaper-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.wallpaper-option {
+    height: 80px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.wallpaper-option:hover {
+    transform: scale(1.05);
+    border-color: var(--theme-color);
+}
+
+.wallpaper-option.active-wallpaper {
+    border-color: #2ecc71;
+    box-shadow: 0 0 10px rgba(46, 204, 113, 0.4);
+}
+
+.wallpaper-option.active-wallpaper::after {
+    content: '✓';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Schedule Notification Panel in Settings */
+.schedule-panel {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.schedule-panel h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.schedule-panel input,
+.schedule-panel select,
+.schedule-panel textarea {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 13px;
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+.schedule-panel button {
+    padding: 8px 16px;
+    background: var(--theme-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.schedule-panel button:hover {
+    opacity: 0.9;
+}
+
+.schedule-list {
+    margin-top: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.schedule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.schedule-item .sched-time {
+    color: var(--theme-color);
+    font-weight: bold;
+}
+
+.schedule-item .sched-delete {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+}
+
+.schedule-item .sched-delete:hover {
+    color: #c0392b;
+}
+
+/* Desktop icon right-click highlight */
+.icon.context-active {
+    outline: 2px solid var(--theme-color);
+    outline-offset: -2px;
+}
+
+/* File Manager / File Tree Styles */
+.file-tree-panel {
+    margin-top: 15px;
+}
+
+.file-tree {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 13px;
+}
+
+.file-tree-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.8);
+    transition: background 0.1s;
+}
+
+.file-tree-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.file-tree-item.folder {
+    font-weight: 600;
+    color: #f1c40f;
+}
+
+.file-tree-item .file-icon {
+    width: 18px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.file-tree-item .file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-tree-item .file-size {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-left: auto;
+}
+
+.file-tree-children {
+    padding-left: 20px;
+}
+
+.file-tree-children .file-tree-children {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    margin-left: 4px;
+}
+
+.file-path-bar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.file-path-bar .path-segment {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: background 0.15s;
+}
+
+.file-path-bar .path-segment:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.file-path-bar .path-separator {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+/* Wallpaper Upload */
+.wallpaper-upload-area {
+    margin-top: 10px;
+    padding: 15px;
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.wallpaper-upload-area:hover {
+    border-color: var(--theme-color);
+    color: var(--theme-color);
+    background: rgba(0, 120, 215, 0.05);
+}
+
+.wallpaper-upload-area input[type="file"] {
+    display: none;
+}
+
+/* Energy Settings */
+.energy-section {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.energy-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.energy-option:last-child {
+    border-bottom: none;
+}
+
+.energy-option label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.energy-toggle {
+    width: 44px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.3s;
+}
+
+.energy-toggle.active {
+    background: var(--theme-color);
+}
+
+.energy-toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.3s;
+}
+
+.energy-toggle.active::after {
+    transform: translateX(20px);
+}
+
+/* Enhanced Settings Section Headers */
+.settings-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }

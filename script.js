@@ -72,6 +72,15 @@ function renderStartApps(category = 'all') {
         item.dataset.app = appId;
         item.onclick = () => { openApp(appId); toggleStartMenu(); };
         
+        if (isPinned(appId)) {
+            const pinMark = document.createElement('span');
+            pinMark.className = 'start-item-pin';
+            pinMark.textContent = '📌';
+            pinMark.style.cssText = 'position:absolute;top:4px;right:6px;font-size:11px;opacity:0.7;';
+            item.style.position = 'relative';
+            item.appendChild(pinMark);
+        }
+        
         const icon = document.createElement('div');
         icon.className = 'start-item-icon';
         icon.style.background = app.bg;
@@ -247,80 +256,297 @@ window.addEventListener('load', () => {
         document.documentElement.style.setProperty('--theme-color', savedTheme);
     }
 
-    // Context Menu Logic
+    // ===================== FEATURE 1: CONTEXT MENUS =====================
+
+// Global state for context menus
+let activeIconContextMenu = null;
+let activeTaskbarContextMenu = null;
+
+// Desktop Context Menu
+document.addEventListener('DOMContentLoaded', () => {
     const desktop = document.getElementById('desktop');
-    const contextMenu = document.createElement('div');
-    contextMenu.id = 'context-menu';
-    contextMenu.style.display = 'none';
-    contextMenu.style.position = 'absolute';
-    contextMenu.style.background = 'white';
-    contextMenu.style.border = '1px solid #ccc';
-    contextMenu.style.boxShadow = '2px 2px 5px rgba(0,0,0,0.2)';
-    contextMenu.style.zIndex = '1000';
-    contextMenu.style.padding = '5px 0';
-    contextMenu.style.width = '150px';
+    const contextMenu = document.getElementById('context-menu');
+    const iconContextMenu = document.getElementById('icon-context-menu');
+    const taskbarContextMenu = document.getElementById('taskbar-context-menu');
 
-    const menuItems = [
-        { label: 'Refresh', action: () => location.reload() },
-        { label: 'New Text File', action: () => {
-            const filename = prompt('Enter filename:', 'newfile.txt');
-            if (filename) {
-                fileSystem[filename] = '';
-                saveFileSystem();
-                alert(`Created ${filename}`);
-                // Refresh if explorer is open
-                document.querySelectorAll('.window').forEach(win => {
-                    if (win.querySelector('.explorer-toolbar')) { // Identify explorer window
-                         const winId = win.id;
-                         renderFileExplorer(winId);
-                    }
-                });
-            }
-        }},
-        { label: 'Change Background', action: () => openApp('settings') }
-    ];
-
-    menuItems.forEach(item => {
-        const div = document.createElement('div');
-        div.textContent = item.label;
-        div.style.padding = '5px 10px';
-        div.style.cursor = 'pointer';
-        div.style.fontSize = '14px';
-        div.onmouseover = () => div.style.background = '#eee';
-        div.onmouseout = () => div.style.background = 'white';
-        div.onclick = () => {
-            item.action();
-            contextMenu.style.display = 'none';
-        };
-        contextMenu.appendChild(div);
-    });
-
-    document.body.appendChild(contextMenu);
-
+    // Desktop right-click
     desktop.addEventListener('contextmenu', (e) => {
+        // Don't show if right-clicking on an icon or taskbar
+        if (e.target.closest('.icon') || e.target.closest('#taskbar') || e.target.closest('.context-menu')) return;
         e.preventDefault();
-        // Check if clicking on an icon, if so, maybe different menu?
-        // For now, simple desktop menu.
-        // If clicking on icon, we might want to avoid showing this menu or show specific one.
-        // But the event bubbles. The icon has onclick, but contextmenu bubbles.
-        // Let's allow it everywhere on desktop for now.
-
-        contextMenu.style.display = 'block';
-        contextMenu.style.left = `${e.clientX}px`;
-        contextMenu.style.top = `${e.clientY}px`;
+        hideAllContextMenus();
+        contextMenu.classList.remove('hidden');
+        positionMenu(contextMenu, e.clientX, e.clientY);
     });
 
+    // Taskbar right-click
+    document.getElementById('taskbar').addEventListener('contextmenu', (e) => {
+        if (e.target.closest('.taskbar-item') || e.target.closest('#taskbar-context-menu')) return;
+        e.preventDefault();
+        hideAllContextMenus();
+        contextMenu.classList.remove('hidden');
+        positionMenu(contextMenu, e.clientX, e.clientY);
+    });
+
+    // Click outside to close all context menus
     document.addEventListener('click', (e) => {
-        if (!contextMenu.contains(e.target)) {
-            contextMenu.style.display = 'none';
-        }
-
-        const powerMenu = document.getElementById('power-menu');
-        const powerButton = document.getElementById('power-button');
-        if (powerMenu && powerButton && !powerMenu.contains(e.target) && e.target !== powerButton) {
-            powerMenu.style.display = 'none';
+        if (!e.target.closest('.context-menu') && !e.target.closest('#taskbar')) {
+            hideAllContextMenus();
         }
     });
+
+    // Right-click on desktop icons
+    desktop.addEventListener('contextmenu', (e) => {
+        const icon = e.target.closest('.icon');
+        if (!icon) return;
+        e.preventDefault();
+        e.stopPropagation();
+        hideAllContextMenus();
+        activeIconContextMenu = icon.dataset.app;
+        const app = appData[icon.dataset.app];
+        document.getElementById('icon-context-title').textContent = app ? app.name : 'App';
+        const hasPinned = isPinned(app?.id || icon.dataset.app);
+        document.querySelector('[data-action="pin-app"]').style.display = hasPinned ? 'none' : 'flex';
+        document.querySelector('[data-action="unpin-app"]').style.display = hasPinned ? 'flex' : 'none';
+        iconContextMenu.classList.remove('hidden');
+        positionMenu(iconContextMenu, e.clientX, e.clientY);
+    });
+
+    // Right-click on taskbar items
+    document.getElementById('taskbar').addEventListener('contextmenu', (e) => {
+        const taskbarItem = e.target.closest('.taskbar-item');
+        if (!taskbarItem) return;
+        e.preventDefault();
+        e.stopPropagation();
+        hideAllContextMenus();
+        activeTaskbarContextMenu = taskbarItem.id.replace('taskbar-', '');
+        document.getElementById('taskbar-context-title').textContent = taskbarItem.querySelector('.taskbar-icon + span')?.textContent || 'App';
+        positionMenu(taskbarContextMenu, e.clientX, e.clientY);
+    });
+});
+
+function positionMenu(menu, x, y) {
+    const rect = menu.getBoundingClientRect();
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    let left = x;
+    let top = y;
+    if (left + rect.width > winW) left = winW - rect.width - 5;
+    if (top + rect.height > winH) top = winH - rect.height - 5;
+    if (left < 0) left = 5;
+    if (top < 0) top = 5;
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.style.display = 'block';
+}
+
+function hideAllContextMenus() {
+    document.querySelectorAll('.context-menu').forEach(m => {
+        m.classList.add('hidden');
+        m.style.display = 'none';
+    });
+}
+
+function handleContextMenuAction(action) {
+    hideAllContextMenus();
+    switch(action) {
+        case 'refresh':
+            location.reload();
+            break;
+        case 'new-file':
+            const fname = prompt('Enter filename:', 'newfile.txt');
+            if (fname) {
+                fileSystem[fname] = '';
+                saveFileSystem();
+                showNotification('File Created', `Created ${fname}`);
+            }
+            break;
+        case 'new-folder':
+            const folderName = prompt('Enter folder name:', 'New Folder');
+            if (folderName) {
+                const key = folderName + '/';
+                if (!fileSystem[key]) {
+                    fileSystem[key] = 'directory';
+                    saveFileSystem();
+                    showNotification('Folder Created', `Created ${folderName}`);
+                } else {
+                    alert('Folder already exists');
+                }
+            }
+            break;
+        case 'settings':
+            openApp('settings');
+            break;
+        case 'lock':
+            lockSystem();
+            break;
+        case 'shutdown':
+            shutdownSystem();
+            break;
+        case 'restart':
+            restartSystem();
+            break;
+    }
+}
+
+function handleIconContextMenuAction(action) {
+    hideAllContextMenus();
+    if (!activeIconContextMenu) return;
+    const appId = activeIconContextMenu;
+    switch(action) {
+        case 'open':
+            openApp(appId);
+            break;
+        case 'pin':
+            togglePin(appId);
+            break;
+        case 'unpin':
+            togglePin(appId);
+            break;
+        case 'remove':
+            // Remove from desktop by hiding the icon
+            const icon = document.querySelector(`.icon[data-app="${appId}"]`);
+            if (icon) {
+                icon.style.display = 'none';
+                const hidden = JSON.parse(localStorage.getItem('hiddenDesktopIcons') || '[]');
+                if (!hidden.includes(appId)) hidden.push(appId);
+                localStorage.setItem('hiddenDesktopIcons', JSON.stringify(hidden));
+            }
+            showNotification('Icon Removed', `${appData[appId]?.name || appId} removed from desktop.`);
+            break;
+    }
+    activeIconContextMenu = null;
+}
+
+function handleTaskbarContextMenuAction(action) {
+    hideAllContextMenus();
+    if (!activeTaskbarContextMenu) return;
+    const windowId = activeTaskbarContextMenu;
+    switch(action) {
+        case 'restore':
+            minimizeWindow(windowId); // toggles restore
+            break;
+        case 'minimize':
+            const win = document.getElementById(windowId);
+            if (win && win.style.display !== 'none') {
+                minimizeWindow(windowId);
+            }
+            break;
+        case 'maximize':
+            maximizeWindow(windowId);
+            break;
+        case 'close':
+            closeWindow(windowId);
+            break;
+    }
+    activeTaskbarContextMenu = null;
+}
+
+// ===================== FEATURE 3: APP PINNING =====================
+
+function getPinnedApps() {
+    return JSON.parse(localStorage.getItem('pinnedApps') || '[]');
+}
+
+function savePinnedApps(pinned) {
+    localStorage.setItem('pinnedApps', JSON.stringify(pinned));
+}
+
+function isPinned(appId) {
+    return getPinnedApps().includes(appId);
+}
+
+function togglePin(appId) {
+    const pinned = getPinnedApps();
+    const idx = pinned.indexOf(appId);
+    if (idx === -1) {
+        pinned.push(appId);
+        showNotification('Angeheftet', `${appData[appId]?.name || appId} wurde angeheftet.`);
+    } else {
+        pinned.splice(idx, 1);
+        showNotification('Abgeheftet', `${appData[appId]?.name || appId} wurde abgeheftet.`);
+    }
+    savePinnedApps(pinned);
+    renderPinnedApps();
+    renderStartApps(currentCategory);
+}
+
+function renderPinnedApps() {
+    const container = document.getElementById('pinned-apps');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const pinned = getPinnedApps();
+    pinned.forEach(appId => {
+        const app = appData[appId];
+        if (!app) return;
+        
+        const item = document.createElement('div');
+        item.className = 'pinned-app-item';
+        item.title = app.name;
+        item.onclick = () => openApp(appId);
+        
+        const icon = document.createElement('span');
+        icon.className = 'pinned-app-icon';
+        icon.textContent = app.icon;
+        icon.style.background = app.bg;
+        icon.style.color = app.color;
+        if (app.bg === 'white') icon.style.border = '1px solid #ccc';
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'pinned-tooltip';
+        tooltip.textContent = app.name;
+        
+        item.appendChild(icon);
+        item.appendChild(tooltip);
+        container.appendChild(item);
+    });
+}
+
+
+
+// ===================== FEATURE 2: SYSTEM CLOCK TOOLTIP =====================
+
+function updateClockTooltip() {
+    const tooltip = document.getElementById('clock-tooltip');
+    if (!tooltip) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const weekNum = getWeekNumber(now);
+
+    document.getElementById('clock-tooltip-time').textContent = timeStr;
+    document.getElementById('clock-tooltip-date').textContent = dateStr;
+    document.getElementById('clock-tooltip-day').textContent = `KW ${weekNum}`;
+}
+
+function getWeekNumber(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+// Clock tooltip on hover
+document.addEventListener('DOMContentLoaded', () => {
+    const clock = document.getElementById('clock');
+    const tooltip = document.getElementById('clock-tooltip');
+    if (clock && tooltip) {
+        clock.addEventListener('mouseenter', () => {
+            updateClockTooltip();
+            tooltip.classList.add('visible');
+        });
+        clock.addEventListener('mouseleave', () => {
+            tooltip.classList.remove('visible');
+        });
+        // Update tooltip time every second when visible
+        setInterval(() => {
+            if (tooltip.classList.contains('visible')) {
+                updateClockTooltip();
+            }
+        }, 1000);
+    }
+});
 
     // Initialize Desktop Icons (dynamically generated)
     renderDesktopIcons();
@@ -341,6 +567,52 @@ window.addEventListener('load', () => {
         runStartupApps();
     }, 700);
 });
+
+
+function renderPinnedSection() {
+    const container = document.getElementById('start-apps-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const pinned = getPinnedApps();
+    if (pinned.length === 0) {
+        container.innerHTML = '<div style="padding:30px;color:rgba(255,255,255,0.4);text-align:center;">No apps pinned yet.<br>Right-click an app to pin it.</div>';
+        return;
+    }
+    
+    pinned.forEach(appId => {
+        const app = appData[appId];
+        if (!app) return;
+        
+        const item = document.createElement('div');
+        item.className = 'start-item';
+        item.dataset.app = appId;
+        item.onclick = () => { openApp(appId); toggleStartMenu(); };
+        
+        const icon = document.createElement('div');
+        icon.className = 'start-item-icon';
+        icon.style.background = app.bg;
+        icon.style.color = app.color;
+        if (app.bg === 'white') icon.style.border = '1px solid #ccc';
+        icon.textContent = app.icon;
+        
+        const label = document.createElement('div');
+        label.className = 'start-item-label';
+        label.textContent = app.name;
+        
+        const unpinBtn = document.createElement('span');
+        unpinBtn.textContent = '✕';
+        unpinBtn.style.cssText = 'position:absolute;top:3px;right:4px;cursor:pointer;font-size:12px;opacity:0.5;';
+        unpinBtn.onclick = (e) => { e.stopPropagation(); togglePin(appId); renderPinnedSection(); };
+        item.style.position = 'relative';
+        item.appendChild(unpinBtn);
+        
+        item.appendChild(icon);
+        item.appendChild(label);
+        container.appendChild(item);
+    });
+}
+
 
 // Desktop Icons Rendering (dynamic from appData)
 function renderDesktopIcons() {
@@ -430,58 +702,69 @@ function initDesktopIcons() {
 
         // Add drag events
         icon.onmousedown = (e) => startDragIcon(e, icon);
+        icon.ontouchstart = (e) => startDragIcon(e, icon);
     });
 }
 
 let isDraggingIcon = false;
 let currentDragIcon = null;
 let iconDragOffset = { x: 0, y: 0 };
+const ICON_DRAG_THRESHOLD = 5;
+let iconDownPoint = null;
+let iconDragArmed = false;
 
 function startDragIcon(e, icon) {
-    e.stopPropagation(); // Prevent desktop context menu or selection
-    isDraggingIcon = true;
+    if (e.button !== undefined && e.button !== 0) return; // only primary button
     currentDragIcon = icon;
-
-    // Switch to absolute positioning if not already
-    // To do this smoothly, we need to calculate current screen position relative to desktop
-    const desktop = document.getElementById('desktop');
-    const iconRect = icon.getBoundingClientRect();
-    const desktopRect = desktop.getBoundingClientRect();
-
-    if (getComputedStyle(icon).position !== 'absolute') {
-        const left = iconRect.left - desktopRect.left;
-        const top = iconRect.top - desktopRect.top;
-
-        icon.style.position = 'absolute';
-        icon.style.left = `${left}px`;
-        icon.style.top = `${top}px`;
-        icon.style.margin = '0'; // Remove margin as it affects absolute pos
-    }
-
-    iconDragOffset.x = e.clientX - icon.getBoundingClientRect().left;
-    iconDragOffset.y = e.clientY - icon.getBoundingClientRect().top;
+    const pt = getPointer(e);
+    iconDownPoint = { x: pt.x, y: pt.y };
+    iconDragArmed = true;
+    isDraggingIcon = false;
 
     document.addEventListener('mousemove', dragIcon);
     document.addEventListener('mouseup', stopDragIcon);
+    document.addEventListener('touchmove', dragIcon, { passive: false });
+    document.addEventListener('touchend', stopDragIcon);
+    document.addEventListener('touchcancel', stopDragIcon);
 }
 
 function dragIcon(e) {
-    if (!isDraggingIcon || !currentDragIcon) return;
-    e.preventDefault();
+    if (!currentDragIcon || !iconDragArmed) return;
+    const pt = getPointer(e);
 
+    // Only begin actually dragging once the pointer has moved past a small threshold,
+    // so plain clicks still work and the icon doesn't snap to absolute on mere mousedown.
+    if (!isDraggingIcon) {
+        const dx = pt.x - iconDownPoint.x;
+        const dy = pt.y - iconDownPoint.y;
+        if (Math.abs(dx) < ICON_DRAG_THRESHOLD && Math.abs(dy) < ICON_DRAG_THRESHOLD) return;
+        if (e.cancelable) e.preventDefault();
+        isDraggingIcon = true;
+
+        const desktop = document.getElementById('desktop');
+        const iconRect = currentDragIcon.getBoundingClientRect();
+        const desktopRect = desktop.getBoundingClientRect();
+        if (getComputedStyle(currentDragIcon).position !== 'absolute') {
+            currentDragIcon.style.position = 'absolute';
+            currentDragIcon.style.left = `${iconRect.left - desktopRect.left}px`;
+            currentDragIcon.style.top = `${iconRect.top - desktopRect.top}px`;
+            currentDragIcon.style.margin = '0';
+        }
+        iconDragOffset.x = pt.x - currentDragIcon.getBoundingClientRect().left;
+        iconDragOffset.y = pt.y - currentDragIcon.getBoundingClientRect().top;
+    }
+
+    if (e.cancelable) e.preventDefault();
     const desktop = document.getElementById('desktop');
     const desktopRect = desktop.getBoundingClientRect();
-
-    const x = e.clientX - desktopRect.left - iconDragOffset.x;
-    const y = e.clientY - desktopRect.top - iconDragOffset.y;
-
+    const x = pt.x - desktopRect.left - iconDragOffset.x;
+    const y = pt.y - desktopRect.top - iconDragOffset.y;
     currentDragIcon.style.left = `${x}px`;
     currentDragIcon.style.top = `${y}px`;
 }
 
 function stopDragIcon() {
-    if (currentDragIcon) {
-        // Save position
+    if (isDraggingIcon && currentDragIcon) {
         const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
         savedPositions[currentDragIcon.id] = {
             left: currentDragIcon.style.left,
@@ -489,11 +772,15 @@ function stopDragIcon() {
         };
         localStorage.setItem('desktopIconPositions', JSON.stringify(savedPositions));
     }
-
     isDraggingIcon = false;
     currentDragIcon = null;
+    iconDragArmed = false;
+    iconDownPoint = null;
     document.removeEventListener('mousemove', dragIcon);
     document.removeEventListener('mouseup', stopDragIcon);
+    document.removeEventListener('touchmove', dragIcon);
+    document.removeEventListener('touchend', stopDragIcon);
+    document.removeEventListener('touchcancel', stopDragIcon);
 }
 
 // Start Menu Logic
@@ -1711,7 +1998,7 @@ function openApp(appName, arg = null, restoreData = null) {
     }
 
     win.innerHTML = `
-        <div class="title-bar" onmousedown="startDrag(event, '${windowId}')">
+        <div class="title-bar" onmousedown="startDrag(event, '${windowId}')" ontouchstart="startDrag(event, '${windowId}')">
             <div class="title-bar-text">${title}</div>
             <div class="title-bar-controls">
                 <button class="window-button minimize-button" onclick="minimizeWindow('${windowId}')">_</button>
@@ -1722,9 +2009,9 @@ function openApp(appName, arg = null, restoreData = null) {
         <div class="window-content" onclick="focusWindow('${windowId}')">
             ${content}
         </div>
-        <div class="resize-handle resize-r" onmousedown="startResize(event, '${windowId}', 'r')"></div>
-        <div class="resize-handle resize-b" onmousedown="startResize(event, '${windowId}', 'b')"></div>
-        <div class="resize-handle resize-br" onmousedown="startResize(event, '${windowId}', 'br')"></div>
+        <div class="resize-handle resize-r" onmousedown="startResize(event, '${windowId}', 'r')" ontouchstart="startResize(event, '${windowId}', 'r')"></div>
+        <div class="resize-handle resize-b" onmousedown="startResize(event, '${windowId}', 'b')" ontouchstart="startResize(event, '${windowId}', 'b')"></div>
+        <div class="resize-handle resize-br" onmousedown="startResize(event, '${windowId}', 'br')" ontouchstart="startResize(event, '${windowId}', 'br')"></div>
     `;
 
     windowArea.appendChild(win);
@@ -2176,45 +2463,309 @@ let isDragging = false;
 let currentWindow = null;
 let offset = { x: 0, y: 0 };
 
+// Snap (Aero Snap) state
+const SNAP_THRESHOLD = 24;
+let activeSnapZone = null;
+let snapPreview = null;
+
+function getPointer(e) {
+    if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+}
+
+function ensureSnapPreview() {
+    if (snapPreview) return snapPreview;
+    snapPreview = document.createElement('div');
+    snapPreview.id = 'snap-preview';
+    snapPreview.className = 'snap-preview';
+    document.body.appendChild(snapPreview);
+    return snapPreview;
+}
+
+function getSnapZone(x, y) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (y <= SNAP_THRESHOLD) return 'top';
+    if (x <= SNAP_THRESHOLD) return 'left';
+    if (x >= vw - SNAP_THRESHOLD) return 'right';
+    return null;
+}
+
+function applySnap(windowId, zone) {
+    const win = document.getElementById(windowId);
+    if (!win) return;
+
+    const vw = window.innerWidth;
+    const taskbarH = 40;
+    const vh = window.innerHeight - taskbarH;
+
+    if (!win.dataset.snapPrevLeft) {
+        win.dataset.snapPrevLeft = win.style.left || '';
+        win.dataset.snapPrevTop = win.style.top || '';
+        win.dataset.snapPrevWidth = win.style.width || '';
+        win.dataset.snapPrevHeight = win.style.height || '';
+    }
+
+    win.classList.remove('maximized', 'snapped-left', 'snapped-right');
+    win.style.top = '0px';
+    win.style.height = vh + 'px';
+
+    if (zone === 'top') {
+        win.classList.add('maximized');
+        win.style.left = '';
+        win.style.top = '';
+        win.style.width = '';
+        win.style.height = '';
+    } else if (zone === 'left') {
+        win.classList.add('snapped-left');
+        win.style.left = '0px';
+        win.style.width = (vw / 2) + 'px';
+    } else if (zone === 'right') {
+        win.classList.add('snapped-right');
+        win.style.left = (vw / 2) + 'px';
+        win.style.width = (vw / 2) + 'px';
+    }
+    win.dataset.snapZone = zone;
+}
+
+function clearSnapZone(win) {
+    if (!win || !win.dataset.snapZone) return;
+    win.classList.remove('snapped-left', 'snapped-right');
+    win.style.left = win.dataset.snapPrevLeft || '';
+    win.style.top = win.dataset.snapPrevTop || '';
+    win.style.width = win.dataset.snapPrevWidth || '';
+    win.style.height = win.dataset.snapPrevHeight || '';
+    delete win.dataset.snapZone;
+    delete win.dataset.snapPrevLeft;
+    delete win.dataset.snapPrevTop;
+    delete win.dataset.snapPrevWidth;
+    delete win.dataset.snapPrevHeight;
+}
+
+function showSnapPreview(zone) {
+    const preview = ensureSnapPreview();
+    const vw = window.innerWidth;
+    const taskbarH = 40;
+    const vh = window.innerHeight - taskbarH;
+    preview.style.display = 'block';
+    if (zone === 'top') {
+        preview.style.left = '0px';
+        preview.style.top = '0px';
+        preview.style.width = vw + 'px';
+        preview.style.height = vh + 'px';
+    } else if (zone === 'left') {
+        preview.style.left = '0px';
+        preview.style.top = '0px';
+        preview.style.width = (vw / 2) + 'px';
+        preview.style.height = vh + 'px';
+    } else if (zone === 'right') {
+        preview.style.left = (vw / 2) + 'px';
+        preview.style.top = '0px';
+        preview.style.width = (vw / 2) + 'px';
+        preview.style.height = vh + 'px';
+    } else {
+        preview.style.display = 'none';
+    }
+}
+
+function hideSnapPreview() {
+    if (snapPreview) snapPreview.style.display = 'none';
+}
+
 function startDrag(e, windowId) {
     if (e.target.closest('.window-button')) return;
-
+    if (e.cancelable) e.preventDefault();
     isDragging = true;
     currentWindow = document.getElementById(windowId);
     focusWindow(windowId);
 
     const rect = currentWindow.getBoundingClientRect();
-    offset.x = e.clientX - rect.left;
-    offset.y = e.clientY - rect.top;
+    const pt = getPointer(e);
+    offset.x = pt.x - rect.left;
+    offset.y = pt.y - rect.top;
+
+    // If currently snapped, restore geometry as we begin dragging
+    if (currentWindow.dataset.snapZone) {
+        clearSnapZone(currentWindow);
+    }
+
+    // Dragging a maximized window restores it to a centered normal size under the cursor
+    if (currentWindow.classList.contains('maximized')) {
+        const vw = window.innerWidth;
+        const newW = Math.min(rect.width, vw * 0.7);
+        const newH = rect.height;
+        currentWindow.classList.remove('maximized');
+        currentWindow.style.width = newW + 'px';
+        currentWindow.style.height = newH + 'px';
+        currentWindow.style.left = (pt.x - newW / 2) + 'px';
+        currentWindow.style.top = '0px';
+        const newRect = currentWindow.getBoundingClientRect();
+        offset.x = pt.x - newRect.left;
+        offset.y = pt.y - newRect.top;
+        if (currentWindow.dataset.prevWidth) delete currentWindow.dataset.prevWidth;
+        if (currentWindow.dataset.prevHeight) delete currentWindow.dataset.prevHeight;
+        if (currentWindow.dataset.prevLeft) delete currentWindow.dataset.prevLeft;
+        if (currentWindow.dataset.prevTop) delete currentWindow.dataset.prevTop;
+    }
+
+    activeSnapZone = null;
 
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', stopDrag);
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', stopDrag);
+    document.addEventListener('touchcancel', stopDrag);
 }
 
 function drag(e) {
     if (!isDragging || !currentWindow) return;
+    if (e.cancelable) e.preventDefault();
+    const pt = getPointer(e);
+    const x = pt.x - offset.x;
+    const y = pt.y - offset.y;
 
-    e.preventDefault();
-    const x = e.clientX - offset.x;
-    const y = e.clientY - offset.y;
+    // Aero Snap edge detection (only while actively dragging by the title bar)
+    const zone = getSnapZone(pt.x, pt.y);
+    if (zone !== activeSnapZone) {
+        activeSnapZone = zone;
+        if (zone) showSnapPreview(zone); else hideSnapPreview();
+    }
 
-    // Boundary checks (optional, but good)
-    // For now, simple drag
     currentWindow.style.left = `${x}px`;
     currentWindow.style.top = `${y}px`;
 }
 
 function stopDrag() {
-    if (currentWindow && currentWindow.dataset.noteId) {
-        updateStickyNotePosition(currentWindow.dataset.noteId, currentWindow.style.left, currentWindow.style.top);
+    if (currentWindow) {
+        if (currentWindow.dataset.noteId) {
+            updateStickyNotePosition(currentWindow.dataset.noteId, currentWindow.style.left, currentWindow.style.top);
+        }
+        // Apply snap on release
+        if (activeSnapZone) {
+            applySnap(currentWindow.id, activeSnapZone);
+        }
     }
+    hideSnapPreview();
     isDragging = false;
     currentWindow = null;
+    activeSnapZone = null;
     document.removeEventListener('mousemove', drag);
     document.removeEventListener('mouseup', stopDrag);
+    document.removeEventListener('touchmove', drag);
+    document.removeEventListener('touchend', stopDrag);
+    document.removeEventListener('touchcancel', stopDrag);
 }
 
-// File System (InMemory)
+// ===================== WINDOW MANAGEMENT HELPERS =====================
+
+function isTypingInField() {
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+}
+
+function getVisibleWindows() {
+    return Array.from(document.querySelectorAll('.window'))
+        .filter(w => w.style.display !== 'none' && !w.classList.contains('window-closing'));
+}
+
+function getFocusedWindow() {
+    const visible = getVisibleWindows();
+    if (!visible.length) return null;
+    return visible.reduce((top, w) =>
+        (parseInt(w.style.zIndex || 0) > parseInt(top.style.zIndex || 0)) ? w : top
+    );
+}
+
+let altTabWindowList = null;
+
+function altTabNext() {
+    const visible = getVisibleWindows();
+    if (visible.length === 0) return;
+
+    visible.sort((a, b) => parseInt(b.style.zIndex || 0) - parseInt(a.style.zIndex || 0));
+
+    if (!altTabWindowList) {
+        altTabWindowList = visible.slice();
+    }
+
+    const focused = getFocusedWindow();
+    const currentIdx = altTabWindowList.indexOf(focused);
+    const nextIdx = (currentIdx + 1) % altTabWindowList.length;
+    if (altTabWindowList[nextIdx]) focusWindow(altTabWindowList[nextIdx].id);
+}
+
+// ===================== GLOBAL KEYBOARD SHORTCUTS =====================
+
+document.addEventListener('keydown', (e) => {
+    // Escape closes overlays (start menu, context menus, power menu) globally
+    if (e.key === 'Escape') {
+        const startMenu = document.getElementById('start-menu');
+        if (startMenu && startMenu.style.display === 'block') {
+            startMenu.style.display = 'none';
+            document.getElementById('start-button')?.classList.remove('active');
+        }
+        hideAllContextMenus();
+        const powerMenu = document.getElementById('power-menu');
+        if (powerMenu && powerMenu.style.display === 'flex') powerMenu.style.display = 'none';
+        hideSnapPreview();
+        altTabWindowList = null;
+        return;
+    }
+
+    // Alt+Tab (also Ctrl+Alt+Tab for reliability): cycle through open windows
+    if ((e.altKey && e.key === 'Tab') || (e.ctrlKey && e.altKey && e.key === 'Tab')) {
+        // Ignore if typing only when it would hijack text entry — but allow globally for app switching
+        e.preventDefault();
+        altTabNext();
+        return;
+    }
+
+    // Reset the Alt-Tab session when Alt is released
+    if (e.key === 'Alt' && !e.altKey) {
+        altTabWindowList = null;
+    }
+
+    // Show Desktop: Win+D / Ctrl+Win+D (best-effort). Also accept Ctrl+Shift+D fallback.
+    if ((e.metaKey && (e.key === 'd' || e.key === 'D')) ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'd' || e.key === 'D'))) {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        toggleDesktop();
+        return;
+    }
+
+    // Close focused window: Alt+F4 (best-effort, OS may swallow) or Ctrl+Alt+W
+    if ((e.altKey && e.key === 'F4') || (e.ctrlKey && e.altKey && (e.key === 'w' || e.key === 'W'))) {
+        e.preventDefault();
+        const focused = getFocusedWindow();
+        if (focused) closeWindow(focused.id);
+        return;
+    }
+
+    // Minimize / maximize / restore focused window
+    if (e.ctrlKey && e.altKey && (e.key === 'm' || e.key === 'M')) {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        const focused = getFocusedWindow();
+        if (focused) minimizeWindow(focused.id);
+        return;
+    }
+    if (e.ctrlKey && e.altKey && (e.key === 'x' || e.key === 'X')) {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        const focused = getFocusedWindow();
+        if (focused) maximizeWindow(focused.id);
+        return;
+    }
+});
+
+// End the Alt-Tab session on keyup of Alt/Tab
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Tab' && !e.altKey) altTabWindowList = null;
+});
 const fileSystem = {
     'readme.txt': 'Welcome to WebOS! This is a simple browser-based OS.',
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
@@ -3523,11 +4074,13 @@ let originalPos = { x: 0, y: 0 };
 
 function startResize(e, windowId, direction) {
     e.stopPropagation(); // Prevent drag start
+    if (e.cancelable) e.preventDefault();
     isResizing = true;
     currentResizeWindow = document.getElementById(windowId);
     resizeDir = direction;
-    resizeOffset.x = e.clientX;
-    resizeOffset.y = e.clientY;
+    const pt = getPointer(e);
+    resizeOffset.x = pt.x;
+    resizeOffset.y = pt.y;
 
     const rect = currentResizeWindow.getBoundingClientRect();
     originalSize.w = rect.width;
@@ -3535,15 +4088,24 @@ function startResize(e, windowId, direction) {
     originalPos.x = rect.left;
     originalPos.y = rect.top;
 
+    // Un-snap before resizing a snapped window
+    if (currentResizeWindow.dataset.snapZone) {
+        clearSnapZone(currentResizeWindow);
+    }
+
     document.addEventListener('mousemove', resize);
     document.addEventListener('mouseup', stopResize);
+    document.addEventListener('touchmove', resize, { passive: false });
+    document.addEventListener('touchend', stopResize);
+    document.addEventListener('touchcancel', stopResize);
 }
 
 function resize(e) {
     if (!isResizing || !currentResizeWindow) return;
-
-    const dx = e.clientX - resizeOffset.x;
-    const dy = e.clientY - resizeOffset.y;
+    if (e.cancelable) e.preventDefault();
+    const pt = getPointer(e);
+    const dx = pt.x - resizeOffset.x;
+    const dy = pt.y - resizeOffset.y;
 
     if (resizeDir === 'r' || resizeDir === 'br') {
         currentResizeWindow.style.width = `${Math.max(200, originalSize.w + dx)}px`;
@@ -3561,6 +4123,9 @@ function stopResize() {
     currentResizeWindow = null;
     document.removeEventListener('mousemove', resize);
     document.removeEventListener('mouseup', stopResize);
+    document.removeEventListener('touchmove', resize);
+    document.removeEventListener('touchend', stopResize);
+    document.removeEventListener('touchcancel', stopResize);
 }
 
 // File System Persistence

@@ -73,7 +73,13 @@
 
     <div id="taskbar">
         <button id="start-button" onclick="toggleStartMenu()">Start</button>
+        <div id="pinned-apps"></div>
         <div id="taskbar-apps"></div>
+        <div id="clock-tooltip">
+            <div class="clock-tooltip-time" id="clock-tooltip-time">00:00:00</div>
+            <div class="clock-tooltip-date" id="clock-tooltip-date">Montag, 1. Januar 2026</div>
+            <div class="clock-tooltip-day" id="clock-tooltip-day">KW 1</div>
+        </div>
         <button id="power-button" onclick="togglePowerMenu()" title="Power">⏻</button>
         <div id="power-menu">
             <button onclick="lockSystem()">🔒 Sperren</button>
@@ -102,6 +108,73 @@
     <div id="window-area"></div>
 
     <div id="notification-area"></div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu hidden">
+        <div class="context-menu-header">WebOS</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="refresh" onclick="handleContextMenuAction('refresh')">
+            <span class="context-icon">🔄</span> Aktualisieren
+        </div>
+        <div class="context-menu-item" data-action="new-file" onclick="handleContextMenuAction('new-file')">
+            <span class="context-icon">📄</span> Neue Textdatei
+        </div>
+        <div class="context-menu-item" data-action="new-folder" onclick="handleContextMenuAction('new-folder')">
+            <span class="context-icon">📁</span> Neuer Ordner
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="settings" onclick="handleContextMenuAction('settings')">
+            <span class="context-icon">⚙</span> Einstellungen
+        </div>
+        <div class="context-menu-item" data-action="lock" onclick="handleContextMenuAction('lock')">
+            <span class="context-icon">🔒</span> Sperren
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item context-danger" data-action="shutdown" onclick="handleContextMenuAction('shutdown')">
+            <span class="context-icon">⏻</span> Herunterfahren
+        </div>
+        <div class="context-menu-item context-danger" data-action="restart" onclick="handleContextMenuAction('restart')">
+            <span class="context-icon">🔄</span> Neustarten
+        </div>
+    </div>
+
+    <!-- Desktop Icon Context Menu -->
+    <div id="icon-context-menu" class="context-menu hidden">
+        <div class="context-menu-header" id="icon-context-title">App</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="open-app" onclick="handleIconContextMenuAction('open')">
+            <span class="context-icon">▶</span> Öffnen
+        </div>
+        <div class="context-menu-item" data-action="pin-app" onclick="handleIconContextMenuAction('pin')">
+            <span class="context-icon">📌</span> An Start anheften
+        </div>
+        <div class="context-menu-item" data-action="unpin-app" onclick="handleIconContextMenuAction('unpin')" style="display:none;">
+            <span class="context-icon">📌</span> Vom Start lösen
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item context-danger" data-action="remove-icon" onclick="handleIconContextMenuAction('remove')">
+            <span class="context-icon">🗑️</span> Vom Desktop entfernen
+        </div>
+    </div>
+
+    <!-- Taskbar Item Context Menu -->
+    <div id="taskbar-context-menu" class="context-menu hidden">
+        <div class="context-menu-header" id="taskbar-context-title">App</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="taskbar-restore" onclick="handleTaskbarContextMenuAction('restore')">
+            <span class="context-icon">🗗</span> Wiederherstellen
+        </div>
+        <div class="context-menu-item" data-action="taskbar-minimize" onclick="handleTaskbarContextMenuAction('minimize')">
+            <span class="context-icon">─</span> Minimieren
+        </div>
+        <div class="context-menu-item" data-action="taskbar-maximize" onclick="handleTaskbarContextMenuAction('maximize')">
+            <span class="context-icon">□</span> Maximieren
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item context-danger" data-action="taskbar-close" onclick="handleTaskbarContextMenuAction('close')">
+            <span class="context-icon">✕</span> Schließen
+        </div>
+    </div>
 
     <script src="notifications.js"></script>
     <script src="script.js"></script>
