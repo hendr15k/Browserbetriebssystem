@@ -26,10 +26,13 @@ def test_solitaire(page):
     window = page.locator(".solitaire-window")
     expect(window).to_be_visible()
 
+    # Wait for opening animation to complete (scale 0.85→1, 0.22s)
+    page.wait_for_function(
+        "() => !document.querySelector('.solitaire-window')?.classList.contains('window-opening')",
+        timeout=5000
+    )
+
     # Check dimensions
-    # Memory says "explicitly sets... via inline styles".
-    # So checking style attribute is good.
-    # Or bounding box.
     box = window.bounding_box()
     # Allow some margin for borders/rendering
     assert abs(box['width'] - 600) < 5, f"Width should be 600, got {box['width']}"

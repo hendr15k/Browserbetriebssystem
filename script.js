@@ -1,5 +1,5 @@
 const appCategories = {
-    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about'],
+    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock'],
     productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
     games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
     creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery'],

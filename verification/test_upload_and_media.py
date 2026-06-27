@@ -31,9 +31,8 @@ def test_media_playback_from_filesystem(app_page: Page):
     app_page.click("button:text('Refresh')")
 
     # Check for Music File Icon in Explorer content
-    # Note: text=🎵 matches inner text.
-    # Use exact match or look inside explorer content div
-    explorer_content = app_page.locator("[id^=explorer-content-]")
+    # Use .last to target the most recently opened explorer (startup file-explorer may also exist)
+    explorer_content = app_page.locator("[id^=explorer-content-]").last
 
     expect(explorer_content.locator("text=🎵")).to_be_visible()
     expect(explorer_content.locator("text=test_music.mp3")).to_be_visible()
