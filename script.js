@@ -252,22 +252,23 @@ window.addEventListener('load', () => {
     }
 
     const savedTheme = localStorage.getItem('themeColor');
-    if (savedTheme) {
-        document.documentElement.style.setProperty('--theme-color', savedTheme);
-    }
+      if (savedTheme) {
+          document.documentElement.style.setProperty('--theme-color', savedTheme);
+      }
+  });
 
-    // ===================== FEATURE 1: CONTEXT MENUS =====================
+  // ===================== FEATURE 1: CONTEXT MENUS =====================
 
-// Global state for context menus
-let activeIconContextMenu = null;
-let activeTaskbarContextMenu = null;
+  // Global state for context menus
+  let activeIconContextMenu = null;
+  let activeTaskbarContextMenu = null;
 
-// Desktop Context Menu
-document.addEventListener('DOMContentLoaded', () => {
-    const desktop = document.getElementById('desktop');
-    const contextMenu = document.getElementById('context-menu');
-    const iconContextMenu = document.getElementById('icon-context-menu');
-    const taskbarContextMenu = document.getElementById('taskbar-context-menu');
+  // Desktop Context Menu
+  document.addEventListener('DOMContentLoaded', () => {
+      const desktop = document.getElementById('desktop');
+      const contextMenu = document.getElementById('context-menu');
+      const iconContextMenu = document.getElementById('icon-context-menu');
+      const taskbarContextMenu = document.getElementById('taskbar-context-menu');
 
     // Desktop right-click
     desktop.addEventListener('contextmenu', (e) => {
@@ -566,7 +567,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         runStartupApps();
     }, 700);
-});
 
 
 function renderPinnedSection() {
