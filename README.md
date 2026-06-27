@@ -11,6 +11,9 @@ Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nö
 - **Desktop-Umgebung** mit Icons, Taskleiste, Startmenü und Uhr
 - **Startmenü-Suche** mit Tastatursteuerung (↑/↓/Enter/Escape)
 - **Fenstermanagement** — Verschieben, Resize, Minimieren, Maximieren, Schließen, Fokussieren
+- **Aero Snap** — Fenster an Bildschirmränder ziehen zum Andocken (links/rechts halb, oben = maximieren) mit Live-Vorschau
+- **Tastatur-Shortcuts** — Alt+Tab (Fenster wechseln), Ctrl+Shift+D (Desktop anzeigen), Ctrl+Alt+W (Fokus-Fenster schließen), Ctrl+Alt+M (minimieren), Ctrl+Alt+X (maximieren), Esc (Menüs schließen)
+- **Touch-Support** — Fenster und Desktop-Icons per Touch verschieben/ändern (für Tablets)
 - **Virtuelles Dateisystem** — Dateien speichern, verwalten, durchsuchen
 - **38 integrierte Apps** — System, Produktivität, Spiele, Kreativ, Internet
 
