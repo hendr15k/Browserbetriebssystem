@@ -1,5 +1,5 @@
 const appCategories = {
-    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock'],
+    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock', 'wine'],
     productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
     games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
     creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery'],
@@ -45,7 +45,8 @@ const appData = {
     email: { name: 'Email', icon: '📧', bg: '#0078d7', color: 'white' },
     chat: { name: 'Chat', icon: '💬', bg: '#2ecc71', color: 'white' },
     'photo-gallery': { name: 'Photo Gallery', icon: '🖼️', bg: '#9b59b6', color: 'white' },
-    printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' }
+    printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' },
+    wine: { name: 'Wine', icon: '🍷', bg: '#8b0000', color: 'white' }
 };
 
 let currentCategory = 'all';
@@ -1995,6 +1996,20 @@ function openApp(appName, arg = null, restoreData = null) {
             </div>
         `;
         setTimeout(() => initPrinter(windowId), 0);
+    } else if (appName === 'wine') {
+        title = "Wine";
+        win.style.width = '900px';
+        win.style.height = '650px';
+        win.style.minWidth = '600px';
+        win.style.minHeight = '400px';
+        content = `
+            <div class="wine-container" style="width:100%;height:100%;display:flex;flex-direction:column;">
+                <iframe src="boxedwine/wine-runner.html" id="wine-iframe-${windowId}"
+                    style="width:100%;height:100%;border:none;background:#1a1a2e;"
+                    allow="autoplay; clipboard-write">
+                </iframe>
+            </div>
+        `;
     }
 
     win.innerHTML = `
@@ -2104,6 +2119,27 @@ function openApp(appName, arg = null, restoreData = null) {
         ta.addEventListener('click', updateStatus);
         // Initial update in case of loaded content
         updateStatus();
+    }
+
+    if (appName === 'wine') {
+        const iframe = document.getElementById(`wine-iframe-${windowId}`);
+        if (iframe) {
+            iframe.addEventListener('load', function onLoad() {
+                const handler = function(e) {
+                    if (e.source === iframe.contentWindow && e.data && e.data.type === 'wine-ready') {
+                        window.removeEventListener('message', handler);
+                        if (arg && wineExeFiles[arg]) {
+                            iframe.contentWindow.postMessage({
+                                type: 'run-exe-file',
+                                data: wineExeFiles[arg],
+                                filename: arg.split('/').pop() || arg
+                            }, '*');
+                        }
+                    }
+                };
+                window.addEventListener('message', handler);
+            });
+        }
     }
 
     if (appName === 'terminal') {
@@ -2771,6 +2807,8 @@ const fileSystem = {
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
 };
 window.fileSystem = fileSystem;
+const wineExeFiles = {}; // key -> ArrayBuffer for .exe files
+window.wineExeFiles = wineExeFiles;
 
 // Terminal State
 const terminalStates = {};
@@ -3050,6 +3088,9 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
                 if (fsKey.endsWith('.png') || fsKey.endsWith('.jpg')) {
                     openApp('paint', fsKey);
                     response = `Opening ${fsKey} in Paint...`;
+                } else if (fsKey.endsWith('.exe')) {
+                    openApp('wine', fsKey);
+                    response = `Opening ${fsKey} in Wine...`;
                 } else {
                     openApp('notepad', fsKey);
                     response = `Opening ${fsKey} in Notepad...`;
@@ -3584,25 +3625,40 @@ function uploadFile(windowId) {
 function handleFileUpload(windowId, input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const content = e.target.result;
-            const currentPath = explorerStates[windowId].path;
-            const prefix = currentPath === '/' ? '' : currentPath.substring(1) + '/';
-            const filename = file.name;
-            const key = prefix + filename;
+        const currentPath = explorerStates[windowId].path;
+        const prefix = currentPath === '/' ? '' : currentPath.substring(1) + '/';
+        const filename = file.name;
+        const key = prefix + filename;
 
-            if (fileSystem[key]) {
-                if (!confirm(`File "${filename}" already exists. Overwrite?`)) return;
-            }
-
-            fileSystem[key] = content;
-            saveFileSystem();
-            renderFileExplorer(windowId);
-            alert(`Uploaded ${filename}`);
-            input.value = ''; // Reset input
-        };
-        reader.readAsDataURL(file);
+        if (file.name.endsWith('.exe')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (fileSystem[key]) {
+                    if (!confirm(`File "${filename}" already exists. Overwrite?`)) return;
+                }
+                wineExeFiles[key] = e.target.result;
+                fileSystem[key] = '__exe__';
+                saveFileSystem();
+                renderFileExplorer(windowId);
+                alert(`Uploaded ${filename}`);
+                input.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                if (fileSystem[key]) {
+                    if (!confirm(`File "${filename}" already exists. Overwrite?`)) return;
+                }
+                fileSystem[key] = content;
+                saveFileSystem();
+                renderFileExplorer(windowId);
+                alert(`Uploaded ${filename}`);
+                input.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
     }
 }
 
@@ -3707,6 +3763,7 @@ function renderFileExplorer(windowId) {
         // Icon based on type
         let iconChar = '📄';
         if (isDir) iconChar = '📁';
+        else if (displayName.endsWith('.exe')) iconChar = '🍷';
         else if (displayName.endsWith('.png') || displayName.endsWith('.jpg')) iconChar = '🖼️';
         else if (displayName.endsWith('.mp4') || displayName.endsWith('.webm') || displayName.endsWith('.ogg') || displayName.endsWith('.mov')) iconChar = '🎞️';
         else if (displayName.endsWith('.mp3') || displayName.endsWith('.wav')) iconChar = '🎵';
@@ -3838,6 +3895,8 @@ function renderFileExplorer(windowId) {
                      openApp('markdown-viewer', key); // Pass full key
                  } else if (displayName.endsWith('.pdf')) {
                      openApp('pdf-viewer', key); // Pass full key
+                 } else if (displayName.endsWith('.exe')) {
+                     openApp('wine', key); // Pass full key
                  } else {
                      openApp('notepad', key); // Pass full key
                  }

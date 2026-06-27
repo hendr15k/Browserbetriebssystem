@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <title>Wine</title>
+    <link rel="stylesheet" href="boxedwine.css">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: #1a1a2e; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #loading {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #1a1a2e; color: #aaa; z-index: 100;
+        }
+        #loading.hidden { display: none; }
+        #loading .spinner { margin-bottom: 20px; }
+        #loading .status-text { margin-top: 10px; font-size: 14px; }
+        #wine-toolbar {
+            position: fixed; top: 0; left: 0; right: 0; height: 36px;
+            background: #16213e; display: flex; align-items: center;
+            padding: 0 8px; gap: 8px; z-index: 50; border-bottom: 1px solid #0f3460;
+        }
+        #wine-toolbar button, #wine-toolbar label {
+            background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6e;
+            padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
+        }
+        #wine-toolbar button:hover, #wine-toolbar label:hover { background: #1a4a8e; }
+        #wine-toolbar .info { color: #888; font-size: 12px; margin-left: auto; }
+        #dropzone {
+            position: absolute; top: 36px; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: #0d0d0d;
+        }
+        #dropzone.dragover { background: #1a2a4e; border: 2px dashed #4a8aff; }
+        .emscripten_border { border: 1px solid #333; }
+        canvas.emscripten { border: 0px none; background: #000; }
+        #output {
+            position: fixed; bottom: 0; left: 0; right: 0; max-height: 150px;
+            font-family: monospace; font-size: 11px; color: #0f0;
+            background: rgba(0,0,0,0.85); border-top: 1px solid #333;
+            overflow-y: auto; white-space: pre-wrap; padding: 4px; z-index: 40;
+        }
+        #output.hidden { display: none; }
+        .modalDialog {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 99999; opacity: 0;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding-top: 60px; transition: opacity 200ms; pointer-events: none;
+        }
+        .modalDialog:target { opacity: 1; pointer-events: auto; }
+        .modalDialog > div {
+            width: 420px; max-height: 400px; background: #1e2a4a; color: #e0e0e0;
+            border-radius: 8px; padding: 20px; position: relative;
+        }
+        .close {
+            background: #e74c3c; color: #fff; width: 28px; height: 28px;
+            line-height: 28px; text-align: center; border-radius: 50%;
+            position: absolute; top: -12px; right: -12px; text-decoration: none;
+            font-size: 16px;
+        }
+        .scroll-style { max-height: 250px; overflow-y: auto; }
+        .scroll-style li { cursor: pointer; color: #4a9aff; padding: 4px 8px; list-style: none; }
+        .scroll-style li:hover { background: #2a3a5e; }
+        #items lu { list-style: none; padding: 0; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <figure id="spinner" style="overflow: visible;">
+            <div class="spinner" style="margin-top: .5em; margin-left: auto; margin-right: auto;"></div>
+        </figure>
+        <div class="emscripten" id="status">Downloading Wine...</div>
+        <div class="emscripten">
+            <progress value="0" max="100" id="progress" style="width: 300px;"></progress>
+        </div>
+        <div class="status-text" id="loading-text">Initializing Windows compatibility layer</div>
+    </div>
+
+    <div id="wine-toolbar">
+        <label for="upload">📁 Upload .exe</label>
+        <input class="hidden" id="upload" name="upload" onchange="startWithFiles(event.target.files);" type="file" accept=".exe,.bat" multiple />
+        <button id="startbtn" class="hidden" onclick="start()">▶ Start Wine</button>
+        <button id="uploadbtn" class="hidden" onclick="document.getElementById('upload').click()">Add File(s)</button>
+        <button id="downloadbtn" class="hidden" onclick="buildGetFilesModal();">Get File(s)</button>
+        <a class="hidden" id="modalLink" href="#openModal">Open</a>
+        <a class="hidden" id="modalLinkExe" href="#openModalExe">Open</a>
+        <span id="sound-checkbox" class="hidden">
+            <input type="checkbox" id="soundToggle" onclick="toggleSound();" />
+        </span>
+        <input type="checkbox" id="pointerLock">Lock mouse
+        <input type="checkbox" id="showConsole" onclick="toggleConsole();">Console
+        <span class="info" id="wine-info">Wine via Boxedwine WASM</span>
+    </div>
+
+    <div id="dropzone">
+        <div class="emscripten_border">
+            <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+        </div>
+    </div>
+
+    <textarea class="emscripten" id="output" rows="8"></textarea>
+
+    <div id="openModal" class="modalDialog">
+        <div>
+            <a href="#close" title="Close" class="close" onclick="closeGetFilesModal();">X</a>
+            <div>
+                <h3>Get File(s)</h3>
+                <input id="selectedItem" type="text" size="50" readonly>
+                <button onclick="extract();">Get</button>
+            </div>
+            <div id="tree" class="scroll-style"></div>
+            <div><h3 id="loadStatus">Loading...</h3></div>
+        </div>
+    </div>
+    <div id="openModalExe" class="modalDialog">
+        <div>
+            <a id="openModalExeClick" href="#close" title="Close" class="close">X</a>
+            <div>
+                <h3>Execute</h3>
+                <div id="message"></div>
+                <div id="items" class="scroll-style"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="boxedwine-shell.js"></script>
+    <script>
+        Config.showUploadDownload = true;
+        DEFAULT_AUTO_RUN = false;
+
+        var wineReady = false;
+        var pendingExeFiles = [];
+
+        var origBuildBrowserFileSystem = buildBrowserFileSystem;
+        buildBrowserFileSystem = function() {
+            origBuildBrowserFileSystem();
+            document.getElementById('loading').classList.add('hidden');
+            wineReady = true;
+            window.parent.postMessage({ type: 'wine-ready' }, '*');
+            if (pendingExeFiles.length > 0) {
+                pendingExeFiles.forEach(function(f) { startWithFiles([f]); });
+                pendingExeFiles = [];
+            }
+        };
+
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'run-exe-file') {
+                var file = new File([event.data.data], event.data.filename);
+                if (wineReady) {
+                    startWithFiles([file]);
+                } else {
+                    pendingExeFiles.push(file);
+                }
+            } else if (event.data.type === 'wine-command' && event.data.command === 'start') {
+                if (wineReady) { start(); }
+            }
+        });
+
+        document.getElementById('dropzone').addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        document.getElementById('dropzone').addEventListener('dragleave', function(e) {
+            this.classList.remove('dragover');
+        });
+        document.getElementById('dropzone').addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                startWithFiles(e.dataTransfer.files);
+            }
+        });
+    </script>
+    <script async type="text/javascript" src="boxedwine.js"></script>
+</body>
+</html>
