@@ -6,6 +6,13 @@ def test_features(page):
     # Get absolute path to index.html
     page.goto("file://" + os.path.abspath("index.html"))
 
+    # Wait for startup apps to open, then close them to avoid interference
+    page.wait_for_timeout(1500)
+    page.evaluate("""() => {
+        document.querySelectorAll('.window .close-button').forEach(btn => btn.click());
+    }""")
+    page.wait_for_selector("#desktop")
+
     # 1. Test Terminal History
     # Open Terminal
     page.locator(".icon", has_text="Terminal").click()
@@ -28,8 +35,8 @@ def test_features(page):
     terminal_input.press("ArrowDown")
     expect(terminal_input).to_have_value("whoami")
 
-    # Close Terminal
-    page.locator(".close-button").click()
+    # Close Terminal (scope to terminal window to avoid matching startup app windows)
+    page.locator(".terminal-window .close-button").click()
 
     # 2. Test Tic Tac Toe
     # Open App
@@ -48,8 +55,8 @@ def test_features(page):
     expect(cells.nth(1)).to_have_text("O")
     expect(page.locator("text=Player X's Turn")).to_be_visible()
 
-    # Close Tic Tac Toe
-    page.locator(".close-button").click()
+    # Close Tic Tac Toe (scope to the window containing ttt-cell)
+    page.locator(".window:has(.ttt-cell) .close-button").click()
 
     # 3. Test File Explorer Rename
     # Open Explorer
