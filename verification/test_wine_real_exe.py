@@ -1,6 +1,7 @@
 import os
 import base64
 import subprocess
+import shutil
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -12,6 +13,9 @@ BASE_URL = "http://localhost:8765"
 
 @pytest.fixture(scope="session", autouse=True)
 def compile_exe():
+    if not shutil.which("x86_64-w64-mingw32-gcc"):
+        pytest.skip("mingw-w64 cross-compiler not available")
+
     if not os.path.exists(EXE_PATH):
         src = (
             '#include <windows.h>\n'
