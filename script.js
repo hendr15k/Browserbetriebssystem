@@ -2506,7 +2506,18 @@ function performWindowCleanup(windowId) {
                 URL.revokeObjectURL(video.src);
             }
         }
+    }
 
+    // Revoke any tracked media blob URLs for this window even if the audio/
+    // video element has been re-rendered (their src may no longer match).
+    if (typeof mediaBlobUrls !== 'undefined' && mediaBlobUrls[windowId]) {
+        const urls = mediaBlobUrls[windowId];
+        if (urls.audio) try { URL.revokeObjectURL(urls.audio); } catch (e) { /* defensive */ }
+        if (urls.video) try { URL.revokeObjectURL(urls.video); } catch (e) { /* defensive */ }
+        delete mediaBlobUrls[windowId];
+    }
+
+    if (winRef) {
         winRef.remove();
     }
     const taskbarItem = document.getElementById(`taskbar-${windowId}`);
@@ -2564,7 +2575,7 @@ function saveScheduledNotifications() {
 function updateScheduleBadge() {
     const badge = document.getElementById('schedule-badge');
     if (badge) {
-        const activeCount = scheduledNotifications.filter(n => n.time > Date.now()).length;
+        const activeCount = scheduledNotifications.filter(n => Number.isFinite(n.time) && n.time > Date.now()).length;
         badge.textContent = activeCount;
         badge.style.display = activeCount > 0 ? 'flex' : 'none';
     }
@@ -2572,13 +2583,21 @@ function updateScheduleBadge() {
 
 function checkScheduledNotifications() {
     const now = Date.now();
-    const due = scheduledNotifications.filter(n => n.time <= now);
+    const validTime = (n) => typeof n === 'object' && n && Number.isFinite(n.time);
+    const due = scheduledNotifications.filter(n => validTime(n) && n.time <= now);
     due.forEach(n => {
         showToast(n.title, n.message, n.icon);
     });
-    scheduledNotifications = scheduledNotifications.filter(n => n.time > now);
+    // Drop invalid entries along with consumed ones so corrupted storage
+    // entries (e.g. n.time stored as a Date string from older versions)
+    // don't keep firing or filtering arithmetic forever.
+    const before = scheduledNotifications.length;
+    scheduledNotifications = scheduledNotifications.filter(n => validTime(n) && n.time > now);
     saveScheduledNotifications();
     updateScheduleBadge();
+    if (scheduledNotifications.length !== before) {
+        // No-op currently — kept for telemetry hooks.
+    }
 }
 
 function cancelScheduledNotification(id) {
@@ -2943,15 +2962,32 @@ function saveStickyNotesToStorage(notify = false) {
 
 function initStickyNotes() {
     const saved = localStorage.getItem('stickyNotes');
-    if (saved) {
-        try {
-            stickyNotes = JSON.parse(saved);
-            Object.keys(stickyNotes).forEach(id => {
-                openApp('sticky-notes', id);
-            });
-        } catch (e) {
-            console.error('Failed to load sticky notes:', e);
+    if (!saved) return;
+    try {
+        const parsed = JSON.parse(saved);
+        // Validate shape: { [noteId: string]: noteObject }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            stickyNotes = {};
+            return;
         }
+        const cleaned = {};
+        Object.keys(parsed).forEach(id => {
+            // Only allow safe IDs (alphanumerics, dashes, underscores) so a
+            // tampered localStorage entry can't break out of the onclick
+            // template that uses the id (`onclick="deleteStickyNote('${id}')"`).
+            if (typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id)) {
+                const note = parsed[id];
+                if (note && typeof note === 'object') {
+                    cleaned[id] = note;
+                }
+            }
+        });
+        stickyNotes = cleaned;
+        Object.keys(stickyNotes).forEach(id => {
+            openApp('sticky-notes', id);
+        });
+    } catch (e) {
+        console.error('Failed to load sticky notes:', e);
     }
 }
 
@@ -3494,11 +3530,20 @@ function calcInput(windowId, value) {
                 const result = eval(evalText);
                 display.textContent = result;
 
-                // Add to history
+                // Add to history — use textContent + createElement to avoid
+                // any HTML interpretation of expression/result text (defense in
+                // depth; the regex above already restricts evalText to math).
                 if (historyList) {
                     const historyItem = document.createElement('div');
                     historyItem.className = 'history-item';
-                    historyItem.innerHTML = `<span class="expr">${currentText} =</span><span class="res">${result}</span>`;
+                    const exprSpan = document.createElement('span');
+                    exprSpan.className = 'expr';
+                    exprSpan.textContent = `${currentText} =`;
+                    const resSpan = document.createElement('span');
+                    resSpan.className = 'res';
+                    resSpan.textContent = String(result);
+                    historyItem.appendChild(exprSpan);
+                    historyItem.appendChild(resSpan);
                     historyList.prepend(historyItem);
                 }
 
@@ -4322,7 +4367,17 @@ function stopResize() {
 
 // File System Persistence
 function saveFileSystem() {
-    localStorage.setItem('webos-filesystem', JSON.stringify(fileSystem));
+    // Guard against localStorage quota errors so callers can still recover
+    // (e.g. Recycle Bin restore mutates the in-memory FS before calling this;
+    // a quota exception would otherwise leave storage and memory out of sync).
+    try {
+        localStorage.setItem('webos-filesystem', JSON.stringify(fileSystem));
+        return true;
+    } catch (e) {
+        console.error('Failed to save file system (quota?):', e);
+        showNotification('File System', 'Could not save changes — storage full or unavailable.');
+        return false;
+    }
 }
 
 function loadFileSystem() {
@@ -4362,7 +4417,13 @@ function saveWindowStates() {
             zIndex: win.style.zIndex
         });
     });
-    localStorage.setItem('windowStates', JSON.stringify(states));
+    try {
+        localStorage.setItem('windowStates', JSON.stringify(states));
+    } catch (e) {
+        // localStorage quota exceeded or unavailable — degrade silently so
+        // user actions (close windows, drag, resize) don't error visibly.
+        console.error('Failed to save window states:', e);
+    }
 }
 
 function restoreWindowStates() {
@@ -4444,10 +4505,19 @@ function saveSystemPin(windowId) {
 function speakText(windowId) {
     const el = document.getElementById(`speak-text-${windowId}`);
     if (!el) return;
-    const text = el.value;
-    if (text) {
+    const raw = el.value;
+    if (!raw) return;
+    // SpeechSynthesis blocks the main thread for very large inputs. Cap to a
+    // reasonable size and warn if the user pasted a much larger blob.
+    const text = raw.length > 1000 ? raw.slice(0, 1000) : raw;
+    if (raw.length > 1000) {
+        showNotification('Text-to-Speech', 'Input truncated to 1000 characters.');
+    }
+    try {
         const utterance = new SpeechSynthesisUtterance(text);
         window.speechSynthesis.speak(utterance);
+    } catch (e) {
+        console.error('Speech failed:', e);
     }
 }
 
@@ -5188,6 +5258,10 @@ function handleMemoryClick(windowId, index) {
 }
 
 // Music Player Logic
+// Track the most recent blob URLs per window so we can revoke them even if
+// `audio.src` / `video.src` have been reset by a re-render.
+const mediaBlobUrls = {};
+
 function handleMusicFile(windowId) {
     const input = document.getElementById(`music-input-${windowId}`);
     const audio = document.getElementById(`music-audio-${windowId}`);
@@ -5200,7 +5274,11 @@ function handleMusicFile(windowId) {
         // Revoke previous URL if exists to avoid memory leaks
         if (audio.src && audio.src.startsWith('blob:')) {
             URL.revokeObjectURL(audio.src);
+        } else if (mediaBlobUrls[windowId] && mediaBlobUrls[windowId].audio) {
+            URL.revokeObjectURL(mediaBlobUrls[windowId].audio);
         }
+        mediaBlobUrls[windowId] = mediaBlobUrls[windowId] || {};
+        mediaBlobUrls[windowId].audio = url;
 
         audio.src = url;
         trackName.textContent = file.name;
@@ -5221,7 +5299,11 @@ function handleVideoFile(windowId) {
         // Revoke previous URL if exists
         if (video.src && video.src.startsWith('blob:')) {
             URL.revokeObjectURL(video.src);
+        } else if (mediaBlobUrls[windowId] && mediaBlobUrls[windowId].video) {
+            URL.revokeObjectURL(mediaBlobUrls[windowId].video);
         }
+        mediaBlobUrls[windowId] = mediaBlobUrls[windowId] || {};
+        mediaBlobUrls[windowId].video = url;
 
         video.src = url;
         videoName.textContent = file.name;
@@ -7435,6 +7517,13 @@ async function startRecording(windowId) {
         };
 
         state.mediaRecorder.onstop = () => {
+            // If the window was closed while the user was recording, the state
+            // is no longer the active slot — drop the blob to avoid a URL leak
+            // (performWindowCleanup already revoked any URLs that *did* make it
+            // into the recordings array before teardown).
+            if (voiceRecorderStates[windowId] !== state) {
+                return;
+            }
             const blob = new Blob(state.chunks, { 'type' : 'audio/webm' });
             const url = URL.createObjectURL(blob);
             const duration = document.getElementById(`vr-timer-${windowId}`).innerText;
@@ -7945,21 +8034,23 @@ function loadSpreadsheet(windowId, input) {
 const emailStates = {};
 
 function initEmail(windowId) {
+    // Bail out if the window was closed before this setTimeout fired.
+    if (!document.getElementById(windowId)) return;
     if (!emailStates[windowId]) {
+        const loaded = safeJsonParse('webos-emails', null);
         let emails = [];
-        try {
-            const stored = localStorage.getItem('webos-emails');
-            if (stored) {
-                emails = JSON.parse(stored);
-            } else {
-                emails = [
-                    { id: 1, from: 'system@webos.local', subject: 'Welcome to WebOS Email', body: 'This is a simulated email client. Your emails are stored in your browser.', date: new Date().toISOString(), read: false }
-                ];
-                localStorage.setItem('webos-emails', JSON.stringify(emails));
-            }
-        } catch (e) {
-            console.error('Error loading emails:', e);
-            emails = [];
+        if (Array.isArray(loaded)) {
+            // Validate each entry has string from/subject/body and a finite id
+            emails = loaded.filter(e => e && typeof e === 'object' &&
+                typeof e.from === 'string' && typeof e.subject === 'string' &&
+                typeof e.body === 'string' && Number.isFinite(e.id));
+        }
+        if (emails.length === 0) {
+            emails = [
+                { id: 1, from: 'system@webos.local', subject: 'Welcome to WebOS Email', body: 'This is a simulated email client. Your emails are stored in your browser.', date: new Date().toISOString(), read: false }
+            ];
+            // Persist the seed so subsequent loads skip the noisy console warn.
+            try { localStorage.setItem('webos-emails', JSON.stringify(emails)); } catch (e) { /* quota */ }
         }
 
         emailStates[windowId] = {
@@ -8004,9 +8095,10 @@ function renderEmailApp(windowId) {
                 const dateObj = new Date(email.date);
                 const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-            // XSS prevention
-            const safeFrom = email.from.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const safeSubject = email.subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            // XSS prevention — use the global escapeHtml() helper for consistency
+            // (it also escapes quotes which the previous local strips missed).
+            const safeFrom = escapeHtml(email.from);
+            const safeSubject = escapeHtml(email.subject);
 
                 html += `
                     <div class="email-item ${email.read ? '' : 'unread'}" onclick="viewEmail('${windowId}', ${email.id})">
@@ -8045,10 +8137,12 @@ function renderEmailApp(windowId) {
             const dateObj = new Date(email.date);
             const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString();
 
-            // XSS prevention
-            const safeFrom = email.from.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const safeSubject = email.subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            const safeBody = email.body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+            // XSS prevention — use the global escapeHtml() helper for consistency
+            // (it also escapes quotes which the previous local strips missed).
+            const safeFrom = escapeHtml(email.from);
+            const safeSubject = escapeHtml(email.subject);
+            // Body: escape then convert newlines to <br>
+            const safeBody = escapeHtml(email.body).replace(/\n/g, '<br>');
 
             html += `
                 <div class="email-header email-read-header">
@@ -8153,6 +8247,8 @@ function saveEmails(windowId) {
 const chatStates = {};
 
 function initChat(windowId) {
+    // Bail out if the window was closed before this setTimeout fired.
+    if (!document.getElementById(windowId)) return;
     if (!chatStates[windowId]) {
         let contacts = [
             { id: 'contact1', name: 'Alice' },
@@ -8160,21 +8256,29 @@ function initChat(windowId) {
             { id: 'contact3', name: 'Charlie' }
         ];
 
+        const loaded = safeJsonParse('webos-chat-messages', null);
         let messages = {};
-        try {
-            const stored = localStorage.getItem('webos-chat-messages');
-            if (stored) {
-                messages = JSON.parse(stored);
-            } else {
-                messages = {
-                    'contact1': [{ sender: 'them', text: 'Hey there!', time: new Date().toISOString() }],
-                    'contact2': [],
-                    'contact3': [{ sender: 'them', text: 'Did you see the new update?', time: new Date().toISOString() }]
-                };
-                localStorage.setItem('webos-chat-messages', JSON.stringify(messages));
-            }
-        } catch (e) {
-            console.error('Error loading chat messages:', e);
+        if (loaded && typeof loaded === 'object' && !Array.isArray(loaded)) {
+            // Validate each contactId → array-of-message-objects mapping
+            Object.keys(loaded).forEach(contactId => {
+                if (typeof contactId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(contactId)) {
+                    const arr = loaded[contactId];
+                    if (Array.isArray(arr)) {
+                        const cleaned = arr.filter(m => m && typeof m === 'object' &&
+                            typeof m.sender === 'string' && typeof m.text === 'string' &&
+                            typeof m.time === 'string');
+                        if (cleaned.length > 0) messages[contactId] = cleaned;
+                    }
+                }
+            });
+        }
+        if (Object.keys(messages).length === 0) {
+            messages = {
+                'contact1': [{ sender: 'them', text: 'Hey there!', time: new Date().toISOString() }],
+                'contact2': [],
+                'contact3': [{ sender: 'them', text: 'Did you see the new update?', time: new Date().toISOString() }]
+            };
+            try { localStorage.setItem('webos-chat-messages', JSON.stringify(messages)); } catch (e) { /* quota */ }
         }
 
         chatStates[windowId] = {
@@ -8205,11 +8309,11 @@ function renderChatApp(windowId) {
             state.messages[contact.id][state.messages[contact.id].length - 1].text : 'No messages';
 
         html += `
-            <div class="chat-contact ${isActive ? 'active' : ''}" onclick="selectChatContact('${windowId}', '${contact.id}')">
-                <div class="chat-contact-avatar">${contact.name.charAt(0)}</div>
+            <div class="chat-contact ${isActive ? 'active' : ''}" onclick="selectChatContact('${windowId}', '${escapeHtml(contact.id)}')">
+                <div class="chat-contact-avatar">${escapeHtml(contact.name.charAt(0))}</div>
                 <div class="chat-contact-info">
-                    <div class="chat-contact-name">${contact.name}</div>
-                    <div class="chat-contact-lastmsg">${lastMsg}</div>
+                    <div class="chat-contact-name">${escapeHtml(contact.name)}</div>
+                    <div class="chat-contact-lastmsg">${escapeHtml(lastMsg)}</div>
                 </div>
             </div>
         `;
@@ -8226,8 +8330,8 @@ function renderChatApp(windowId) {
 
         html += `
             <div class="chat-header">
-                <div class="chat-contact-avatar">${activeContact.name.charAt(0)}</div>
-                <div class="chat-contact-name">${activeContact.name}</div>
+                <div class="chat-contact-avatar">${escapeHtml(activeContact.name.charAt(0))}</div>
+                <div class="chat-contact-name">${escapeHtml(activeContact.name)}</div>
             </div>
             <div class="chat-messages" id="chat-messages-${windowId}">
         `;
@@ -8237,8 +8341,8 @@ function renderChatApp(windowId) {
             const timeObj = new Date(msg.time);
             const timeStr = timeObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-            // XSS prevention
-            const safeText = msg.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            // Use the global escapeHtml() helper for completeness (also escapes quotes).
+            const safeText = escapeHtml(msg.text);
 
             html += `
                 <div class="chat-msg-wrapper ${msg.sender === 'me' ? 'me' : 'them'}">
@@ -8337,15 +8441,15 @@ function saveChatMessages(windowId) {
 const galleryStates = {};
 
 function initGallery(windowId) {
+    // Bail out if the window was closed before this setTimeout fired.
+    if (!document.getElementById(windowId)) return;
     if (!galleryStates[windowId]) {
+        const loaded = safeJsonParse('webos-gallery-images', []);
         let images = [];
-        try {
-            const stored = localStorage.getItem('webos-gallery-images');
-            if (stored) {
-                images = JSON.parse(stored);
-            }
-        } catch (e) {
-            console.error('Error loading gallery images:', e);
+        if (Array.isArray(loaded)) {
+            // Validate each entry has a string .name and string .data
+            images = loaded.filter(img => img && typeof img === 'object' &&
+                typeof img.name === 'string' && typeof img.data === 'string');
         }
 
         galleryStates[windowId] = {
@@ -8408,7 +8512,7 @@ function renderGalleryApp(windowId) {
             <div class="gallery-viewer">
                 ${state.view === 'single' ? `<button class="gallery-nav prev" onclick="navigateGallery('${escapeHtml(windowId)}', -1)">❮</button>` : ''}
 
-                ${img ? `<img src="${img.data}" alt="${img.name}" class="gallery-viewer-img">` : '<div style="color: white;">No image</div>'}
+                ${img ? `<img src="${escapeHtml(img.data)}" alt="${escapeHtml(img.name)}" class="gallery-viewer-img">` : '<div style="color: white;">No image</div>'}
 
                 ${state.view === 'single' ? `<button class="gallery-nav next" onclick="navigateGallery('${escapeHtml(windowId)}', 1)">❯</button>` : ''}
 
@@ -8850,8 +8954,15 @@ function restoreRecycleBinItem(windowId, itemId) {
         return;
     }
 
+    // Persist both layers before mutating in-memory state. saveFileSystem()
+    // returns false on quota failure; in that case we want to keep the bin
+    // entry so the user doesn't lose their file.
     fileSystem[item.path] = item.content;
-    saveFileSystem();
+    const fsOk = saveFileSystem();
+    if (!fsOk) {
+        delete fileSystem[item.path];
+        return;
+    }
     state.items = state.items.filter(i => i.id !== itemId);
     saveRecycleBin(state.items);
     renderRecycleBin(windowId);
@@ -8890,22 +9001,47 @@ function restoreAllRecycleBinItems(windowId) {
 
     let restored = 0;
     let conflicts = 0;
+    let quotaFail = false;
     const remaining = [];
-    state.items.forEach(item => {
+
+    // Restore into in-memory FS first, then attempt to persist. If the
+    // persistence fails (quota), roll back the in-memory mutations so the bin
+    // remains intact and no half-saved state desyncs.
+    const snapshots = [];
+    for (const item of state.items) {
         if (fileSystem[item.path] === undefined) {
+            snapshots.push(item.path);
             fileSystem[item.path] = item.content;
             restored++;
         } else {
             remaining.push(item);
             conflicts++;
         }
-    });
-    saveFileSystem();
+    }
+    if (restored > 0) {
+        const ok = saveFileSystem();
+        if (!ok) {
+            quotaFail = true;
+            snapshots.forEach(p => delete fileSystem[p]);
+            // Move everything back into the bin
+            while (remaining.length < state.items.length) {
+                const idx = state.items.length - 1 - remaining.length;
+                remaining.unshift(state.items[idx]);
+            }
+            restored = 0;
+            conflicts = state.items.length;
+        }
+    }
     state.items = remaining;
     saveRecycleBin(state.items);
     renderRecycleBin(windowId);
 
-    let msg = `Restored ${restored} item(s).`;
-    if (conflicts > 0) msg += ` ${conflicts} skipped (name conflict).`;
+    let msg;
+    if (quotaFail) {
+        msg = `Could not restore — storage full. All ${state.items.length} item(s) remain in the bin.`;
+    } else {
+        msg = `Restored ${restored} item(s).`;
+        if (conflicts > 0) msg += ` ${conflicts} skipped (name conflict).`;
+    }
     showNotification('Recycle Bin', msg);
 }
