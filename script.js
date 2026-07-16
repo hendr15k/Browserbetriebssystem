@@ -1,5 +1,5 @@
 const appCategories = {
-    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock', 'wine'],
+    system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock', 'wine', 'calculator', 'printer', 'recyclebin'],
     productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
     games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
     creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery'],
@@ -46,7 +46,8 @@ const appData = {
     chat: { name: 'Chat', icon: '💬', bg: '#2ecc71', color: 'white' },
     'photo-gallery': { name: 'Photo Gallery', icon: '🖼️', bg: '#9b59b6', color: 'white' },
     printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' },
-    wine: { name: 'Wine', icon: '🍷', bg: '#8b0000', color: 'white' }
+    wine: { name: 'Wine', icon: '🍷', bg: '#8b0000', color: 'white' },
+    recyclebin: { name: 'Recycle Bin', icon: '🗑️', bg: '#16a085', color: 'white' }
 };
 
 let currentCategory = 'all';
@@ -1996,6 +1997,17 @@ function openApp(appName, arg = null, restoreData = null) {
             </div>
         `;
         setTimeout(() => initPrinter(windowId), 0);
+    } else if (appName === 'recyclebin') {
+        title = "Recycle Bin";
+        win.classList.add('recyclebin-window');
+        win.style.width = '600px';
+        win.style.height = '450px';
+
+        content = `
+            <div class="recyclebin-container" id="recyclebin-container-${windowId}">
+            </div>
+        `;
+        setTimeout(() => initRecycleBin(windowId), 0);
     } else if (appName === 'wine') {
         title = "Wine";
         win.style.width = '900px';
@@ -2375,6 +2387,11 @@ function performWindowCleanup(windowId) {
     // Cleanup Printer Settings
     if (printerStates[windowId]) {
         delete printerStates[windowId];
+    }
+
+    // Cleanup Recycle Bin
+    if (recycleBinStates[windowId]) {
+        delete recycleBinStates[windowId];
     }
 
     const winRef = document.getElementById(windowId);
@@ -3843,22 +3860,18 @@ function renderFileExplorer(windowId) {
 
         deleteBtn.onclick = (e) => {
             e.stopPropagation(); // Prevent opening file
-            if(confirm(`Delete ${displayName}?`)) {
+            if(confirm(`Move ${displayName} to Recycle Bin?`)) {
                 if (isDir) {
-                    // Check if empty logic? Or recursive delete?
-                    // Recursive delete is friendlier
+                    // Recursive move to recycle bin
                     const childPrefix = key;
-                    Object.keys(fileSystem).forEach(k => {
-                        if (k.startsWith(childPrefix)) {
-                            delete fileSystem[k];
-                        }
-                    });
-                     delete fileSystem[key];
+                    const keysToMove = Object.keys(fileSystem).filter(k => k.startsWith(childPrefix));
+                    keysToMove.forEach(k => moveToRecycleBin(k));
+                    moveToRecycleBin(key);
                 } else {
-                    delete fileSystem[key];
+                    moveToRecycleBin(key);
                 }
-                saveFileSystem();
                 renderFileExplorer(windowId);
+                showNotification('Recycle Bin', `"${displayName}" moved to Recycle Bin.`);
             }
         };
 
@@ -8337,4 +8350,180 @@ function openCodeFile(windowId, input) {
         };
         reader.readAsText(input.files[0]);
     }
+}
+
+// Recycle Bin App Logic
+const recycleBinStates = {};
+
+function loadRecycleBin() {
+    try {
+        const saved = localStorage.getItem('webos-recyclebin');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        console.error('Failed to load recycle bin:', e);
+        return [];
+    }
+}
+
+function saveRecycleBin(items) {
+    localStorage.setItem('webos-recyclebin', JSON.stringify(items));
+}
+
+function moveToRecycleBin(filepath) {
+    const items = loadRecycleBin();
+    if (fileSystem[filepath] !== undefined) {
+        items.push({
+            id: 'rb-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+            path: filepath,
+            content: fileSystem[filepath],
+            isDirectory: fileSystem[filepath] === 'directory',
+            deletedAt: new Date().toISOString()
+        });
+        saveRecycleBin(items);
+    }
+    delete fileSystem[filepath];
+    saveFileSystem();
+}
+
+function initRecycleBin(windowId) {
+    if (!recycleBinStates[windowId]) {
+        recycleBinStates[windowId] = { items: loadRecycleBin() };
+    }
+    renderRecycleBin(windowId);
+}
+
+function renderRecycleBin(windowId) {
+    const container = document.getElementById(`recyclebin-container-${windowId}`);
+    if (!container) return;
+
+    const state = recycleBinStates[windowId];
+    const items = state.items || [];
+
+    const escapeHtml = (str) => String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    let html = `
+        <div class="recyclebin-header">
+            <div class="recyclebin-info">
+                <span class="recyclebin-icon">🗑️</span>
+                <h2>Recycle Bin</h2>
+                <span class="recyclebin-count">${items.length} item${items.length === 1 ? '' : 's'}</span>
+            </div>
+            <div class="recyclebin-actions">
+                <button class="recyclebin-btn" onclick="restoreAllRecycleBinItems('${windowId}')" ${items.length === 0 ? 'disabled' : ''}>Restore All</button>
+                <button class="recyclebin-btn danger" onclick="emptyRecycleBin('${windowId}')" ${items.length === 0 ? 'disabled' : ''}>Empty Bin</button>
+            </div>
+        </div>
+        <div class="recyclebin-list">
+    `;
+
+    if (items.length === 0) {
+        html += `
+            <div class="recyclebin-empty">
+                <div class="recyclebin-empty-icon">🗑️</div>
+                <div class="recyclebin-empty-text">The Recycle Bin is empty.</div>
+                <div class="recyclebin-empty-hint">Deleted files from the File Explorer will appear here.</div>
+            </div>
+        `;
+    } else {
+        const sortedItems = [...items].sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+        sortedItems.forEach(item => {
+            const dateObj = new Date(item.deletedAt);
+            const dateStr = dateObj.toLocaleString();
+            const safePath = escapeHtml(item.path);
+            const displayName = item.path.split('/').pop() || item.path;
+
+            html += `
+                <div class="recyclebin-item">
+                    <div class="recyclebin-item-icon">${item.isDirectory ? '📁' : '📄'}</div>
+                    <div class="recyclebin-item-info">
+                        <div class="recyclebin-item-name" title="${safePath}">${escapeHtml(displayName)}</div>
+                        <div class="recyclebin-item-path">${safePath}</div>
+                        <div class="recyclebin-item-date">Deleted: ${escapeHtml(dateStr)}</div>
+                    </div>
+                    <div class="recyclebin-item-actions">
+                        <button class="recyclebin-btn small" onclick="restoreRecycleBinItem('${windowId}', '${item.id}')">Restore</button>
+                        <button class="recyclebin-btn small danger" onclick="deleteRecycleBinItem('${windowId}', '${item.id}')">Delete</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function restoreRecycleBinItem(windowId, itemId) {
+    const state = recycleBinStates[windowId];
+    if (!state) return;
+    const item = state.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (fileSystem[item.path] !== undefined) {
+        alert(`Cannot restore "${item.path}" — a file with that name already exists.`);
+        return;
+    }
+
+    fileSystem[item.path] = item.content;
+    saveFileSystem();
+    state.items = state.items.filter(i => i.id !== itemId);
+    saveRecycleBin(state.items);
+    renderRecycleBin(windowId);
+    showNotification('Recycle Bin', `Restored "${item.path}"`);
+}
+
+function deleteRecycleBinItem(windowId, itemId) {
+    const state = recycleBinStates[windowId];
+    if (!state) return;
+    const item = state.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (!confirm(`Permanently delete "${item.path}"? This cannot be undone.`)) return;
+
+    state.items = state.items.filter(i => i.id !== itemId);
+    saveRecycleBin(state.items);
+    renderRecycleBin(windowId);
+    showNotification('Recycle Bin', `Permanently deleted "${item.path}"`);
+}
+
+function emptyRecycleBin(windowId) {
+    const state = recycleBinStates[windowId];
+    if (!state || state.items.length === 0) return;
+
+    if (!confirm(`Permanently delete all ${state.items.length} item(s) in the Recycle Bin? This cannot be undone.`)) return;
+
+    state.items = [];
+    saveRecycleBin(state.items);
+    renderRecycleBin(windowId);
+    showNotification('Recycle Bin', 'Recycle Bin emptied.');
+}
+
+function restoreAllRecycleBinItems(windowId) {
+    const state = recycleBinStates[windowId];
+    if (!state || state.items.length === 0) return;
+
+    let restored = 0;
+    let conflicts = 0;
+    const remaining = [];
+    state.items.forEach(item => {
+        if (fileSystem[item.path] === undefined) {
+            fileSystem[item.path] = item.content;
+            restored++;
+        } else {
+            remaining.push(item);
+            conflicts++;
+        }
+    });
+    saveFileSystem();
+    state.items = remaining;
+    saveRecycleBin(state.items);
+    renderRecycleBin(windowId);
+
+    let msg = `Restored ${restored} item(s).`;
+    if (conflicts > 0) msg += ` ${conflicts} skipped (name conflict).`;
+    showNotification('Recycle Bin', msg);
 }

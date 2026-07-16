@@ -1,11 +1,14 @@
 # Browserbetriebssystem — App-Verzeichnis
 
-Vollständige Übersicht aller **38 Apps** in diesem Projekt.
+Vollständige Übersicht aller **42 Apps** in diesem Projekt.
 
-## 🖥️ System & Verwaltung (7)
+## 🖥️ System & Verwaltung (12)
 
 ### Terminal
 Funktionierendes Terminal mit Dateisystem-Navigation, Befehlshistorie (↑/↓), Tab-Vervollständigung, und integrierten Befehlen (`ls`, `cd`, `cat`, `mkdir`, `rm`, `echo`, `clear`, `help`, `open`, `about`, `date`, `whoami`).
+
+### Recycle Bin
+Papierkorb für gelöschte Dateien aus dem Datei-Explorer. Zeigt alle in den Papierkorb verschobenen Dateien, ermöglicht Wiederherstellen einzelner oder aller Elemente, Permanentes Löschen, sowie "Papierkorb leeren" mit Konflikterkennung beim Wiederherstellen.
 
 ### File Explorer
 Dateimanager mit Verzeichnisbaum, Dateioperationen (Öffnen, Umbenennen, Löschen), Drag-and-Drop, Kontextmenü, und Vorschau für Bilder/Text/Markdown.
@@ -57,6 +60,12 @@ Einheitenumrechner für Länge (km/m/cm/mm/in/ft/mi), Gewicht (kg/g/lb/oz), Temp
 ### PDF Viewer
 PDF-Betrachter mit Datei-Upload, Zoom (In/Out/Fit), Seiten-Navigation, und Vollbildmodus.
 
+### Calculator
+Taschenrechner mit Grundrechenarten, wissenschaftlichen Funktionen (sin, cos, tan, √, ^), Klammern, Tastatur-Steuerung, und Verlauf.
+
+### Printer Settings
+Drucker-Verwaltung mit installierten Druckern/Scannern, Status-Anzeige, Standard-Drucker festlegen, und Hinzufügen/Entfernen.
+
 ## 🎮 Spiele (9)
 
 ### Snake
@@ -67,9 +76,6 @@ Minesweeper mit 3 Schwierigkeitsgraden (Anfänger/Fortgeschritten/Experte), Flag
 
 ### Tic Tac Toe
 Zwei-Spieler Tic Tac Toe mit Gewinn-Erkennung, Unentschieden-Erkennung, und Reset-Funktion.
-
-### Paint
-Zeichenprogramm mit Pinsel, Radiergummi, Farbpalette, Pinselformen, Strichstärke, Canvas zurücksetzen, und Bildspeicherung.
 
 ### Solitaire
 Klassisches Kartenspiel (Solitaire/Klondike) mit Drag-and-Drop, Auto-Complete, Score-Tracking, und Undo-Funktion.
@@ -86,7 +92,10 @@ Sudoku mit 3 Schwierigkeitsgraden, Eingabevalidierung, Notizzettel-Modus, Hinwei
 ### Memory
 Memory-Kartenspiel mit Paarfindung, Zug-Zähler, Score-Tracking, und Bestenliste.
 
-## 🎨 Kreativ & Medien (10)
+## 🎨 Kreativ & Medien (8)
+
+### Paint
+Zeichenprogramm mit Pinsel, Radiergummi, Farbpalette, Pinselformen, Strichstärke, Canvas zurücksetzen, und Bildspeicherung.
 
 ### Piano
 Virtuelles Klavier mit 2 Oktaven, Playable via Tastatur (A-L, W-U), MIDI-Support, Aufnahme/Wiedergabe, und Lautstärkeregler.
@@ -109,22 +118,19 @@ Webcam-Zugriff mit Foto-Aufnahme, Videoaufzeichnung, Kamera-Auswahl (Front/Rear)
 ### Speak
 Text-to-Speech via Web Speech API mit Sprachauswahl, Geschwindigkeitsregler, Tonhöhe, und Text-Import.
 
-### Tetris
-Tetris-Spiel mit Punktezähler, Level-System (Speed-Up), Next Piece Preview, Hold Piece, Line Clear Detection, Game Over.
+### Photo Gallery
+Foto-Galerie mit Raster-Ansicht, Vollbild-Modus, Diashow, und Bild-Upload aus dem Dateisystem.
 
-### Paint
-Bereits unter Spiele gelistet.
-
-### Video Player
-Bereits unter Kreativ gelistet.
-
-## 📡 Internet & Daten (2)
+## 📡 Internet & Daten (3)
 
 ### Browser
 Integrierter Browser mit URL-Eingabe, Navigation (Zurück/Vorwärts), Lesezeichen-Unterstützung, und iFrame-Einbettung.
 
 ### Weather
 Wetter-App mit aktueller Temperatur, 7-Tage-Vorhersage, Luftfeuchtigkeit, Wind, Standort-Erkennung.
+
+### Chat
+Simulierter Chat-Client mit Kontaktliste, Nachrichtenverlauf, und Echtzeit-ähnlicher Nachrichtenübermittlung.
 
 ---
 
