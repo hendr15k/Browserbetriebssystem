@@ -63,6 +63,9 @@ PDF-Betrachter mit Datei-Upload, Zoom (In/Out/Fit), Seiten-Navigation, und Vollb
 ### Calculator
 Taschenrechner mit Grundrechenarten, wissenschaftlichen Funktionen (sin, cos, tan, √, ^), Klammern, Tastatur-Steuerung, und Verlauf.
 
+### Calendar
+Monatskalender mit Tagesauswahl, Erstellen/Bearbeiten/Löschen von Terminen (Titel, Uhrzeit, Beschreibung), visuellen Indikator-Punkten an Tagen mit Terminen, Monats-Navigation, und Persistenz im lokalen Speicher.
+
 ### Printer Settings
 Drucker-Verwaltung mit installierten Druckern/Scannern, Status-Anzeige, Standard-Drucker festlegen, und Hinzufügen/Entfernen.
 
