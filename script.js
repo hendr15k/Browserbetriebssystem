@@ -166,6 +166,10 @@ function updateClock() {
     clock.textContent = `${hours}:${minutes}`;
     clock.title = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+    // Don't overwrite the lock-screen when the system is in shutdown mode
+    const lockScreen = document.getElementById('lock-screen');
+    if (lockScreen && lockScreen.dataset.mode === 'shutdown') return;
+
     const lockTime = document.getElementById('lock-time');
     const lockDate = document.getElementById('lock-date');
     if (lockTime && lockDate) {
@@ -986,10 +990,11 @@ function shutdownSystem() {
     if (!lockScreen) return;
 
     lockScreen.classList.remove('hidden');
+    lockScreen.dataset.mode = 'shutdown';
     lockScreen.innerHTML = `
         <div class="lock-card">
-            <div id="lock-time">System</div>
-            <div id="lock-date">WebOS wurde heruntergefahren.</div>
+            <div id="shutdown-title">System</div>
+            <div id="shutdown-message">WebOS wurde heruntergefahren.</div>
             <p>Zum Starten auf den Button klicken.</p>
             <button onclick="restartSystem()">Einschalten</button>
         </div>
@@ -1936,7 +1941,7 @@ function openApp(appName, arg = null, restoreData = null) {
             <div class="spreadsheet-toolbar">
                 <button onclick="saveSpreadsheet('${windowId}')">Save</button>
                 <label class="file-upload">
-                    Load <input type="file" onchange="loadSpreadsheet('${windowId}', this)" accept=".json,.csv">
+                    Load <input type="file" onchange="loadSpreadsheet('${windowId}', this)" accept=".json">
                 </label>
             </div>
             <div class="spreadsheet-formula-bar">
@@ -2160,21 +2165,22 @@ function openApp(appName, arg = null, restoreData = null) {
     if (appName === 'wine') {
         const iframe = document.getElementById(`wine-iframe-${windowId}`);
         if (iframe) {
-            iframe.addEventListener('load', function onLoad() {
-                const handler = function(e) {
-                    if (e.source === iframe.contentWindow && e.data && e.data.type === 'wine-ready') {
-                        window.removeEventListener('message', handler);
-                        if (arg && wineExeFiles[arg]) {
-                            iframe.contentWindow.postMessage({
-                                type: 'run-exe-file',
-                                data: wineExeFiles[arg],
-                                filename: arg.split('/').pop() || arg
-                            }, '*');
-                        }
+            const handler = function(e) {
+                if (e.source === iframe.contentWindow && e.data && e.data.type === 'wine-ready') {
+                    window.removeEventListener('message', handler);
+                    if (arg && wineExeFiles[arg]) {
+                        iframe.contentWindow.postMessage({
+                            type: 'run-exe-file',
+                            data: wineExeFiles[arg],
+                            filename: arg.split('/').pop() || arg
+                        }, '*');
                     }
-                };
-                window.addEventListener('message', handler);
-            });
+                }
+            };
+            window.addEventListener('message', handler);
+            // Register a cleanup hook so a closed wine window doesn't leak the listener
+            performWindowCleanup._wineHandlers = performWindowCleanup._wineHandlers || {};
+            performWindowCleanup._wineHandlers[windowId] = handler;
         }
     }
 
@@ -2290,6 +2296,21 @@ function closeWindow(windowId) {
 }
 
 function performWindowCleanup(windowId) {
+    // If a window was being dragged or resized, release those listeners
+    // to avoid leaking document-level event handlers on a removed element.
+    if (typeof currentWindow !== 'undefined' && currentWindow && currentWindow.id === windowId && typeof isDragging !== 'undefined' && isDragging) {
+        try { stopDrag(); } catch (e) { /* defensive */ }
+    }
+    if (typeof currentResizeWindow !== 'undefined' && currentResizeWindow && currentResizeWindow.id === windowId && typeof isResizing !== 'undefined' && isResizing) {
+        try { stopResize(); } catch (e) { /* defensive */ }
+    }
+
+    // Wine iframe postMessage handler cleanup
+    if (typeof performWindowCleanup._wineHandlers !== 'undefined' && performWindowCleanup._wineHandlers[windowId]) {
+        try { window.removeEventListener('message', performWindowCleanup._wineHandlers[windowId]); } catch (e) { /* defensive */ }
+        delete performWindowCleanup._wineHandlers[windowId];
+    }
+
     // Cleanup Snake game if active
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -2304,6 +2325,24 @@ function performWindowCleanup(windowId) {
     if (systemMonitorStates[windowId]) {
         clearInterval(systemMonitorStates[windowId]);
         delete systemMonitorStates[windowId];
+    }
+
+    // Cleanup Minesweeper game if active
+    if (typeof minesweeperGames !== 'undefined' && minesweeperGames[windowId]) {
+        const ms = minesweeperGames[windowId];
+        if (ms.timerInterval) clearInterval(ms.timerInterval);
+        delete minesweeperGames[windowId];
+    }
+
+    // Cleanup Task Manager interval if active
+    if (typeof taskManagerIntervals !== 'undefined' && taskManagerIntervals[windowId]) {
+        clearInterval(taskManagerIntervals[windowId]);
+        delete taskManagerIntervals[windowId];
+    }
+
+    // Cleanup Terminal state
+    if (typeof terminalStates !== 'undefined' && terminalStates[windowId]) {
+        delete terminalStates[windowId];
     }
 
     // Cleanup Calendar state
@@ -3712,7 +3751,7 @@ function initSystemMonitor(windowId) {
         if (!cpuEl || !ramEl || !winEl || !appsEl) return;
 
         const openWindows = Array.from(document.querySelectorAll('.window'));
-        const appNames = openWindows.map(w => w.querySelector('.window-title')?.textContent || 'Application');
+        const appNames = openWindows.map(w => w.querySelector('.title-bar-text')?.textContent || 'Application');
         cpuEl.textContent = `${Math.floor(Math.random() * 45) + 10}%`;
         ramEl.textContent = `${Math.floor(Math.random() * 2200) + 900} MB`;
         winEl.textContent = String(openWindows.length);
@@ -4274,6 +4313,18 @@ function restoreWindowStates() {
             zIndex = Math.max(zIndex, ...zValues);
         }
 
+        // Advance windowCount past any restored ids so new windows get unique IDs
+        const maxExistingIdNum = states.reduce((max, s) => {
+            if (typeof s.id === 'string' && s.id.startsWith('window-')) {
+                const n = parseInt(s.id.substring(7), 10);
+                return Number.isFinite(n) && n > max ? n : max;
+            }
+            return max;
+        }, -1);
+        if (maxExistingIdNum >= windowCount) {
+            windowCount = maxExistingIdNum + 1;
+        }
+
         states.forEach(state => {
             openApp(state.appName, null, {
                 id: state.id,
@@ -4301,7 +4352,7 @@ document.addEventListener('mouseup', () => {
 
 // Also save state when minimize/restore happens
 const _origMinimize = minimizeWindow;
-window.minimizeWindow = function(windowId) {
+minimizeWindow = function(windowId) {
     _origMinimize(windowId);
     clearTimeout(window._saveWindowStateTimer);
     window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
@@ -4322,7 +4373,9 @@ function saveSystemPin(windowId) {
 }
 
 function speakText(windowId) {
-    const text = document.getElementById(`speak-text-${windowId}`).value;
+    const el = document.getElementById(`speak-text-${windowId}`);
+    if (!el) return;
+    const text = el.value;
     if (text) {
         const utterance = new SpeechSynthesisUtterance(text);
         window.speechSynthesis.speak(utterance);
@@ -4618,20 +4671,25 @@ function playTicTacToe(windowId, index) {
     const game = tictactoeGames[windowId];
     if (!game || game.gameOver || game.board[index]) return;
 
-    game.board[index] = game.currentPlayer;
     const cell = document.getElementById(`ttt-cell-${windowId}-${index}`);
+    if (!cell) return;
+
+    game.board[index] = game.currentPlayer;
     cell.textContent = game.currentPlayer;
     cell.style.color = game.currentPlayer === 'X' ? '#e74c3c' : '#2980b9';
 
     if (checkTicTacToeWin(windowId, game.currentPlayer)) {
-        document.getElementById(`ttt-status-${windowId}`).textContent = `Player ${game.currentPlayer} Wins!`;
+        const statusEl = document.getElementById(`ttt-status-${windowId}`);
+        if (statusEl) statusEl.textContent = `Player ${game.currentPlayer} Wins!`;
         game.gameOver = true;
-    } else if (game.board.every(cell => cell)) {
-        document.getElementById(`ttt-status-${windowId}`).textContent = "It's a Draw!";
+    } else if (game.board.every(c => c)) {
+        const statusEl = document.getElementById(`ttt-status-${windowId}`);
+        if (statusEl) statusEl.textContent = "It's a Draw!";
         game.gameOver = true;
     } else {
         game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
-        document.getElementById(`ttt-status-${windowId}`).textContent = `Player ${game.currentPlayer}'s Turn`;
+        const statusEl = document.getElementById(`ttt-status-${windowId}`);
+        if (statusEl) statusEl.textContent = `Player ${game.currentPlayer}'s Turn`;
     }
 }
 
@@ -4808,15 +4866,18 @@ function renderCalendarEvents(windowId, day, month, year) {
         sortedEvents.forEach(event => {
             const div = document.createElement('div');
             div.className = 'calendar-event-item';
+            const safeId = escapeHtml(event.id);
+            const safeDateKey = escapeHtml(dateKey);
+            const safeWindowId = escapeHtml(windowId);
             div.innerHTML = `
                 <div class="calendar-event-info">
                     <div class="calendar-event-title">${escapeHtml(event.title)}</div>
-                    <div class="calendar-event-meta">${event.time ? event.time : 'No time'}</div>
+                    <div class="calendar-event-meta">${escapeHtml(event.time) || 'No time'}</div>
                     ${event.desc ? `<div class="calendar-event-desc">${escapeHtml(event.desc)}</div>` : ''}
                 </div>
                 <div class="calendar-event-actions">
-                    <button onclick="editCalendarEvent('${windowId}', '${dateKey}', '${event.id}')">✏️</button>
-                    <button onclick="deleteCalendarEvent('${windowId}', '${dateKey}', '${event.id}')">🗑️</button>
+                    <button onclick="editCalendarEvent('${safeWindowId}', '${safeDateKey}', '${safeId}')">✏️</button>
+                    <button onclick="deleteCalendarEvent('${safeWindowId}', '${safeDateKey}', '${safeId}')">🗑️</button>
                 </div>
             `;
             itemsContainer.appendChild(div);
@@ -4909,6 +4970,7 @@ function deleteCalendarEvent(windowId, dateKey, eventId) {
         saveCalendarEvents();
         
         const state = calendarStates[windowId];
+        if (!state) return;
         renderCalendar(windowId);
         renderCalendarEvents(windowId, state.selectedDay, state.currentMonth, state.currentYear);
     }
@@ -8412,18 +8474,29 @@ function addMockPrinter(windowId) {
             btn.disabled = true;
 
             setTimeout(() => {
+                // Bail out if the window was closed mid-search
+                if (!printerStates[windowId]) {
+                    if (document.body.contains(btn)) {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }
+                    return;
+                }
+                const liveState = printerStates[windowId];
                 const newPrinterName = prompt("Found a generic network printer. Enter a name for it:", "New Network Printer");
                 if (newPrinterName) {
-                    state.printers.push({
+                    liveState.printers.push({
                         id: 'p' + Date.now(),
                         name: newPrinterName,
                         status: 'Ready',
-                        default: state.printers.length === 0
+                        default: liveState.printers.length === 0
                     });
                     showNotification('Printers', `Added ${newPrinterName}`);
                 }
-                btn.textContent = originalText;
-                btn.disabled = false;
+                if (document.body.contains(btn)) {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }
                 renderPrinterApp(windowId);
             }, 1500);
         }
