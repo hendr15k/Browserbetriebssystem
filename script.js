@@ -6,6 +6,18 @@ const appCategories = {
     internet: ['browser', 'weather', 'chat']
 };
 
+function safeJsonParse(key, fallback) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw === null || raw === undefined) return fallback;
+        const parsed = JSON.parse(raw);
+        return parsed == null ? fallback : parsed;
+    } catch (e) {
+        console.warn('safeJsonParse: failed to parse', key, e);
+        return fallback;
+    }
+}
+
 const appData = {
     terminal: { name: 'Terminal', icon: '>_', bg: '#333', color: 'white' },
     notepad: { name: 'Notepad', icon: 'Txt', bg: 'white', color: 'black' },
@@ -413,9 +425,10 @@ function handleIconContextMenuAction(action) {
         case 'remove':
             // Remove from desktop by hiding the icon
             const icon = document.querySelector(`.icon[data-app="${appId}"]`);
-            if (icon) {
+             if (icon) {
                 icon.style.display = 'none';
-                const hidden = JSON.parse(localStorage.getItem('hiddenDesktopIcons') || '[]');
+                const hidden = safeJsonParse('hiddenDesktopIcons', []);
+                if (!Array.isArray(hidden)) hidden.length = 0;
                 if (!hidden.includes(appId)) hidden.push(appId);
                 localStorage.setItem('hiddenDesktopIcons', JSON.stringify(hidden));
             }
@@ -452,7 +465,8 @@ function handleTaskbarContextMenuAction(action) {
 // ===================== FEATURE 3: APP PINNING =====================
 
 function getPinnedApps() {
-    return JSON.parse(localStorage.getItem('pinnedApps') || '[]');
+    const pinned = safeJsonParse('pinnedApps', []);
+    return Array.isArray(pinned) ? pinned : [];
 }
 
 function savePinnedApps(pinned) {
@@ -691,7 +705,8 @@ function createRipple(event, element) {
 function initDesktopIcons() {
     const desktop = document.getElementById('desktop');
     const icons = desktop.querySelectorAll('.icon');
-    const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
+    const savedPositions = safeJsonParse('desktopIconPositions', {});
+    const positions = (savedPositions && typeof savedPositions === 'object' && !Array.isArray(savedPositions)) ? savedPositions : {};
 
     icons.forEach((icon, index) => {
         // Assign ID if missing
@@ -699,7 +714,7 @@ function initDesktopIcons() {
             icon.id = `desktop-icon-${index}`;
         }
 
-        const pos = savedPositions[icon.id];
+        const pos = positions[icon.id];
         if (pos) {
             icon.style.position = 'absolute';
             icon.style.left = pos.left;
@@ -771,12 +786,13 @@ function dragIcon(e) {
 
 function stopDragIcon() {
     if (isDraggingIcon && currentDragIcon) {
-        const savedPositions = JSON.parse(localStorage.getItem('desktopIconPositions')) || {};
-        savedPositions[currentDragIcon.id] = {
+        const savedPositions = safeJsonParse('desktopIconPositions', {});
+        const positions = (savedPositions && typeof savedPositions === 'object' && !Array.isArray(savedPositions)) ? savedPositions : {};
+        positions[currentDragIcon.id] = {
             left: currentDragIcon.style.left,
             top: currentDragIcon.style.top
         };
-        localStorage.setItem('desktopIconPositions', JSON.stringify(savedPositions));
+        localStorage.setItem('desktopIconPositions', JSON.stringify(positions));
     }
     isDraggingIcon = false;
     currentDragIcon = null;
@@ -1620,7 +1636,9 @@ function openApp(appName, arg = null, restoreData = null) {
 
         let noteId = arg;
         if (!noteId) {
-            noteId = 'note-' + Date.now();
+            // Combine timestamp with random suffix to avoid collisions when two
+            // notes are created in the same millisecond (rapid double-click).
+            noteId = 'note-' + Date.now() + '-' + Math.floor(Math.random() * 1e9).toString(36);
             stickyNotes[noteId] = {
                 content: '',
                 x: win.style.left,
@@ -2311,6 +2329,18 @@ function performWindowCleanup(windowId) {
         delete performWindowCleanup._wineHandlers[windowId];
     }
 
+    // Camera stream cleanup (releases the privacy-sensitive MediaStream)
+    if (typeof cameraStreams !== 'undefined' && cameraStreams[windowId]) {
+        const stream = cameraStreams[windowId];
+        try { stream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) { /* defensive */ }
+        delete cameraStreams[windowId];
+    }
+    // Also clear srcObject on the video element if it still exists in DOM
+    const closingVideo = document.getElementById(`camera-video-${windowId}`);
+    if (closingVideo && closingVideo.srcObject) {
+        closingVideo.srcObject = null;
+    }
+
     // Cleanup Snake game if active
     if (snakeGames[windowId]) {
         clearInterval(snakeGames[windowId].interval);
@@ -2462,6 +2492,7 @@ function performWindowCleanup(windowId) {
         // Cleanup Music Player
         if (winRef.querySelector('audio')) {
             const audio = winRef.querySelector('audio');
+            try { audio.pause(); } catch (e) { /* defensive */ }
             if (audio.src && audio.src.startsWith('blob:')) {
                 URL.revokeObjectURL(audio.src);
             }
@@ -2470,6 +2501,7 @@ function performWindowCleanup(windowId) {
         // Cleanup Video Player
         if (winRef.querySelector('video')) {
             const video = winRef.querySelector('video');
+            try { video.pause(); } catch (e) { /* defensive */ }
             if (video.src && video.src.startsWith('blob:')) {
                 URL.revokeObjectURL(video.src);
             }
@@ -2514,7 +2546,8 @@ function showToast(title, message, icon = 'ℹ️') {
 }
 
 // Scheduled Notifications System
-let scheduledNotifications = JSON.parse(localStorage.getItem('scheduledNotifications') || '[]');
+let scheduledNotifications = safeJsonParse('scheduledNotifications', []);
+if (!Array.isArray(scheduledNotifications)) scheduledNotifications = [];
 
 function scheduleNotification(title, message, time, icon = '🔔') {
     const id = Date.now().toString();
@@ -2692,6 +2725,10 @@ function hideSnapPreview() {
 function startDrag(e, windowId) {
     if (e.target.closest('.window-button')) return;
     if (e.cancelable) e.preventDefault();
+    // Mutual exclusion: cancel any active resize first
+    if (typeof isResizing !== 'undefined' && isResizing) {
+        try { stopResize(); } catch (err) { /* defensive */ }
+    }
     isDragging = true;
     currentWindow = document.getElementById(windowId);
     focusWindow(windowId);
@@ -4039,7 +4076,26 @@ function startSnake(windowId) {
     }
 
     let snake = [{x: 10, y: 10}];
-    let food = {x: 15, y: 15};
+    const spawnFood = () => {
+        // Avoid spawning inside the snake body — loop until free cell found
+        for (let attempts = 0; attempts < 200; attempts++) {
+            const candidate = {
+                x: Math.floor(Math.random() * tileCountX),
+                y: Math.floor(Math.random() * tileCountY)
+            };
+            if (!snake.some(s => s.x === candidate.x && s.y === candidate.y)) {
+                return candidate;
+            }
+        }
+        // Fallback: scan grid for first free cell
+        for (let x = 0; x < tileCountX; x++) {
+            for (let y = 0; y < tileCountY; y++) {
+                if (!snake.some(s => s.x === x && s.y === y)) return { x, y };
+            }
+        }
+        return { x: 0, y: 0 };
+    };
+    let food = spawnFood();
     let dx = 1;
     let dy = 0;
     let score = 0;
@@ -4114,10 +4170,7 @@ function startSnake(windowId) {
                 localStorage.setItem('snakeHighScore', highScore);
                 highScoreElement.textContent = `High Score: ${highScore}`;
             }
-            food = {
-                x: Math.floor(Math.random() * tileCountX),
-                y: Math.floor(Math.random() * tileCountY)
-            };
+            food = spawnFood();
         } else {
             snake.pop();
         }
@@ -4210,6 +4263,10 @@ let originalPos = { x: 0, y: 0 };
 function startResize(e, windowId, direction) {
     e.stopPropagation(); // Prevent drag start
     if (e.cancelable) e.preventDefault();
+    // Mutual exclusion: cancel any active drag first
+    if (typeof isDragging !== 'undefined' && isDragging) {
+        try { stopDrag(); } catch (err) { /* defensive */ }
+    }
     isResizing = true;
     currentResizeWindow = document.getElementById(windowId);
     resizeDir = direction;
@@ -4272,7 +4329,16 @@ function loadFileSystem() {
     const saved = localStorage.getItem('webos-filesystem');
     if (saved) {
         try {
-            Object.assign(fileSystem, JSON.parse(saved));
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                // Only import string keys whose values are strings or 'directory'
+                for (const key of Object.keys(parsed)) {
+                    const v = parsed[key];
+                    if (typeof key === 'string' && (typeof v === 'string' || v === 'directory')) {
+                        fileSystem[key] = v;
+                    }
+                }
+            }
         } catch (e) {
             console.error('Failed to load file system:', e);
         }
@@ -4326,6 +4392,9 @@ function restoreWindowStates() {
         }
 
         states.forEach(state => {
+            // Skip unknown apps — they would produce empty "Application" windows
+            // with no working app logic, leaving behind orphan DOM and null state.
+            if (!state || !state.appName || !appData[state.appName]) return;
             openApp(state.appName, null, {
                 id: state.id,
                 left: state.left,
@@ -4383,18 +4452,41 @@ function speakText(windowId) {
 }
 
 // Camera Logic
+const cameraStreams = {};
+
 function startCamera(windowId) {
     const video = document.getElementById(`camera-video-${windowId}`);
+    if (!video) return;
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(function(stream) {
+                // If the window was closed while awaiting permission, release immediately
+                if (!document.body.contains(video)) {
+                    stream.getTracks().forEach(function(t) { t.stop(); });
+                    return;
+                }
                 video.srcObject = stream;
+                cameraStreams[windowId] = stream;
             })
             .catch(function(err) {
-                alert("Error accessing camera: " + err.message);
+                if (document.body.contains(video)) {
+                    alert("Error accessing camera: " + err.message);
+                }
             });
     } else {
         alert("Camera not supported on this device/browser.");
+    }
+}
+
+function stopCamera(windowId) {
+    const stream = cameraStreams[windowId];
+    if (stream) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        delete cameraStreams[windowId];
+    }
+    const video = document.getElementById(`camera-video-${windowId}`);
+    if (video && video.srcObject) {
+        video.srcObject = null;
     }
 }
 
@@ -4727,7 +4819,8 @@ function escapeHtml(str) {
 
 // Calendar Logic
 const calendarStates = {};
-let calendarEvents = JSON.parse(localStorage.getItem('webos-calendar-events') || '{}');
+let calendarEvents = safeJsonParse('webos-calendar-events', {});
+if (typeof calendarEvents !== 'object' || Array.isArray(calendarEvents)) calendarEvents = {};
 
 function saveCalendarEvents() {
     localStorage.setItem('webos-calendar-events', JSON.stringify(calendarEvents));
@@ -4948,7 +5041,7 @@ function saveCalendarEvent(windowId) {
         }
     } else {
         calendarEvents[dateKey].push({
-            id: 'event-' + Date.now(),
+            id: 'event-' + Date.now() + '-' + Math.floor(Math.random() * 1e9).toString(36),
             title,
             time: timeInput.value,
             desc: descInput.value
@@ -5493,7 +5586,10 @@ function initClock(windowId) {
                 running: false
             },
             world: {
-                cities: JSON.parse(localStorage.getItem('clockWorldCities') || '[]')
+                cities: (() => {
+                    const v = safeJsonParse('clockWorldCities', []);
+                    return Array.isArray(v) ? v : [];
+                })()
             }
         };
     }
@@ -5861,13 +5957,18 @@ const unitDefinitions = {
 };
 
 function initUnitConverter(windowId) {
+    // Bail out if the window was closed before the setTimeout fired
+    if (!document.getElementById(`conv-category-${windowId}`)) return;
     updateConverterCategory(windowId);
 }
 
 function updateConverterCategory(windowId) {
-    const category = document.getElementById(`conv-category-${windowId}`).value;
+    const categoryEl = document.getElementById(`conv-category-${windowId}`);
+    if (!categoryEl) return;
+    const category = categoryEl.value;
     const fromSelect = document.getElementById(`conv-from-${windowId}`);
     const toSelect = document.getElementById(`conv-to-${windowId}`);
+    if (!fromSelect || !toSelect) return;
 
     fromSelect.innerHTML = '';
     toSelect.innerHTML = '';
@@ -6366,9 +6467,13 @@ function renderMarkdown(text) {
 
     // Links [text](url)
     html = html.replace(/\[(.*?)\]\((.*?)\)/gim, (match, p1, p2) => {
-        // Sanitize URL
+        // Sanitize URL: only allow http(s), mailto, relative paths
         let url = p2.trim();
-        return `<a href="${url}" target="_blank">${p1}</a>`;
+        let safeUrl = '#';
+        if (/^(https?:|mailto:|\/|#)/i.test(url)) {
+            safeUrl = escapeHtml(url);
+        }
+        return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(p1)}</a>`;
     });
 
     // Lists
@@ -6759,7 +6864,10 @@ function checkGameOver2048(board) {
 // Sudoku Logic
 function initSudoku(windowId, difficulty = 'medium') {
     const status = document.getElementById(`sudoku-status-${windowId}`);
-    if (status) status.textContent = '';
+    // Bail out if the window was closed before the setTimeout fired;
+    // avoids generating a board for a window that no longer exists.
+    if (!status) return;
+    status.textContent = '';
 
     // Generate a solved board
     const solution = generateSudokuBoard();
@@ -7306,6 +7414,12 @@ async function startRecording(windowId) {
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // If the window was closed while awaiting permission, release immediately
+        if (!voiceRecorderStates[windowId]) {
+            try { stream.getTracks().forEach(t => t.stop()); } catch (e) { /* defensive */ }
+            return;
+        }
 
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const source = state.audioContext.createMediaStreamSource(stream);
@@ -8268,11 +8382,12 @@ function renderGalleryApp(windowId) {
             html += '<div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #888;">No images uploaded yet.</div>';
         } else {
             state.images.forEach((img, index) => {
+                const safeWindowId = escapeHtml(windowId);
                 html += `
-                    <div class="gallery-item" onclick="viewGalleryImage('${windowId}', ${index})">
-                        <img src="${img.data}" alt="${img.name}">
-                        <div class="gallery-item-name">${img.name}</div>
-                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryImage('${windowId}', ${index})">✕</button>
+                    <div class="gallery-item" onclick="viewGalleryImage('${safeWindowId}', ${index})">
+                        <img src="${escapeHtml(img.data)}" alt="${escapeHtml(img.name)}">
+                        <div class="gallery-item-name">${escapeHtml(img.name)}</div>
+                        <button class="gallery-item-delete" onclick="event.stopPropagation(); deleteGalleryImage('${safeWindowId}', ${index})">✕</button>
                     </div>
                 `;
             });
@@ -8291,13 +8406,13 @@ function renderGalleryApp(windowId) {
                 }
             </div>
             <div class="gallery-viewer">
-                ${state.view === 'single' ? `<button class="gallery-nav prev" onclick="navigateGallery('${windowId}', -1)">❮</button>` : ''}
+                ${state.view === 'single' ? `<button class="gallery-nav prev" onclick="navigateGallery('${escapeHtml(windowId)}', -1)">❮</button>` : ''}
 
                 ${img ? `<img src="${img.data}" alt="${img.name}" class="gallery-viewer-img">` : '<div style="color: white;">No image</div>'}
 
-                ${state.view === 'single' ? `<button class="gallery-nav next" onclick="navigateGallery('${windowId}', 1)">❯</button>` : ''}
+                ${state.view === 'single' ? `<button class="gallery-nav next" onclick="navigateGallery('${escapeHtml(windowId)}', 1)">❯</button>` : ''}
 
-                ${img ? `<div class="gallery-viewer-caption">${img.name} (${state.currentIndex + 1} / ${state.images.length})</div>` : ''}
+                ${img ? `<div class="gallery-viewer-caption">${escapeHtml(img.name)} (${state.currentIndex + 1} / ${state.images.length})</div>` : ''}
             </div>
         `;
     }
@@ -8443,16 +8558,17 @@ function renderPrinterApp(windowId) {
         html += '<div style="padding: 20px; color: #888;">No printers installed.</div>';
     } else {
         state.printers.forEach((printer, index) => {
+            const safeStatusClass = escapeHtml((printer.status || '').toString().toLowerCase().replace(/[^a-z0-9_-]/g, ''));
             html += `
                 <div class="printer-item">
                     <div class="printer-item-icon">🖨️</div>
                     <div class="printer-item-info">
-                        <div class="printer-item-name">${printer.name}</div>
-                        <div class="printer-item-status ${printer.status.toLowerCase()}">${printer.status} ${printer.default ? '(Default)' : ''}</div>
+                        <div class="printer-item-name">${escapeHtml(printer.name)}</div>
+                        <div class="printer-item-status ${safeStatusClass}">${escapeHtml(printer.status)} ${printer.default ? '(Default)' : ''}</div>
                     </div>
                     <div class="printer-item-actions">
-                        ${!printer.default ? `<button class="printer-btn small" onclick="setDefaultPrinter('${windowId}', ${index})">Set Default</button>` : ''}
-                        <button class="printer-btn small danger" onclick="removePrinter('${windowId}', ${index})">Remove</button>
+                        ${!printer.default ? `<button class="printer-btn small" onclick="setDefaultPrinter('${escapeHtml(windowId)}', ${index})">Set Default</button>` : ''}
+                        <button class="printer-btn small danger" onclick="removePrinter('${escapeHtml(windowId)}', ${index})">Remove</button>
                     </div>
                 </div>
             `;
