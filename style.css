@@ -1044,15 +1044,29 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     margin-bottom: 10px;
     padding-bottom: 10px;
     border-bottom: 1px solid #eee;
 }
 
 .calendar-header h3 {
+    flex: 1;
+    text-align: center;
     margin: 0;
     font-size: 18px;
     color: #333;
+}
+
+.calendar-header button:last-child {
+    background: var(--theme-color, #0078d7);
+    color: white;
+    border-color: var(--theme-color, #0078d7);
+}
+
+.calendar-header button:last-child:hover {
+    opacity: 0.85;
+    background: var(--theme-color, #0078d7);
 }
 
 .calendar-header button {
@@ -1101,6 +1115,182 @@ body {
 
 .calendar-day.other-month {
     color: #ccc;
+}
+
+.calendar-day.selected {
+    outline: 2px solid var(--theme-color);
+    outline-offset: -2px;
+    background: rgba(0, 120, 215, 0.1);
+}
+
+.calendar-event-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--theme-color, #0078d7);
+    border-radius: 50%;
+    margin: 4px auto 0;
+}
+
+.calendar-event-list {
+    padding: 12px;
+    border-top: 1px solid #eee;
+    background: #fafafa;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.calendar-event-list-header {
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.calendar-no-events {
+    color: #999;
+    font-size: 13px;
+    padding: 12px;
+    text-align: center;
+    font-style: italic;
+}
+
+.calendar-event-item {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-left: 3px solid var(--theme-color, #0078d7);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.calendar-event-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.calendar-event-title {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+    word-break: break-word;
+}
+
+.calendar-event-meta {
+    font-size: 12px;
+    color: #777;
+    margin-top: 2px;
+}
+
+.calendar-event-desc {
+    font-size: 12px;
+    color: #555;
+    margin-top: 4px;
+    word-break: break-word;
+}
+
+.calendar-event-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.calendar-event-actions button {
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.calendar-event-actions button:hover {
+    background: #f0f0f0;
+}
+
+.calendar-event-dialog {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.calendar-event-dialog.hidden {
+    display: none;
+}
+
+.calendar-event-dialog-inner {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    width: 80%;
+    max-width: 320px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.calendar-event-dialog-inner h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.calendar-event-dialog-inner input,
+.calendar-event-dialog-inner textarea {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.calendar-event-dialog-inner textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.calendar-event-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-event-row label {
+    font-size: 13px;
+    color: #555;
+}
+
+.calendar-event-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.calendar-event-dialog-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.calendar-event-dialog-actions button:first-child {
+    background: #eee;
+    color: #333;
+}
+
+.calendar-event-dialog-actions button:last-child {
+    background: var(--theme-color, #0078d7);
+    color: white;
 }
 
 /* Memory Game Styles */
