@@ -3443,6 +3443,184 @@ body {
     gap: 10px;
 }
 
+/* Recycle Bin Styles */
+.recyclebin-window .window-content {
+    padding: 0;
+    background: #f5f7fa;
+}
+
+.recyclebin-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #f5f7fa;
+}
+
+.recyclebin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.recyclebin-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.recyclebin-icon {
+    font-size: 22px;
+}
+
+.recyclebin-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #2c3e50;
+}
+
+.recyclebin-count {
+    font-size: 12px;
+    color: #7f8c8d;
+    background: #ecf0f1;
+    padding: 3px 10px;
+    border-radius: 12px;
+}
+
+.recyclebin-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.recyclebin-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    border: 1px solid #bdc3c7;
+    background: white;
+    color: #2c3e50;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.recyclebin-btn:hover:not(:disabled) {
+    background: #ecf0f1;
+    border-color: #95a5a6;
+}
+
+.recyclebin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.recyclebin-btn.danger {
+    background: #e74c3c;
+    border-color: #c0392b;
+    color: white;
+}
+
+.recyclebin-btn.danger:hover:not(:disabled) {
+    background: #c0392b;
+    border-color: #a93226;
+}
+
+.recyclebin-btn.small {
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+.recyclebin-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 18px;
+}
+
+.recyclebin-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #95a5a6;
+    text-align: center;
+}
+
+.recyclebin-empty-icon {
+    font-size: 64px;
+    opacity: 0.4;
+    margin-bottom: 14px;
+}
+
+.recyclebin-empty-text {
+    font-size: 16px;
+    color: #7f8c8d;
+    margin-bottom: 6px;
+}
+
+.recyclebin-empty-hint {
+    font-size: 12px;
+    color: #bdc3c7;
+}
+
+.recyclebin-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.recyclebin-item:hover {
+    border-color: #16a085;
+    box-shadow: 0 2px 6px rgba(22, 160, 133, 0.15);
+}
+
+.recyclebin-item-icon {
+    font-size: 32px;
+    flex-shrink: 0;
+}
+
+.recyclebin-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.recyclebin-item-name {
+    font-size: 14px;
+    color: #2c3e50;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recyclebin-item-path {
+    font-size: 11px;
+    color: #95a5a6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recyclebin-item-date {
+    font-size: 11px;
+    color: #7f8c8d;
+    margin-top: 2px;
+}
+
+.recyclebin-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
 /* Settings Styles */
 .settings-container {
     padding: 20px;
