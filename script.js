@@ -18,6 +18,13 @@ function safeJsonParse(key, fallback) {
     }
 }
 
+function attachFileReaderErrorHandler(reader, input, label) {
+    reader.onerror = function() {
+        console.error('FileReader error' + (label ? ` (${label})` : ''), reader.error);
+        if (input && 'value' in input) input.value = '';
+    };
+}
+
 const appData = {
     terminal: { name: 'Terminal', icon: '>_', bg: '#333', color: 'white' },
     notepad: { name: 'Notepad', icon: 'Txt', bg: 'white', color: 'black' },
@@ -196,12 +203,12 @@ updateClock();
 function setBackground(bg) {
     document.getElementById('desktop').style.background = bg;
     document.getElementById('desktop').style.backgroundSize = 'cover';
-    localStorage.setItem('desktopBackground', bg);
+    safeStorageSet('desktopBackground', bg);
 }
 
 function setThemeColor(color) {
     document.documentElement.style.setProperty('--theme-color', color);
-    localStorage.setItem('themeColor', color);
+    safeStorageSet('themeColor', color);
 }
 
 const defaultSystemProfile = {
@@ -226,7 +233,7 @@ function getSystemProfile() {
 }
 
 function saveSystemProfile(profile) {
-    localStorage.setItem('systemProfile', JSON.stringify(profile));
+    safeStorageSet('systemProfile', JSON.stringify(profile));
 }
 
 function getStorageStats() {
@@ -430,7 +437,7 @@ function handleIconContextMenuAction(action) {
                 const hidden = safeJsonParse('hiddenDesktopIcons', []);
                 if (!Array.isArray(hidden)) hidden.length = 0;
                 if (!hidden.includes(appId)) hidden.push(appId);
-                localStorage.setItem('hiddenDesktopIcons', JSON.stringify(hidden));
+                safeStorageSet('hiddenDesktopIcons', JSON.stringify(hidden));
             }
             showNotification('Icon Removed', `${appData[appId]?.name || appId} removed from desktop.`);
             break;
@@ -470,7 +477,7 @@ function getPinnedApps() {
 }
 
 function savePinnedApps(pinned) {
-    localStorage.setItem('pinnedApps', JSON.stringify(pinned));
+    safeStorageSet('pinnedApps', JSON.stringify(pinned));
 }
 
 function isPinned(appId) {
@@ -567,7 +574,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 1000);
     }
-});
 
     // Initialize Desktop Icons (dynamically generated)
     renderDesktopIcons();
@@ -587,6 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         runStartupApps();
     }, 700);
+});
 
 
 function renderPinnedSection() {
@@ -792,7 +799,7 @@ function stopDragIcon() {
             left: currentDragIcon.style.left,
             top: currentDragIcon.style.top
         };
-        localStorage.setItem('desktopIconPositions', JSON.stringify(positions));
+        safeStorageSet('desktopIconPositions', JSON.stringify(positions));
     }
     isDraggingIcon = false;
     currentDragIcon = null;
@@ -1427,8 +1434,8 @@ function openApp(appName, arg = null, restoreData = null) {
         content = `
             <div class="music-player-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; background: #222; color: white; box-sizing: border-box;">
                 <div class="music-icon" style="font-size: 64px; margin-bottom: 20px;">🎵</div>
-                <div id="music-track-name-${windowId}" style="margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all;">${trackName}</div>
-                <audio id="music-audio-${windowId}" controls style="width: 100%; margin-bottom: 20px;" src="${src}"></audio>
+                <div id="music-track-name-${windowId}" style="margin-bottom: 20px; font-weight: bold; text-align: center; word-break: break-all;">${escapeHtml(trackName)}</div>
+                <audio id="music-audio-${windowId}" controls style="width: 100%; margin-bottom: 20px;" src="${escapeHtml(src)}"></audio>
                 <label style="background: #e91e63; color: white; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: background 0.3s;">
                     Open Music File
                     <input type="file" id="music-input-${windowId}" accept="audio/*" style="display: none;" onchange="handleMusicFile('${windowId}')">
@@ -1456,13 +1463,13 @@ function openApp(appName, arg = null, restoreData = null) {
 
         content = `
             <div class="video-player-content" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 0; background: #000; color: white; box-sizing: border-box; overflow: hidden;">
-                <video id="video-player-${windowId}" controls style="width: 100%; height: 100%; max-height: calc(100% - 40px); object-fit: contain;" src="${src}"></video>
+                <video id="video-player-${windowId}" controls style="width: 100%; height: 100%; max-height: calc(100% - 40px); object-fit: contain;" src="${escapeHtml(src)}"></video>
                 <div style="height: 40px; display: flex; align-items: center; justify-content: center; width: 100%; background: #222;">
                     <label style="background: #673ab7; color: white; padding: 5px 15px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-right: 10px;">
                         Open Video
                         <input type="file" id="video-input-${windowId}" accept="video/*" style="display: none;" onchange="handleVideoFile('${windowId}')">
                     </label>
-                    <div id="video-name-${windowId}" style="font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${videoName}</div>
+                    <div id="video-name-${windowId}" style="font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${escapeHtml(videoName)}</div>
                 </div>
             </div>
         `;
@@ -1890,6 +1897,9 @@ function openApp(appName, arg = null, restoreData = null) {
             }
         }, 0);
     } else if (appName === 'markdown-viewer') {
+        // arg is a user-supplied (file) name. Keep it raw so it renders correctly
+        // in textContent contexts (taskbar). It will be HTML-escaped on its way
+        // into innerHTML below.
         title = arg || "Markdown Viewer";
         win.classList.add('markdown-window');
 
@@ -1925,10 +1935,10 @@ function openApp(appName, arg = null, restoreData = null) {
                 <label style="font-size: 12px; padding: 2px 8px; cursor: pointer; border: 1px solid #999; background: #ddd; display: inline-block;">
                     Open PDF <input type="file" id="pdf-input-${windowId}" accept="application/pdf" style="display: none;" onchange="handlePdfFile('${windowId}')">
                 </label>
-                <div id="pdf-name-${windowId}" style="font-size: 12px; color: #555;">${fileName}</div>
+                <div id="pdf-name-${windowId}" style="font-size: 12px; color: #555;">${escapeHtml(fileName)}</div>
             </div>
             <div id="pdf-container-${windowId}" style="flex-grow: 1; height: 100%; background: #525659; display: flex; justify-content: center; align-items: center;">
-                ${src ? `<iframe src="${src}" style="width: 100%; height: 100%; border: none;"></iframe>` : '<div style="color: #ccc;">Open a PDF file to view</div>'}
+                ${src ? `<iframe src="${escapeHtml(src)}" style="width: 100%; height: 100%; border: none;"></iframe>` : '<div style="color: #ccc;">Open a PDF file to view</div>'}
             </div>
         `;
     } else if (appName === 'piano') {
@@ -1983,16 +1993,13 @@ function openApp(appName, arg = null, restoreData = null) {
             fileName = arg;
         }
 
-        // Safe filename display
-        const safeFileName = fileName.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
         content = `
             <div style="display: flex; flex-direction: column; height: 100%; background: #222;">
                 <div style="padding: 5px; background: #333; color: white; border-bottom: 1px solid #444; font-size: 12px; display: flex; justify-content: space-between;">
-                    <span>${safeFileName}</span>
+                    <span>${escapeHtml(fileName)}</span>
                 </div>
                 <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 10px;">
-                    ${src ? `<img src="${src}" style="max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 10px rgba(0,0,0,0.5);">` : '<div style="color: #888;">No image to display</div>'}
+                    ${src ? `<img src="${escapeHtml(src)}" style="max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 0 10px rgba(0,0,0,0.5);">` : '<div style="color: #888;">No image to display</div>'}
                 </div>
             </div>
         `;
@@ -2073,7 +2080,7 @@ function openApp(appName, arg = null, restoreData = null) {
 
     win.innerHTML = `
         <div class="title-bar" onmousedown="startDrag(event, '${windowId}')" ontouchstart="startDrag(event, '${windowId}')">
-            <div class="title-bar-text">${title}</div>
+            <div class="title-bar-text">${escapeHtml(title)}</div>
             <div class="title-bar-controls">
                 <button class="window-button minimize-button" onclick="minimizeWindow('${windowId}')">_</button>
                 <button class="window-button maximize-button" onclick="maximizeWindow('${windowId}')">□</button>
@@ -2183,9 +2190,17 @@ function openApp(appName, arg = null, restoreData = null) {
     if (appName === 'wine') {
         const iframe = document.getElementById(`wine-iframe-${windowId}`);
         if (iframe) {
+            performWindowCleanup._wineHandlers = performWindowCleanup._wineHandlers || {};
+            if (performWindowCleanup._wineHandlers[windowId]) {
+                try { window.removeEventListener('message', performWindowCleanup._wineHandlers[windowId]); } catch (e) { /* defensive */ }
+                delete performWindowCleanup._wineHandlers[windowId];
+            }
             const handler = function(e) {
                 if (e.source === iframe.contentWindow && e.data && e.data.type === 'wine-ready') {
                     window.removeEventListener('message', handler);
+                    if (performWindowCleanup._wineHandlers && performWindowCleanup._wineHandlers[windowId] === handler) {
+                        delete performWindowCleanup._wineHandlers[windowId];
+                    }
                     if (arg && wineExeFiles[arg]) {
                         iframe.contentWindow.postMessage({
                             type: 'run-exe-file',
@@ -2196,8 +2211,6 @@ function openApp(appName, arg = null, restoreData = null) {
                 }
             };
             window.addEventListener('message', handler);
-            // Register a cleanup hook so a closed wine window doesn't leak the listener
-            performWindowCleanup._wineHandlers = performWindowCleanup._wineHandlers || {};
             performWindowCleanup._wineHandlers[windowId] = handler;
         }
     }
@@ -2305,12 +2318,16 @@ function closeWindow(windowId) {
     // Prevent double-close
     if (win.classList.contains('window-closing')) return;
 
-    // Play closing animation
+    // Play closing animation with fallback timeout in case animationend never fires (e.g. reduced-motion or display:none)
     win.classList.add('window-closing');
-    win.addEventListener('animationend', () => {
-        // Perform actual cleanup
+    let cleanedUp = false;
+    const doCleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
         performWindowCleanup(windowId);
-    }, { once: true });
+    };
+    win.addEventListener('animationend', doCleanup, { once: true });
+    setTimeout(doCleanup, 400);
 }
 
 function performWindowCleanup(windowId) {
@@ -2449,9 +2466,12 @@ function performWindowCleanup(windowId) {
         delete clockStates[windowId];
     }
 
-    // Cleanup Browser
-    if (browserStates[windowId]) {
-        delete browserStates[windowId];
+    // Cleanup Piano state and AudioContext
+    if (typeof pianoStates !== 'undefined' && pianoStates[windowId]) {
+        if (pianoStates[windowId].audioContext) {
+            try { pianoStates[windowId].audioContext.close(); } catch (e) { /* defensive */ }
+        }
+        delete pianoStates[windowId];
     }
 
     // Cleanup Spreadsheet
@@ -2569,7 +2589,7 @@ function scheduleNotification(title, message, time, icon = '🔔') {
 }
 
 function saveScheduledNotifications() {
-    localStorage.setItem('scheduledNotifications', JSON.stringify(scheduledNotifications));
+    safeStorageSet('scheduledNotifications', JSON.stringify(scheduledNotifications));
 }
 
 function updateScheduleBadge() {
@@ -2954,7 +2974,7 @@ const systemMonitorStates = {};
 let stickyNotes = {};
 
 function saveStickyNotesToStorage(notify = false) {
-    localStorage.setItem('stickyNotes', JSON.stringify(stickyNotes));
+    safeStorageSet('stickyNotes', JSON.stringify(stickyNotes));
     if (notify) {
         showNotification('Sticky Notes', 'Notes saved successfully.');
     }
@@ -3565,7 +3585,9 @@ function calcInput(windowId, value) {
 // Paint Logic
 function initPaint(windowId, filename = null) {
     const canvas = document.getElementById(`paint-canvas-${windowId}`);
+    if (!canvas) return;
     const container = canvas.parentElement;
+    if (!container) return;
 
     // Resize canvas to fit container
     canvas.width = container.clientWidth;
@@ -3750,6 +3772,7 @@ function openPaintFile(windowId) {
             };
             img.src = e.target.result;
         };
+        attachFileReaderErrorHandler(reader, input, 'paint');
         reader.readAsDataURL(input.files[0]);
     }
 }
@@ -3805,6 +3828,7 @@ function handleFileUpload(windowId, input) {
                 alert(`Uploaded ${filename}`);
                 input.value = '';
             };
+            attachFileReaderErrorHandler(reader, input, 'explorer-exe');
             reader.readAsArrayBuffer(file);
         } else {
             const reader = new FileReader();
@@ -3819,6 +3843,7 @@ function handleFileUpload(windowId, input) {
                 alert(`Uploaded ${filename}`);
                 input.value = '';
             };
+            attachFileReaderErrorHandler(reader, input, 'explorer');
             reader.readAsDataURL(file);
         }
     }
@@ -4103,6 +4128,7 @@ function openNotepadFile(windowId) {
         reader.onload = function(e) {
             textarea.value = e.target.result;
         };
+        attachFileReaderErrorHandler(reader, input, 'notepad');
         reader.readAsText(input.files[0]);
     }
 }
@@ -4212,7 +4238,7 @@ function startSnake(windowId) {
             scoreElement.textContent = `Score: ${score}`;
             if (score > highScore) {
                 highScore = score;
-                localStorage.setItem('snakeHighScore', highScore);
+                safeStorageSet('snakeHighScore', highScore);
                 highScoreElement.textContent = `High Score: ${highScore}`;
             }
             food = spawnFood();
@@ -4366,6 +4392,21 @@ function stopResize() {
 }
 
 // File System Persistence
+// Centralized quota-safe wrapper around localStorage.setItem. Returns true on
+// success, false on quota failure (so callers can react). Centralizing this
+// avoids scattering try/catch blocks across every save call site and keeps
+// the UI quiet instead of letting quota errors bubble up as uncaught
+// exceptions.
+function safeStorageSet(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        console.error('Failed to persist', key, '(quota?):', e);
+        return false;
+    }
+}
+
 function saveFileSystem() {
     // Guard against localStorage quota errors so callers can still recover
     // (e.g. Recycle Bin restore mutates the in-memory FS before calling this;
@@ -4497,7 +4538,7 @@ function saveSystemPin(windowId) {
         return;
     }
 
-    localStorage.setItem('systemPin', input.value.trim());
+    safeStorageSet('systemPin', input.value.trim());
     input.value = '';
     alert('System-PIN gespeichert.');
 }
@@ -4893,7 +4934,7 @@ let calendarEvents = safeJsonParse('webos-calendar-events', {});
 if (typeof calendarEvents !== 'object' || Array.isArray(calendarEvents)) calendarEvents = {};
 
 function saveCalendarEvents() {
-    localStorage.setItem('webos-calendar-events', JSON.stringify(calendarEvents));
+    safeStorageSet('webos-calendar-events', JSON.stringify(calendarEvents));
 }
 
 function initCalendar(windowId) {
@@ -5963,6 +6004,7 @@ const browserStates = {};
 function navigateBrowser(windowId, url) {
     const iframe = document.getElementById(`browser-iframe-${windowId}`);
     const input = document.getElementById(`browser-url-${windowId}`);
+    if (!iframe || !input) return;
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
@@ -5990,22 +6032,25 @@ function handleBrowserNav(windowId, action) {
     const state = browserStates[windowId];
     if (!state) return;
 
+    const iframe = document.getElementById(`browser-iframe-${windowId}`);
+    const input = document.getElementById(`browser-url-${windowId}`);
+    if (!iframe || !input) return;
+
     if (action === 'back') {
         if (state.currentIndex > 0) {
             state.currentIndex--;
             const url = state.history[state.currentIndex];
-            document.getElementById(`browser-iframe-${windowId}`).src = url;
-            document.getElementById(`browser-url-${windowId}`).value = url;
+            iframe.src = url;
+            input.value = url;
         }
     } else if (action === 'forward') {
         if (state.currentIndex < state.history.length - 1) {
             state.currentIndex++;
             const url = state.history[state.currentIndex];
-            document.getElementById(`browser-iframe-${windowId}`).src = url;
-            document.getElementById(`browser-url-${windowId}`).value = url;
+            iframe.src = url;
+            input.value = url;
         }
     } else if (action === 'refresh') {
-         const iframe = document.getElementById(`browser-iframe-${windowId}`);
          iframe.src = iframe.src;
     } else if (action === 'home') {
         navigateBrowser(windowId, 'https://www.wikipedia.org');
@@ -6518,6 +6563,7 @@ function openMarkdownFile(windowId, input) {
             editor.value = e.target.result;
             updateMarkdownPreview(windowId);
         };
+        attachFileReaderErrorHandler(reader, input, 'markdown');
         reader.readAsText(input.files[0]);
     }
 }
@@ -7526,7 +7572,8 @@ async function startRecording(windowId) {
             }
             const blob = new Blob(state.chunks, { 'type' : 'audio/webm' });
             const url = URL.createObjectURL(blob);
-            const duration = document.getElementById(`vr-timer-${windowId}`).innerText;
+            const timerEl = document.getElementById(`vr-timer-${windowId}`);
+            const duration = timerEl ? timerEl.innerText : '00:00';
             state.recordings.push({ url, blob, duration });
             renderRecordingsList(windowId);
             state.chunks = [];
@@ -7536,9 +7583,11 @@ async function startRecording(windowId) {
         state.isRecording = true;
         state.startTime = Date.now();
 
-        // Update UI
-        document.getElementById(`vr-record-btn-${windowId}`).disabled = true;
-        document.getElementById(`vr-stop-btn-${windowId}`).disabled = false;
+        // Update UI (defensive: window may have been closed mid-await)
+        const recBtn = document.getElementById(`vr-record-btn-${windowId}`);
+        const stopBtn = document.getElementById(`vr-stop-btn-${windowId}`);
+        if (recBtn) recBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
 
         // Start Timer
         state.timerInterval = setInterval(() => {
@@ -7565,23 +7614,27 @@ function stopRecording(windowId) {
     state.mediaRecorder.stop();
     state.isRecording = false;
 
-    // Stop all tracks to release microphone
-    state.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+    // Stop all tracks to release microphone (defensive: stream may already be gone)
+    if (state.mediaRecorder.stream) {
+        try { state.mediaRecorder.stream.getTracks().forEach(track => { try { track.stop(); } catch (e) { /* ignore */ } }); } catch (e) { /* ignore */ }
+    }
 
     // Close AudioContext if not needed or suspend
     // Actually, we might need it for playback? No, playback is via <audio> element or similar.
     // But let's close it to be safe and release resources.
     if (state.audioContext) {
-        state.audioContext.close();
+        try { state.audioContext.close(); } catch (e) { /* defensive */ }
         state.audioContext = null;
     }
 
     clearInterval(state.timerInterval);
     cancelAnimationFrame(state.visualizerAnimationFrame);
 
-    // Reset UI
-    document.getElementById(`vr-record-btn-${windowId}`).disabled = false;
-    document.getElementById(`vr-stop-btn-${windowId}`).disabled = true;
+    // Reset UI (defensive: window may be gone if cleanup raced with stop)
+    const recBtn = document.getElementById(`vr-record-btn-${windowId}`);
+    const stopBtn = document.getElementById(`vr-stop-btn-${windowId}`);
+    if (recBtn) recBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = true;
 
     // Reset Timer Display after a short delay or keep it?
     // Usually it resets on new recording. Let's keep it for now.
@@ -8026,6 +8079,7 @@ function loadSpreadsheet(windowId, input) {
                 alert("Error loading file: " + err.message);
             }
         };
+        attachFileReaderErrorHandler(reader, input, 'spreadsheet');
         reader.readAsText(input.files[0]);
     }
 }
@@ -8556,6 +8610,9 @@ function uploadGalleryImages(windowId, input) {
                 showNotification('Photo Gallery', `${files.length} image(s) uploaded successfully.`);
             }
         };
+        reader.onerror = function() {
+            console.error('Gallery upload error', reader.error);
+        };
         reader.readAsDataURL(file);
     });
 }
@@ -8840,6 +8897,7 @@ function openCodeFile(windowId, input) {
             textarea.value = e.target.result;
             updateLineNumbers(windowId);
         };
+        attachFileReaderErrorHandler(reader, input, 'code');
         reader.readAsText(input.files[0]);
     }
 }
