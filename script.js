@@ -792,6 +792,14 @@ function dragIcon(e) {
 }
 
 function stopDragIcon() {
+    if (!iconDragArmed && !currentDragIcon) {
+        document.removeEventListener('mousemove', dragIcon);
+        document.removeEventListener('mouseup', stopDragIcon);
+        document.removeEventListener('touchmove', dragIcon);
+        document.removeEventListener('touchend', stopDragIcon);
+        document.removeEventListener('touchcancel', stopDragIcon);
+        return;
+    }
     if (isDraggingIcon && currentDragIcon) {
         const savedPositions = safeJsonParse('desktopIconPositions', {});
         const positions = (savedPositions && typeof savedPositions === 'object' && !Array.isArray(savedPositions)) ? savedPositions : {};
@@ -810,6 +818,43 @@ function stopDragIcon() {
     document.removeEventListener('touchmove', dragIcon);
     document.removeEventListener('touchend', stopDragIcon);
     document.removeEventListener('touchcancel', stopDragIcon);
+}
+
+function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Clipboard', 'Text copied to clipboard.');
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            fallbackCopyText(text);
+        });
+    } else {
+        fallbackCopyText(text);
+    }
+}
+
+function fallbackCopyText(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";  // Avoid scrolling to bottom
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showNotification('Clipboard', 'Text copied to clipboard.');
+        } else {
+            showNotification('Clipboard', 'Copy command was unsuccessful.');
+        }
+    } catch (err) {
+        console.error('Fallback: Oops, unable to copy', err);
+        showNotification('Clipboard', 'Copy failed.');
+    }
+    document.body.removeChild(textArea);
 }
 
 // Start Menu Logic
@@ -1076,7 +1121,7 @@ function openApp(appName, arg = null, restoreData = null) {
             </div>
         `;
         // Initialize terminal state
-        terminalStates[windowId] = { cwd: '/' };
+        terminalStates[windowId] = { cwd: '/', history: [] };
     } else if (appName === 'notepad') {
         title = "Notepad";
         content = `
@@ -2263,7 +2308,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 }
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                const history = window.terminalHistory || [];
+                const history = (terminalStates[windowId] && terminalStates[windowId].history) || [];
                 if (history.length === 0) return;
 
                 if (historyIndex === -1) {
@@ -2275,7 +2320,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 this.value = history[historyIndex];
             } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                const history = window.terminalHistory || [];
+                const history = (terminalStates[windowId] && terminalStates[windowId].history) || [];
                 if (history.length === 0) return;
 
                 if (historyIndex !== -1) {
@@ -2875,18 +2920,29 @@ let altTabWindowList = null;
 
 function altTabNext() {
     const visible = getVisibleWindows();
-    if (visible.length === 0) return;
+    if (visible.length === 0) {
+        altTabWindowList = null;
+        return;
+    }
 
     visible.sort((a, b) => parseInt(b.style.zIndex || 0) - parseInt(a.style.zIndex || 0));
 
+    // Rebuild list as window ids; filter out ids that no longer exist in DOM
     if (!altTabWindowList) {
-        altTabWindowList = visible.slice();
+        altTabWindowList = visible.map(w => w.id);
+    } else {
+        const liveIds = new Set(visible.map(w => w.id));
+        altTabWindowList = altTabWindowList.filter(id => liveIds.has(id));
+        if (altTabWindowList.length === 0) {
+            altTabWindowList = visible.map(w => w.id);
+        }
     }
 
     const focused = getFocusedWindow();
-    const currentIdx = altTabWindowList.indexOf(focused);
+    const currentIdx = focused ? altTabWindowList.indexOf(focused.id) : -1;
     const nextIdx = (currentIdx + 1) % altTabWindowList.length;
-    if (altTabWindowList[nextIdx]) focusWindow(altTabWindowList[nextIdx].id);
+    const nextId = altTabWindowList[nextIdx];
+    if (nextId) focusWindow(nextId);
 }
 
 // ===================== GLOBAL KEYBOARD SHORTCUTS =====================
@@ -2920,7 +2976,13 @@ document.addEventListener('keydown', (e) => {
         altTabWindowList = null;
     }
 
-    // Show Desktop: Win+D / Ctrl+Win+D (best-effort). Also accept Ctrl+Shift+D fallback.
+    // Keyboard Shortcuts Help Modal: Ctrl+Shift+H or F1
+    if ((e.ctrlKey && e.shiftKey && (e.key === 'h' || e.key === 'H')) || e.key === 'F1') {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        openApp('about'); // Or show a custom shortcuts dialog
+        return;
+    }
     if ((e.metaKey && (e.key === 'd' || e.key === 'D')) ||
         (e.ctrlKey && e.shiftKey && (e.key === 'd' || e.key === 'D'))) {
         if (isTypingInField()) return;
@@ -3384,27 +3446,28 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     } else if (command === 'pwd') {
         response = cwd;
     } else if (command === 'history') {
-        if (!window.terminalHistory) window.terminalHistory = [];
+        if (!terminalStates[windowId]) terminalStates[windowId] = { cwd: '/', history: [] };
+        if (!terminalStates[windowId].history) terminalStates[windowId].history = [];
 
         if (args[0] === '-c') {
-            window.terminalHistory = [];
+            terminalStates[windowId].history = [];
             response = 'History cleared.';
         } else {
-            let commandList = window.terminalHistory;
+            let commandList = terminalStates[windowId].history;
 
             if (args[0] !== undefined) {
                 const count = parseInt(args[0], 10);
                 if (Number.isNaN(count) || count < 1) {
                     response = 'Usage: history [count] | history -c';
                 } else {
-                    commandList = window.terminalHistory.slice(-count);
+                    commandList = terminalStates[windowId].history.slice(-count);
                 }
             }
 
             if (!response) {
                 response = commandList
                     .map((entry, index) => {
-                        const commandIndex = window.terminalHistory.length - commandList.length + index + 1;
+                        const commandIndex = terminalStates[windowId].history.length - commandList.length + index + 1;
                         return `${commandIndex}  ${entry}`;
                     })
                     .join('\n');
@@ -3498,12 +3561,13 @@ function handleTerminalCommand(cmd, outputDiv, windowId) {
     }
 
     if (cmd.trim() !== '' && !(command === 'history' && args[0] === '-c')) {
-        if (!window.terminalHistory) window.terminalHistory = [];
-        window.terminalHistory.push(cmd);
+        if (!terminalStates[windowId]) terminalStates[windowId] = { cwd: '/', history: [] };
+        if (!terminalStates[windowId].history) terminalStates[windowId].history = [];
+        terminalStates[windowId].history.push(cmd);
 
         const maxHistory = 200;
-        if (window.terminalHistory.length > maxHistory) {
-            window.terminalHistory = window.terminalHistory.slice(-maxHistory);
+        if (terminalStates[windowId].history.length > maxHistory) {
+            terminalStates[windowId].history = terminalStates[windowId].history.slice(-maxHistory);
         }
     }
 
@@ -4260,11 +4324,13 @@ function startSnake(windowId) {
     }
 
     function gameOver() {
-        clearInterval(snakeGames[windowId].interval);
+        if (snakeGames[windowId] && snakeGames[windowId].interval) {
+            clearInterval(snakeGames[windowId].interval);
+        }
+        delete snakeGames[windowId];
         ctx.fillStyle = 'white';
         ctx.font = '30px Arial';
         ctx.fillText("Game Over", 120, 150);
-        delete snakeGames[windowId];
     }
 
     snakeGames[windowId] = {
@@ -4516,9 +4582,10 @@ function restoreWindowStates() {
 // Auto-save window states on window close and interactions
 // (closeWindow is modified in-place; openApp already handles save via mouseup)
 document.addEventListener('mouseup', () => {
-    // Debounced save on drag/resize end
-    clearTimeout(window._saveWindowStateTimer);
-    window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
+    if ((typeof isDragging !== 'undefined' && isDragging) || (typeof isResizing !== 'undefined' && isResizing)) {
+        clearTimeout(window._saveWindowStateTimer);
+        window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
+    }
 });
 
 // Also save state when minimize/restore happens
@@ -4723,8 +4790,15 @@ function startMinesweeperTimer(windowId) {
 
 function placeMines(windowId, safeR, safeC) {
     const game = minesweeperGames[windowId];
+    // Cap mine count to available cells minus 3x3 safe zone to prevent infinite loop
+    const maxMines = Math.max(0, game.rows * game.cols - 9);
+    if (game.mineCount > maxMines) {
+        game.mineCount = maxMines;
+    }
     let placed = 0;
-    while (placed < game.mineCount) {
+    let attempts = 0;
+    const maxAttempts = game.rows * game.cols * 100;
+    while (placed < game.mineCount && attempts < maxAttempts) {
         const r = Math.floor(Math.random() * game.rows);
         const c = Math.floor(Math.random() * game.cols);
 
@@ -4733,6 +4807,7 @@ function placeMines(windowId, safeR, safeC) {
             game.board[r][c].isMine = true;
             placed++;
         }
+        attempts++;
     }
 
     // Calculate neighbors
@@ -7611,7 +7686,11 @@ function stopRecording(windowId) {
     const state = voiceRecorderStates[windowId];
     if (!state || !state.isRecording) return;
 
-    state.mediaRecorder.stop();
+    try {
+        state.mediaRecorder.stop();
+    } catch (e) {
+        // Defensive: mediaRecorder might already be inactive
+    }
     state.isRecording = false;
 
     // Stop all tracks to release microphone (defensive: stream may already be gone)
