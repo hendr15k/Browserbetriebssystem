@@ -11,7 +11,16 @@ function safeJsonParse(key, fallback) {
         const raw = localStorage.getItem(key);
         if (raw === null || raw === undefined) return fallback;
         const parsed = JSON.parse(raw);
-        return parsed == null ? fallback : parsed;
+        // BUG 26 (round 6): `parsed == null` is true for both `null` AND
+        // the string `"null"` (parsed to `null`). When the parsed value is
+        // explicitly `null` we don't want to silently fall back — that's
+        // exactly how data rot goes unnoticed. Log a one-time warn so the
+        // dev sees it in console while still returning the fallback.
+        if (parsed === null || parsed === undefined) {
+            console.warn(`safeJsonParse: stored value for "${key}" is ${parsed} (raw=${JSON.stringify(raw).slice(0, 40)}); using fallback`);
+            return fallback;
+        }
+        return parsed;
     } catch (e) {
         console.warn('safeJsonParse: failed to parse', key, e);
         return fallback;
@@ -2473,7 +2482,15 @@ function performWindowCleanup(windowId) {
 
     // Cleanup Tetris Game state
     if (tetrisGames[windowId]) {
-        cancelAnimationFrame(tetrisGames[windowId].requestId);
+        const game = tetrisGames[windowId];
+        // BUG 28 (round 6): cancel every queued RAF, not just the most
+        // recent. Same rationale as the Pong fix above.
+        if (Array.isArray(game._pendingRaf)) {
+            game._pendingRaf.forEach(id => { try { cancelAnimationFrame(id); } catch (e) {} });
+        }
+        if (game.requestId != null) {
+            try { cancelAnimationFrame(game.requestId); } catch (e) {}
+        }
         delete tetrisGames[windowId];
     }
 
@@ -2484,7 +2501,17 @@ function performWindowCleanup(windowId) {
 
     // Cleanup Pong Game state
     if (typeof pongGames !== 'undefined' && pongGames[windowId]) {
-        cancelAnimationFrame(pongGames[windowId].requestId);
+        const game = pongGames[windowId];
+        // BUG 21 (round 6): cancel every queued RAF for this windowId, not
+        // just the most recent. Without this, an old RAF already in the queue
+        // would fire after we delete pongGames[windowId], dereferencing a
+        // a torn-down closure on stale `game` data.
+        if (Array.isArray(game._pendingRaf)) {
+            game._pendingRaf.forEach(id => { try { cancelAnimationFrame(id); } catch (e) {} });
+        }
+        if (game.requestId != null) {
+            try { cancelAnimationFrame(game.requestId); } catch (e) {}
+        }
         delete pongGames[windowId];
     }
 
@@ -2542,6 +2569,29 @@ function performWindowCleanup(windowId) {
             try { state.audioContext.close(); } catch (e) {}
             state.audioContext = null;
         }
+        // BUG 15 (round 6): also explicitly disconnect the analyser + mediaRecorder
+        // nodes from the AudioContext graph. They are owned by the AudioContext
+        // but JS references to them keep them alive in some engines — that can
+        // prevent the AudioContext from being fully released by the GC, producing
+        // a slow leak across many opens/closes of the VoiceRecorder.
+        if (state.analyser) {
+            try { state.analyser.disconnect(); } catch (e) {}
+            state.analyser = null;
+        }
+        if (state.mediaRecorder) {
+            // MediaRecorder.release() exists in modern browsers but isn't
+            // universally supported. Best-effort: drop our JS reference and
+            // null out its event handlers so the closure chain can be GC'd.
+            try {
+                state.mediaRecorder.ondataavailable = null;
+                state.mediaRecorder.onstop = null;
+                state.mediaRecorder.onerror = null;
+                if (typeof state.mediaRecorder.release === 'function') {
+                    state.mediaRecorder.release();
+                }
+            } catch (e) {}
+            state.mediaRecorder = null;
+        }
         try { state.recordings.forEach(rec => URL.revokeObjectURL(rec.url)); } catch (e) {}
         delete voiceRecorderStates[windowId];
     }
@@ -2597,23 +2647,22 @@ function performWindowCleanup(windowId) {
 
     const winRef = document.getElementById(windowId);
     if (winRef) {
-        // Cleanup Music Player
-        if (winRef.querySelector('audio')) {
-            const audio = winRef.querySelector('audio');
-            try { audio.pause(); } catch (e) { /* defensive */ }
-            if (audio.src && audio.src.startsWith('blob:')) {
-                URL.revokeObjectURL(audio.src);
-            }
-        }
-
-        // Cleanup Video Player
-        if (winRef.querySelector('video')) {
-            const video = winRef.querySelector('video');
-            try { video.pause(); } catch (e) { /* defensive */ }
-            if (video.src && video.src.startsWith('blob:')) {
-                URL.revokeObjectURL(video.src);
-            }
-        }
+        // BUG 31 (round 6): previously only the FIRST <audio>/<video>
+        // element on the page was paused/revoked via querySelector. A window
+        // that hosts several media elements (e.g. Notification sounds + Music
+        // Player in the same window, or a video with <source> children)
+        // leaked the rest. querySelectorAll walks every node, including any
+        // <source> tags inside <video>/<audio> (whose src Blob URLs aren't
+        // visible from the parent element's `.src`).
+        const mediaEls = winRef.querySelectorAll('audio, video, source');
+        mediaEls.forEach(el => {
+            try {
+                if (typeof el.pause === 'function') el.pause();
+            } catch (e) {}
+            try {
+                if (el.src && el.src.startsWith('blob:')) URL.revokeObjectURL(el.src);
+            } catch (e) {}
+        });
     }
 
     // Revoke any tracked media blob URLs for this window even if the audio/
@@ -2673,6 +2722,7 @@ function scheduleNotification(title, message, time, icon = '🔔') {
     scheduledNotifications.push({ id, title, message, time, icon });
     saveScheduledNotifications();
     updateScheduleBadge();
+    rescheduleNotificationPoll(); // BUG 29 (round 6): make sure the timer fires in time for this one
     return id;
 }
 
@@ -2712,10 +2762,50 @@ function cancelScheduledNotification(id) {
     scheduledNotifications = scheduledNotifications.filter(n => n.id !== id);
     saveScheduledNotifications();
     updateScheduleBadge();
+    rescheduleNotificationPoll();
 }
 
-// Check for due notifications every 30 seconds
-setInterval(checkScheduledNotifications, 30000);
+// BUG 29 (round 6): instead of a 30 s permanent timer running forever (which
+// hits mobile battery / CPU baseline even when there are zero scheduled
+// notifications), keep a lazy timer that:
+//   - ticks the next time a notification is DUE (whichever is sooner: the
+//     notification's own time, or a 5 min safety net), then stops itself,
+//   - restarts whenever a new notification is scheduled,
+//   - restarts whenever one fires (in case more are queued).
+// Net effect: 1 timer; near-zero work when nothing's scheduled; wakes up
+// only when there's something to check.
+let _notificationPollTimer = null;
+function rescheduleNotificationPoll() {
+    if (_notificationPollTimer) {
+        clearTimeout(_notificationPollTimer);
+        _notificationPollTimer = null;
+    }
+    const now = Date.now();
+    const validTime = (n) => typeof n === 'object' && n && Number.isFinite(n.time);
+    const upcoming = scheduledNotifications
+        .filter(n => validTime(n) && n.time > now)
+        .map(n => n.time)
+        .sort((a, b) => a - b);
+    if (upcoming.length === 0) {
+        // Nothing scheduled — no timer needed at all. The next scheduling
+        // call (or page-load, which calls this once) will start one.
+        return;
+    }
+    const next = upcoming[0];
+    const delay = Math.max(0, Math.min(next - now, 5 * 60 * 1000)); // cap at 5 min
+    _notificationPollTimer = setTimeout(() => {
+        _notificationPollTimer = null;
+        checkScheduledNotifications();
+        // checkScheduledNotifications() filtered out the consumed one, so
+        // we reschedule again to catch the next one.
+        rescheduleNotificationPoll();
+    }, delay);
+}
+
+// Replace the round-4 `setInterval(..., 30000)` with the lazy timer above.
+rescheduleNotificationPoll();
+// Fire one immediate check so any pre-existing-due notifications get shown
+// before the first lazy timer fires.
 checkScheduledNotifications();
 
 function focusWindow(windowId) {
@@ -3123,16 +3213,28 @@ function updateStickyNote(id, content) {
 }
 
 function deleteStickyNote(noteId) {
+    if (!stickyNotes[noteId]) return; // already gone
     if (confirm('Delete this sticky note?')) {
-        delete stickyNotes[noteId];
-        saveStickyNotesToStorage();
-
+        // BUG 23 (round 6): first close the window(s) so the user can't open
+        // a new sticky note with the same id BEFORE we delete from storage.
+        // The old order (delete from storage → closeWindow(animation~250ms))
+        // gave the user 250ms during which the storage reflected "no note"
+        // but the on-screen window was still live and re-createable.
+        // New order: close windows first (which itself does storage work),
+        // then defensively remove from storage. closeWindow performs the same
+        // storage clean-up via updateStickyNotePosition etc., but a defensive
+        // final removal is the actual source-of-truth purge.
         const windows = document.querySelectorAll('.window');
         windows.forEach(win => {
             if (win.dataset.noteId === noteId) {
                 closeWindow(win.id);
             }
         });
+        // Final cleanup AFTER windows have started closing (they may still
+        // be animating); at this point re-creating a sticky note with the
+        // same id won't be possible because the windows are on their way out.
+        delete stickyNotes[noteId];
+        saveStickyNotesToStorage();
     }
 }
 
@@ -5467,6 +5569,29 @@ function handleMemoryClick(windowId, index) {
 // `audio.src` / `video.src` have been reset by a re-render.
 const mediaBlobUrls = {};
 
+// BUG 32 (round 6): centralized single-source-of-truth blob URL setter.
+// Previously each handle*File function had a 2-branch `if (audio.src) ... else
+// if (mediaBlobUrls[windowId].audio) ...` which had a race: if the user
+// changed tracks fast (or the audio element had a non-blob src, e.g. a
+// permanent URL or an empty src), only one branch fired and the old Blob URL
+// leaked. Worse, the order was "set src on element" → "write mediaBlobUrls"
+// which meant a re-entrant call (e.g. the FileReader reschedules an
+// immediate call) could see the stale mediaBlobUrls[windowId].audio value
+// AND the new src on the element, double-writing.
+//
+// This helper makes the bookkeeping atomic: revoke the previous tracked URL
+// (if any), write the new one to mediaBlobUrls, and let the caller assign it
+// to the element. After this returns, the caller MUST complete `el.src = url`
+// without any await in between.
+function setTrackedMediaUrl(windowId, kind, url) {
+    if (!mediaBlobUrls[windowId]) mediaBlobUrls[windowId] = {};
+    const prev = mediaBlobUrls[windowId][kind];
+    if (prev && typeof prev === 'string' && prev.startsWith('blob:')) {
+        try { URL.revokeObjectURL(prev); } catch (e) {}
+    }
+    mediaBlobUrls[windowId][kind] = url;
+}
+
 function handleMusicFile(windowId) {
     const input = document.getElementById(`music-input-${windowId}`);
     const audio = document.getElementById(`music-audio-${windowId}`);
@@ -5476,14 +5601,9 @@ function handleMusicFile(windowId) {
         const file = input.files[0];
         const url = URL.createObjectURL(file);
 
-        // Revoke previous URL if exists to avoid memory leaks
-        if (audio.src && audio.src.startsWith('blob:')) {
-            URL.revokeObjectURL(audio.src);
-        } else if (mediaBlobUrls[windowId] && mediaBlobUrls[windowId].audio) {
-            URL.revokeObjectURL(mediaBlobUrls[windowId].audio);
-        }
-        mediaBlobUrls[windowId] = mediaBlobUrls[windowId] || {};
-        mediaBlobUrls[windowId].audio = url;
+        // BUG 32 (round 6): use single-source-of-truth setter that revokes
+        // the old URL atomically before we assign the new one to the element.
+        setTrackedMediaUrl(windowId, 'audio', url);
 
         audio.src = url;
         trackName.textContent = file.name;
@@ -5501,14 +5621,8 @@ function handleVideoFile(windowId) {
         const file = input.files[0];
         const url = URL.createObjectURL(file);
 
-        // Revoke previous URL if exists
-        if (video.src && video.src.startsWith('blob:')) {
-            URL.revokeObjectURL(video.src);
-        } else if (mediaBlobUrls[windowId] && mediaBlobUrls[windowId].video) {
-            URL.revokeObjectURL(mediaBlobUrls[windowId].video);
-        }
-        mediaBlobUrls[windowId] = mediaBlobUrls[windowId] || {};
-        mediaBlobUrls[windowId].video = url;
+        // BUG 32 (round 6): same single-source-of-truth setter for video.
+        setTrackedMediaUrl(windowId, 'video', url);
 
         video.src = url;
         videoName.textContent = file.name;
@@ -5585,7 +5699,14 @@ function initTetris(windowId) {
     }
 
     if (tetrisGames[windowId]) {
-        cancelAnimationFrame(tetrisGames[windowId].requestId);
+        const prev = tetrisGames[windowId];
+        if (prev.requestId != null) {
+            try { cancelAnimationFrame(prev.requestId); } catch (e) {}
+        }
+        // Cancel any additional RAFs still in the queue from a prior session
+        if (Array.isArray(prev._pendingRaf)) {
+            prev._pendingRaf.forEach(id => { try { cancelAnimationFrame(id); } catch (e) {} });
+        }
     }
 
     const COLS = 12;
@@ -5810,7 +5931,9 @@ function initTetris(windowId) {
         }
 
         draw();
-        tetrisGames[windowId].requestId = requestAnimationFrame(update);
+        const nextRaf = requestAnimationFrame(update);
+        tetrisGames[windowId].requestId = nextRaf;
+        (tetrisGames[windowId]._pendingRaf || (tetrisGames[windowId]._pendingRaf = [])).push(nextRaf);
     }
 
     if (win) {
@@ -5879,6 +6002,18 @@ function initClock(windowId) {
                 })()
             }
         };
+    }
+
+    // BUG 19 (round 6): defensively clear any pre-existing clock interval
+    // on the same windowId. The old code unconditionally reassigned
+    // clockStates[windowId].clockInterval via `setInterval(...)`, which
+    // leaked the previous interval reference and produced a double-update
+    // of the clock tab (visible as flickering). This happens when the same
+    // windowId is reused — e.g. via restoreWindowStates() then openApp('clock')
+    // without an intervening closeWindow.
+    if (clockStates[windowId].clockInterval) {
+        try { clearInterval(clockStates[windowId].clockInterval); } catch (e) {}
+        clockStates[windowId].clockInterval = null;
     }
 
     // Populate World Clock Select
@@ -6802,8 +6937,25 @@ function initPong(windowId) {
         win.focus();
     }
 
+    // BUG 21 (round 6): cancel ANY outstanding RAFs before re-init. The old
+    // code only cancelled `pongGames[windowId].requestId` (the most-recent
+    // one). Older RAFs that were queued but not yet fired (from the previous
+    // Pong session's animation loop closure) would still execute after we
+    // reassign pongGames[windowId], causing ghost ticks that interact with
+    // the new game state. Walk a known set of request IDs we own for this
+    // windowId; cancel all of them.
     if (pongGames[windowId]) {
-        cancelAnimationFrame(pongGames[windowId].requestId);
+        const prev = pongGames[windowId];
+        // Each pongGames[windowId] keeps a List of requestIds in `_pendingRaf`,
+        // plus the latest one in `requestId`. Cancel both.
+        if (Array.isArray(prev._pendingRaf)) {
+            prev._pendingRaf.forEach(id => {
+                try { cancelAnimationFrame(id); } catch (e) {}
+            });
+        }
+        if (prev.requestId != null) {
+            try { cancelAnimationFrame(prev.requestId); } catch (e) {}
+        }
     }
 
     const paddleWidth = 10;
@@ -6902,7 +7054,12 @@ function initPong(windowId) {
         }
 
         draw();
-        game.requestId = requestAnimationFrame(update);
+        const nextRaf = requestAnimationFrame(update);
+        game.requestId = nextRaf;
+        // BUG 21 (round 6): track every RAF id we own for this Pong window so
+        // that, on re-init OR cleanup, we can cancel ALL pending ones, not
+        // just the most recent.
+        (game._pendingRaf || (game._pendingRaf = [])).push(nextRaf);
     }
 
     function updateScore() {

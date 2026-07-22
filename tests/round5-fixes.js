@@ -246,7 +246,7 @@ section('BUG 11 — VoiceRecorder cleanup is defensive');
 
 test('BUG 11a: cleanup wraps stopRecording in try/catch', () => {
   // Grep the cleanup path for the try/catch around stopRecording
-  const cleanupSnippet = scriptSrc.match(/voiceRecorderStates\[windowId\][\s\S]{0,1800}?delete voiceRecorderStates\[windowId\];/);
+  const cleanupSnippet = scriptSrc.match(/voiceRecorderStates\[windowId\][\s\S]{0,4000}?delete voiceRecorderStates\[windowId\];/);
   assert(cleanupSnippet, 'voiceRecorderStates cleanup block not found');
   assert(/try\s*\{\s*stopRecording\(windowId\)/.test(cleanupSnippet[0]),
     'stopRecording is not wrapped in try/catch in performWindowCleanup');
@@ -255,7 +255,7 @@ test('BUG 11a: cleanup wraps stopRecording in try/catch', () => {
 });
 
 test('BUG 11b: cleanup defensively clears timerInterval', () => {
-  const cleanupSnippet = scriptSrc.match(/voiceRecorderStates\[windowId\][\s\S]{0,1800}?delete voiceRecorderStates\[windowId\];/);
+  const cleanupSnippet = scriptSrc.match(/voiceRecorderStates\[windowId\][\s\S]{0,4000}?delete voiceRecorderStates\[windowId\];/);
   assert(cleanupSnippet, 'voiceRecorderStates cleanup block not found');
   assert(/state\.timerInterval/.test(cleanupSnippet[0]),
     'cleanup should reference state.timerInterval defensively');
