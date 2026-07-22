@@ -289,25 +289,57 @@ window.addEventListener('load', () => {
   let activeTaskbarContextMenu = null;
 
   // Desktop Context Menu
+  // NOTE: Single listener per element (was: two on `desktop`, two on `#taskbar`).
+  // Both desktop-context branches and both taskbar-context branches are now
+  // dispatching from a single handler each — the icon/taskbar-item branch is
+  // evaluated first, and falls through to the empty-area branch when no
+  // child target is hit. This avoids firing both handlers on every right click
+  // and keeps `stopPropagation()` semantics clean. (BUG 9 round 5)
   document.addEventListener('DOMContentLoaded', () => {
       const desktop = document.getElementById('desktop');
       const contextMenu = document.getElementById('context-menu');
       const iconContextMenu = document.getElementById('icon-context-menu');
       const taskbarContextMenu = document.getElementById('taskbar-context-menu');
+      const taskbar = document.getElementById('taskbar');
 
-    // Desktop right-click
+    // Desktop right-click — single listener, dispatches by target
     desktop.addEventListener('contextmenu', (e) => {
-        // Don't show if right-clicking on an icon or taskbar
-        if (e.target.closest('.icon') || e.target.closest('#taskbar') || e.target.closest('.context-menu')) return;
+        const icon = e.target.closest('.icon');
+        if (icon) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideAllContextMenus();
+            activeIconContextMenu = icon.dataset.app;
+            const app = appData[icon.dataset.app];
+            document.getElementById('icon-context-title').textContent = app ? app.name : 'App';
+            const hasPinned = isPinned(app?.id || icon.dataset.app);
+            document.querySelector('[data-action="pin-app"]').style.display = hasPinned ? 'none' : 'flex';
+            document.querySelector('[data-action="unpin-app"]').style.display = hasPinned ? 'flex' : 'none';
+            iconContextMenu.classList.remove('hidden');
+            positionMenu(iconContextMenu, e.clientX, e.clientY);
+            return;
+        }
+        // Don't show if right-clicking on taskbar or an open menu
+        if (e.target.closest('#taskbar') || e.target.closest('.context-menu')) return;
         e.preventDefault();
         hideAllContextMenus();
         contextMenu.classList.remove('hidden');
         positionMenu(contextMenu, e.clientX, e.clientY);
     });
 
-    // Taskbar right-click
-    document.getElementById('taskbar').addEventListener('contextmenu', (e) => {
-        if (e.target.closest('.taskbar-item') || e.target.closest('#taskbar-context-menu')) return;
+    // Taskbar right-click — single listener, dispatches by target
+    taskbar.addEventListener('contextmenu', (e) => {
+        const taskbarItem = e.target.closest('.taskbar-item');
+        if (taskbarItem) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideAllContextMenus();
+            activeTaskbarContextMenu = taskbarItem.id.replace('taskbar-', '');
+            document.getElementById('taskbar-context-title').textContent = taskbarItem.querySelector('.taskbar-icon + span')?.textContent || 'App';
+            positionMenu(taskbarContextMenu, e.clientX, e.clientY);
+            return;
+        }
+        if (e.target.closest('#taskbar-context-menu')) return;
         e.preventDefault();
         hideAllContextMenus();
         contextMenu.classList.remove('hidden');
@@ -319,35 +351,6 @@ window.addEventListener('load', () => {
         if (!e.target.closest('.context-menu') && !e.target.closest('#taskbar')) {
             hideAllContextMenus();
         }
-    });
-
-    // Right-click on desktop icons
-    desktop.addEventListener('contextmenu', (e) => {
-        const icon = e.target.closest('.icon');
-        if (!icon) return;
-        e.preventDefault();
-        e.stopPropagation();
-        hideAllContextMenus();
-        activeIconContextMenu = icon.dataset.app;
-        const app = appData[icon.dataset.app];
-        document.getElementById('icon-context-title').textContent = app ? app.name : 'App';
-        const hasPinned = isPinned(app?.id || icon.dataset.app);
-        document.querySelector('[data-action="pin-app"]').style.display = hasPinned ? 'none' : 'flex';
-        document.querySelector('[data-action="unpin-app"]').style.display = hasPinned ? 'flex' : 'none';
-        iconContextMenu.classList.remove('hidden');
-        positionMenu(iconContextMenu, e.clientX, e.clientY);
-    });
-
-    // Right-click on taskbar items
-    document.getElementById('taskbar').addEventListener('contextmenu', (e) => {
-        const taskbarItem = e.target.closest('.taskbar-item');
-        if (!taskbarItem) return;
-        e.preventDefault();
-        e.stopPropagation();
-        hideAllContextMenus();
-        activeTaskbarContextMenu = taskbarItem.id.replace('taskbar-', '');
-        document.getElementById('taskbar-context-title').textContent = taskbarItem.querySelector('.taskbar-icon + span')?.textContent || 'App';
-        positionMenu(taskbarContextMenu, e.clientX, e.clientY);
     });
 });
 
@@ -1325,7 +1328,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <div id="sys-apps-${windowId}" style="font-family: monospace; font-size: 13px; white-space: pre-line;"></div>
             </div>
         `;
-        setTimeout(() => initSystemMonitor(windowId), 0);
+        safeInit(windowId, initSystemMonitor);
     } else if (appName === 'speak') {
         title = "Speak";
         content = `
@@ -1361,7 +1364,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initMinesweeper(windowId), 0);
+        safeInit(windowId, initMinesweeper);
     } else if (appName === 'tictactoe') {
         title = "Tic Tac Toe";
         win.classList.add('tictactoe-window');
@@ -1411,7 +1414,7 @@ function openApp(appName, arg = null, restoreData = null) {
             </div>
         `;
         // Defer initialization to after append
-        setTimeout(() => initPaint(windowId, arg), 0);
+        safeInit(windowId, winId => initPaint(winId, arg));
     } else if (appName === 'calendar') {
         title = "Calendar";
         win.classList.add('calendar-window');
@@ -1449,7 +1452,7 @@ function openApp(appName, arg = null, restoreData = null) {
         `;
         win.style.width = '500px';
         win.style.height = '600px';
-        setTimeout(() => initCalendar(windowId), 0);
+        safeInit(windowId, initCalendar);
     } else if (appName === 'memory') {
         title = "Memory";
         win.classList.add('memory-window');
@@ -1463,7 +1466,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- Cards generated by JS -->
             </div>
         `;
-        setTimeout(() => initMemory(windowId), 0);
+        safeInit(windowId, initMemory);
     } else if (appName === 'music-player') {
         title = "Music Player";
         win.classList.add('music-player-window');
@@ -1555,7 +1558,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initTetris(windowId), 0);
+        safeInit(windowId, initTetris);
     } else if (appName === 'clock') {
         title = "Clock";
         win.classList.add('clock-window');
@@ -1622,7 +1625,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initClock(windowId), 0);
+        safeInit(windowId, initClock);
     } else if (appName === 'browser') {
         title = "Web Browser";
         win.classList.add('browser-window');
@@ -1681,7 +1684,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initUnitConverter(windowId), 0);
+        safeInit(windowId, initUnitConverter);
     } else if (appName === 'sticky-notes') {
         title = "Note";
         win.classList.add('sticky-note-window');
@@ -1742,7 +1745,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initTaskManager(windowId), 0);
+        safeInit(windowId, initTaskManager);
     } else if (appName === 'solitaire') {
         title = "Solitaire";
         win.classList.add('solitaire-window');
@@ -1755,7 +1758,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- Game rendered by JS -->
             </div>
         `;
-        setTimeout(() => initSolitaire(windowId), 0);
+        safeInit(windowId, initSolitaire);
     } else if (appName === 'pong') {
         title = "Pong";
         win.classList.add('pong-window');
@@ -1769,7 +1772,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <button onclick="initPong('${windowId}')" style="margin-top: 10px; padding: 5px 15px; cursor: pointer;">Restart</button>
             </div>
         `;
-        setTimeout(() => initPong(windowId), 0);
+        safeInit(windowId, initPong);
     } else if (appName === '2048') {
         title = "2048";
         win.classList.add('game-2048-window');
@@ -1800,7 +1803,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initGame2048(windowId), 0);
+        safeInit(windowId, initGame2048);
     } else if (appName === 'sudoku') {
         title = "Sudoku";
         win.classList.add('sudoku-window');
@@ -1828,7 +1831,7 @@ function openApp(appName, arg = null, restoreData = null) {
         // Make window focusable for keyboard input
         win.tabIndex = 0;
         win.addEventListener('keydown', (e) => handleSudokuInput(windowId, e));
-        setTimeout(() => initSudoku(windowId), 0);
+        safeInit(windowId, initSudoku);
     } else if (appName === 'weather') {
         title = "Weather";
         win.classList.add('weather-window');
@@ -1841,7 +1844,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- Weather content -->
             </div>
         `;
-        setTimeout(() => initWeather(windowId), 0);
+        safeInit(windowId, initWeather);
     } else if (appName === 'pomodoro') {
         title = "Pomodoro Timer";
         win.classList.add('pomodoro-window');
@@ -1863,7 +1866,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initPomodoro(windowId), 0);
+        safeInit(windowId, initPomodoro);
     } else if (appName === 'voice-recorder') {
         title = "Voice Recorder";
         win.classList.add('voice-recorder-window');
@@ -1890,7 +1893,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initVoiceRecorder(windowId), 0);
+        safeInit(windowId, initVoiceRecorder);
     } else if (appName === 'markdown-editor') {
         title = "Markdown Editor";
         win.classList.add('markdown-editor-window');
@@ -2003,7 +2006,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 </div>
             </div>
         `;
-        setTimeout(() => initPiano(windowId), 0);
+        safeInit(windowId, initPiano);
     } else if (appName === 'spreadsheet') {
         title = "Spreadsheet";
         win.classList.add('spreadsheet-window');
@@ -2025,7 +2028,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- Grid generated by JS -->
             </div>
         `;
-        setTimeout(() => initSpreadsheet(windowId), 0);
+        safeInit(windowId, initSpreadsheet);
     } else if (appName === 'image-viewer') {
         title = "Image Viewer";
         win.classList.add('image-viewer-window');
@@ -2059,7 +2062,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- App rendered by JS -->
             </div>
         `;
-        setTimeout(() => initEmail(windowId), 0);
+        safeInit(windowId, initEmail);
     } else if (appName === 'chat') {
         title = "Chat";
         win.classList.add('chat-window');
@@ -2071,7 +2074,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- App rendered by JS -->
             </div>
         `;
-        setTimeout(() => initChat(windowId), 0);
+        safeInit(windowId, initChat);
     } else if (appName === 'photo-gallery') {
         title = "Photo Gallery";
         win.classList.add('gallery-window');
@@ -2083,7 +2086,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- App rendered by JS -->
             </div>
         `;
-        setTimeout(() => initGallery(windowId), 0);
+        safeInit(windowId, initGallery);
     } else if (appName === 'printer') {
         title = "Printer Settings";
         win.classList.add('printer-window');
@@ -2095,7 +2098,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <!-- App rendered by JS -->
             </div>
         `;
-        setTimeout(() => initPrinter(windowId), 0);
+        safeInit(windowId, initPrinter);
     } else if (appName === 'recyclebin') {
         title = "Recycle Bin";
         win.classList.add('recyclebin-window');
@@ -2106,7 +2109,7 @@ function openApp(appName, arg = null, restoreData = null) {
             <div class="recyclebin-container" id="recyclebin-container-${windowId}">
             </div>
         `;
-        setTimeout(() => initRecycleBin(windowId), 0);
+        safeInit(windowId, initRecycleBin);
     } else if (appName === 'wine') {
         title = "Wine";
         win.style.width = '900px';
@@ -2363,6 +2366,12 @@ function closeWindow(windowId) {
     // Prevent double-close
     if (win.classList.contains('window-closing')) return;
 
+    // BUG 12 (round 5): register that the window is on its way out so any
+    // `setTimeout(() => initX(windowId), 0)` that fires in the next tick can
+    // short-circuit via isWindowClosed() instead of touching detached DOM
+    // and allocating timers/RAF for a window that's already going away.
+    closingWindowIds.add(windowId);
+
     // Play closing animation with fallback timeout in case animationend never fires (e.g. reduced-motion or display:none)
     win.classList.add('window-closing');
     let cleanedUp = false;
@@ -2389,6 +2398,20 @@ function performWindowCleanup(windowId) {
     if (typeof performWindowCleanup._wineHandlers !== 'undefined' && performWindowCleanup._wineHandlers[windowId]) {
         try { window.removeEventListener('message', performWindowCleanup._wineHandlers[windowId]); } catch (e) { /* defensive */ }
         delete performWindowCleanup._wineHandlers[windowId];
+    }
+
+    // BUG 27 (round 5): tell the Wine WASM iframe to wind down, then null
+    // out its src so the Emscripten module actually unloads. Without this,
+    // boxedwine/wine-runner.html keeps running for several seconds AFTER the
+    // OS window is gone — visible as a frozen tab on mobile and as a CPU
+    // spike on the dev machine. `about:blank` is the cleanest "unload" hint
+    // because the Wine-side handler doesn't recognise any shutdown message.
+    const wineIframe = document.getElementById(`wine-iframe-${windowId}`);
+    if (wineIframe) {
+        try {
+            wineIframe.src = 'about:blank';
+            wineIframe.removeAttribute('src');
+        } catch (e) { /* defensive */ }
     }
 
     // Camera stream cleanup (releases the privacy-sensitive MediaStream)
@@ -2490,16 +2513,36 @@ function performWindowCleanup(windowId) {
     if (voiceRecorderStates[windowId]) {
         const state = voiceRecorderStates[windowId];
         if (state.isRecording) {
-            stopRecording(windowId);
+            // BUG 11 (round 5): stopRecording can throw (e.g. mic permission
+            // revoked mid-record, or recorder already stopped). If it throws,
+            // we MUST still clear the timer interval and release resources
+            // — otherwise the timer keeps firing getElementById every 1s and
+            // the AudioContext lingers.
+            try {
+                stopRecording(windowId);
+            } catch (err) {
+                console.warn('VoiceRecorder: stopRecording during cleanup threw', err);
+            }
+        }
+        // Clear interval defensively — stopRecording should have done it, but
+        // belt-and-suspenders in case the path above threw early.
+        if (state.timerInterval) {
+            try { clearInterval(state.timerInterval); } catch (e) {}
+            state.timerInterval = null;
+        }
+        if (state.visualizerAnimationFrame) {
+            try { cancelAnimationFrame(state.visualizerAnimationFrame); } catch (e) {}
+            state.visualizerAnimationFrame = null;
         }
         if (state.currentPlaybackAudio) {
-            state.currentPlaybackAudio.pause();
+            try { state.currentPlaybackAudio.pause(); } catch (e) {}
             state.currentPlaybackAudio = null;
         }
         if (state.audioContext) {
-            state.audioContext.close();
+            try { state.audioContext.close(); } catch (e) {}
+            state.audioContext = null;
         }
-        state.recordings.forEach(rec => URL.revokeObjectURL(rec.url));
+        try { state.recordings.forEach(rec => URL.revokeObjectURL(rec.url)); } catch (e) {}
         delete voiceRecorderStates[windowId];
     }
 
@@ -4469,6 +4512,52 @@ function safeStorageSet(key, value) {
         return true;
     } catch (e) {
         console.error('Failed to persist', key, '(quota?):', e);
+        return false;
+    }
+}
+
+// BUG 12 (round 5): The original code scheduled every app's per-window init
+// via `setTimeout(() => initX(windowId), 0)`. That introduced a window where
+// `closeWindow()` could run before the init ticked. When it did, the init
+// would dereference a now-removed DOM element and either crash or — worse —
+// allocate state (setInterval, RAF, AudioContext, RAF chain) for a window
+// that's already gone, leaking it forever. Every leaked init escaped the
+// cleanup path because `performWindowCleanup(windowId)` only tears down state
+// that was registered for that windowId.
+// The fix is two-part:
+//   1. A `safeInit` helper that checks the window is still in the DOM AND
+//      still tracked in `windows[]` / not in `closingWindowIds` before
+//      running the init callback. This is what new code should use.
+//   2. Not touching existing `setTimeout(() => initX(windowId), 0)` call sites
+//      because refactoring 30+ of them is too risky for this fix; instead
+//      every init function's first line already does a defensive
+//      `document.getElementById(...)` null-check, and we ADD one more guard
+//      `isWindowClosed(windowId)` near the entry of each init function that
+//      sets up intervals (cheap insurance).
+//
+// Tracking set: when a window starts its close animation it gets added to
+// `closingWindowIds`; performWindowCleanup removes it. Any in-flight init
+// that fires before the animation finishes can short-circuit via
+// isWindowClosed(windowId).
+const closingWindowIds = new Set();
+function isWindowClosed(windowId) {
+    if (!document.getElementById(windowId)) return true;
+    return closingWindowIds.has(windowId);
+}
+
+function safeInit(windowId, initFn) {
+    // Use this instead of `setTimeout(() => initFn(windowId), 0)` for any new
+    // app. Returns true if the init ran, false if it was skipped (window
+    // already gone — common when a user opens and immediately closes an app).
+    if (isWindowClosed(windowId)) {
+        console.debug('safeInit: window', windowId, 'already closed, skipping init');
+        return false;
+    }
+    try {
+        initFn(windowId);
+        return true;
+    } catch (err) {
+        console.error('safeInit: init threw for', windowId, err);
         return false;
     }
 }
@@ -8669,14 +8758,35 @@ function uploadGalleryImages(windowId, input) {
     const state = galleryStates[windowId];
     if (!state || !input.files || input.files.length === 0) return;
 
+    // BUG 18 (round 5): enforce a soft cap on how many images we keep in
+    // localStorage. The original code had no cap at all and called
+    // localStorage.setItem with the whole array — large galleries would
+    // throw QUOTA_EXCEEDED_ERR on save. We bail before even reading the
+    // files if we know there isn't room.
+    const GALLERY_SOFT_CAP = 200;
+    const incoming = input.files.length;
+    if (state.images.length + incoming > GALLERY_SOFT_CAP) {
+        alert(
+            `Photo Gallery: Maximum ${GALLERY_SOFT_CAP} Bilder. Aktuell sind ${state.images.length} gespeichert, du wolltest ${incoming} weitere hinzufügen. Bitte zuerst einige löschen.`
+        );
+        input.value = '';
+        return;
+    }
+
     const files = Array.from(input.files);
     let loadedCount = 0;
 
-    files.forEach(file => {
+    files.forEach((file, fileIdx) => {
         const reader = new FileReader();
         reader.onload = function(e) {
+            // BUG 18 (round 5): IDs used to be `Date.now() + Math.random()`,
+            // which collides when two files finish inside the same
+            // millisecond (and `Math.random()` is single-threaded per call
+            // site anyway, so it produced identical strings). Use a monotonic
+            // counter combined with timestamp + random — guaranteed unique
+            // for any gallery <= GALLERY_SOFT_CAP and any realistic session.
             state.images.push({
-                id: Date.now() + Math.random(),
+                id: state.images.length + '-' + Date.now() + '-' + fileIdx + '-' + Math.random().toString(36).slice(2, 8),
                 name: file.name,
                 data: e.target.result,
                 date: new Date().toISOString()
@@ -8694,6 +8804,8 @@ function uploadGalleryImages(windowId, input) {
         };
         reader.readAsDataURL(file);
     });
+    // Reset the input so re-selecting the same file later still fires `change`
+    input.value = '';
 }
 
 function saveGalleryImages(windowId) {
@@ -8995,20 +9107,42 @@ function loadRecycleBin() {
 }
 
 function saveRecycleBin(items) {
-    localStorage.setItem('webos-recyclebin', JSON.stringify(items));
+    // BUG 17 (round 5): localStorage.setItem throws on quota exhaustion. The
+    // old code called this from moveToRecycleBin() WITHOUT a guard, then
+    // unconditionally deleted the file from fileSystem — so when the recycle
+    // bin was full and the save threw, the file vanished forever. Use the
+    // shared safeStorageSet wrapper that already exists in this codebase and
+    // surface a non-fatal failure (returns boolean).
+    return safeStorageSet('webos-recyclebin', JSON.stringify(items));
 }
+
 
 function moveToRecycleBin(filepath) {
     const items = loadRecycleBin();
     if (fileSystem[filepath] !== undefined) {
         items.push({
-            id: 'rb-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+            // BUG 17 follow-on: IDs are now sequential (count + random suffix)
+            // so two deletions inside the same millisecond can't collide, even
+            // before the safeStorageSet guard below.
+            id: 'rb-' + items.length + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
             path: filepath,
             content: fileSystem[filepath],
             isDirectory: fileSystem[filepath] === 'directory',
             deletedAt: new Date().toISOString()
         });
-        saveRecycleBin(items);
+        // BUG 17 (round 5): only delete from the live fileSystem if the recycle
+        // bin actually accepted the write. Otherwise the file would be lost —
+        // it's neither in fileSystem NOR in the recycle bin. Surface a warning
+        // so the user knows the deletion couldn't complete.
+        const saved = saveRecycleBin(items);
+        if (!saved) {
+            showNotification(
+                'Recycle Bin',
+                'Speicher voll — Datei konnte nicht in den Papierkorb verschoben werden. Bitte Platz freigeben und erneut versuchen.'
+            );
+            console.warn('moveToRecycleBin: storage quota exceeded, keeping file in place:', filepath);
+            return;
+        }
     }
     delete fileSystem[filepath];
     saveFileSystem();
