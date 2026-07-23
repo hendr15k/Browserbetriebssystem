@@ -5933,7 +5933,7 @@ function initTetris(windowId) {
         draw();
         const nextRaf = requestAnimationFrame(update);
         tetrisGames[windowId].requestId = nextRaf;
-        (tetrisGames[windowId]._pendingRaf || (tetrisGames[windowId]._pendingRaf = [])).push(nextRaf);
+        tetrisGames[windowId]._pendingRaf = [nextRaf];
     }
 
     if (win) {
