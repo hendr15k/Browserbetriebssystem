@@ -1,0 +1,12 @@
+{
+  "name": "high-contrast",
+  "variables": {
+    "--bg-color": "#000000",
+    "--text-color": "#ffffff",
+    "--taskbar-bg": "#000000",
+    "--taskbar-text": "#ffff00",
+    "--window-bg": "#000000",
+    "--window-border": "#ffffff",
+    "--accent-color": "#ffff00"
+  }
+}

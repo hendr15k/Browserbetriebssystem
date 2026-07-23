@@ -1,6 +1,8 @@
 // js/core/window-manager.js
 import { EventBus } from './event-bus.js';
 
+const eventBus = new EventBus();
+
 export class WindowManager {
     constructor() {
         this.windows = new Map();
@@ -58,7 +60,7 @@ export class WindowManager {
         this.setupWindowEvents(winObj);
         this.focusWindow(id);
 
-        EventBus.emit('window:created', { id, title });
+        eventBus.emit('window:created', { id, title });
         return winObj;
     }
 
@@ -114,6 +116,11 @@ export class WindowManager {
 
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
+
+        winObj._cleanup = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
     }
 
     focusWindow(id) {
@@ -127,15 +134,16 @@ export class WindowManager {
                 win.element.classList.remove('active');
             }
         });
-        EventBus.emit('window:focused', { id });
+        eventBus.emit('window:focused', { id });
     }
 
     closeWindow(id) {
         const win = this.windows.get(id);
         if (!win) return;
+        if (typeof win._cleanup === 'function') win._cleanup();
         win.element.remove();
         this.windows.delete(id);
-        EventBus.emit('window:closed', { id });
+        eventBus.emit('window:closed', { id });
     }
 
     toggleMaximize(id) {
@@ -171,7 +179,7 @@ export class WindowManager {
         if (!win) return;
         win.element.style.display = 'none';
         win.isMinimized = true;
-        EventBus.emit('window:minimized', { id });
+        eventBus.emit('window:minimized', { id });
     }
 }
 

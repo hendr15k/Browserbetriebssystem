@@ -1,5 +1,26 @@
 :root {
     --theme-color: #0078d7;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-full: 50%;
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 20px;
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --taskbar-bg: #1e1e1e;
+    --taskbar-text: #ffffff;
+    --window-bg: #242424;
+    --window-border: #333333;
+    --accent-color: #007acc;
 }
 
 body {

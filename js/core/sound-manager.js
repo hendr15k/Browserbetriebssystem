@@ -5,14 +5,23 @@
 class SoundManager {
     constructor() {
         this.enabled = true;
+        this._ctx = null;
+    }
+
+    _getContext() {
+        if (!this._ctx || this._ctx.state === 'closed') {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return null;
+            this._ctx = new AudioCtx();
+        }
+        return this._ctx;
     }
 
     playTone(frequency = 440, duration = 100, type = 'sine') {
         if (!this.enabled || typeof window === 'undefined') return;
         try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            const ctx = new AudioCtx();
+            const ctx = this._getContext();
+            if (!ctx) return;
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = type;
@@ -24,7 +33,6 @@ class SoundManager {
             osc.start();
             osc.stop(ctx.currentTime + duration / 1000);
         } catch (e) {
-            // Audio context not allowed or supported
         }
     }
 
