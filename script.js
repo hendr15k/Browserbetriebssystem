@@ -364,6 +364,16 @@ window.addEventListener('load', () => {
 });
 
 function positionMenu(menu, x, y) {
+    // Touch/phone: context menus act as a bottom action sheet (CSS enforces
+    // it too, but setting it here keeps menus correct across breakpoints).
+    if (isMobileViewport()) {
+        menu.style.left = '8px';
+        menu.style.right = '8px';
+        menu.style.top = 'auto';
+        menu.style.bottom = '8px';
+        menu.style.display = 'block';
+        return;
+    }
     const rect = menu.getBoundingClientRect();
     const winW = window.innerWidth;
     const winH = window.innerHeight;
@@ -384,6 +394,90 @@ function hideAllContextMenus() {
         m.style.display = 'none';
     });
 }
+
+// Long-press opens context menus on touch devices (there is no right click).
+// A quick tap still performs the normal action (open app / toggle window);
+// the synthesized click after a long press is suppressed.
+const longPressState = { timer: null, target: null, startX: 0, startY: 0, fired: false };
+
+function cancelLongPress() {
+    if (longPressState.timer) {
+        clearTimeout(longPressState.timer);
+        longPressState.timer = null;
+    }
+    longPressState.target = null;
+}
+
+function showIconContextMenuFor(icon, x, y) {
+    const iconContextMenu = document.getElementById('icon-context-menu');
+    if (!iconContextMenu) return;
+    hideAllContextMenus();
+    activeIconContextMenu = icon.dataset.app;
+    const app = appData[icon.dataset.app];
+    document.getElementById('icon-context-title').textContent = app ? app.name : 'App';
+    const hasPinned = isPinned(app?.id || icon.dataset.app);
+    document.querySelector('[data-action="pin-app"]').style.display = hasPinned ? 'none' : 'flex';
+    document.querySelector('[data-action="unpin-app"]').style.display = hasPinned ? 'flex' : 'none';
+    iconContextMenu.classList.remove('hidden');
+    positionMenu(iconContextMenu, x, y);
+}
+
+function showTaskbarContextMenuFor(taskbarItem, x, y) {
+    const taskbarContextMenu = document.getElementById('taskbar-context-menu');
+    if (!taskbarContextMenu) return;
+    hideAllContextMenus();
+    activeTaskbarContextMenu = taskbarItem.id.replace('taskbar-', '');
+    document.getElementById('taskbar-context-title').textContent =
+        taskbarItem.querySelector('.taskbar-icon + span')?.textContent || 'App';
+    positionMenu(taskbarContextMenu, x, y);
+}
+
+function initTouchLongPress() {
+    document.addEventListener('touchstart', (e) => {
+        cancelLongPress();
+        longPressState.fired = false;
+        if (e.touches.length !== 1) return;
+        const target = e.target.closest ? e.target.closest('.icon, .taskbar-item') : null;
+        if (!target) return;
+        longPressState.target = target;
+        const pt = getPointer(e);
+        longPressState.startX = pt.x;
+        longPressState.startY = pt.y;
+        longPressState.timer = setTimeout(() => {
+            longPressState.timer = null;
+            longPressState.fired = true;
+            if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) { /* unsupported */ } }
+            if (target.classList.contains('taskbar-item')) {
+                showTaskbarContextMenuFor(target, longPressState.startX, longPressState.startY);
+            } else {
+                showIconContextMenuFor(target, longPressState.startX, longPressState.startY);
+            }
+        }, 550);
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!longPressState.timer) return;
+        const pt = getPointer(e);
+        if (Math.abs(pt.x - longPressState.startX) > 10 || Math.abs(pt.y - longPressState.startY) > 10) {
+            cancelLongPress();
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        cancelLongPress();
+        if (longPressState.fired) {
+            longPressState.fired = false;
+            e.preventDefault(); // suppress the synthesized click (would open/toggle)
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchcancel', () => {
+        cancelLongPress();
+        longPressState.fired = false;
+    }, { passive: true });
+}
+
+document.addEventListener('DOMContentLoaded', initTouchLongPress);
 
 function handleContextMenuAction(action) {
     hideAllContextMenus();
@@ -873,19 +967,26 @@ function toggleStartMenu() {
     const menu = document.getElementById('start-menu');
     const btn = document.getElementById('start-button');
     const searchInput = document.getElementById('start-search');
+    const backdrop = document.getElementById('start-menu-backdrop');
 
     if (menu.style.display === 'none' || menu.style.display === '') {
         menu.style.display = 'block';
         btn.classList.add('active');
+        if (backdrop) backdrop.classList.add('visible');
         renderStartApps(currentCategory);
         if (searchInput) {
             searchInput.value = '';
             filterStartMenu('');
-            setTimeout(() => searchInput.focus(), 50);
+            // Auto-focusing the search field on touch devices would pop the
+            // on-screen keyboard over the freshly opened sheet — skip it there.
+            if (!isCoarsePointer()) {
+                setTimeout(() => searchInput.focus(), 50);
+            }
         }
     } else {
         menu.style.display = 'none';
         btn.classList.remove('active');
+        if (backdrop) backdrop.classList.remove('visible');
     }
 }
 
@@ -1091,9 +1192,8 @@ function openApp(appName, arg = null, restoreData = null) {
 
     const win = document.createElement('div');
     win.className = 'window';
+    const mobile = isMobileViewport();
     if (restoreData && restoreData.restoredMaximized) {
-        win.classList.add('maximized');
-    } else if (window.innerWidth <= 768) {
         win.classList.add('maximized');
     }
     win.id = windowId;
@@ -1110,6 +1210,11 @@ function openApp(appName, arg = null, restoreData = null) {
         if (restoreData.width) win.style.width = restoreData.width;
         if (restoreData.height) win.style.height = restoreData.height;
         if (restoreData.restoredDisplay) win.style.display = restoreData.restoredDisplay;
+    } else if (mobile) {
+        // Phones: windows fill the screen; CSS handles the geometry, so no
+        // inline position is set (keeps restore-from-session sane).
+        win.style.left = '0px';
+        win.style.top = '0px';
     } else {
         // Randomize position slightly
         const offsetPos = (windowCount || 0) * 20;
@@ -2847,6 +2952,14 @@ function getPointer(e) {
     return { x: e.clientX, y: e.clientY };
 }
 
+function isMobileViewport() {
+    return window.innerWidth <= 768;
+}
+
+function isCoarsePointer() {
+    return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+}
+
 function ensureSnapPreview() {
     if (snapPreview) return snapPreview;
     snapPreview = document.createElement('div');
@@ -2946,6 +3059,63 @@ function hideSnapPreview() {
     if (snapPreview) snapPreview.style.display = 'none';
 }
 
+// When the viewport crosses the mobile breakpoint (phone rotation, browser
+// resize), re-fit open windows: on phones they fill the screen (CSS handles
+// geometry once inline positions are cleared), on desktop they get a sane
+// cascaded position instead of hanging off-screen.
+window.addEventListener('resize', (() => {
+    let wasMobile = null;
+    let raf = 0;
+    return () => {
+        const mobile = isMobileViewport();
+        if (wasMobile === null) { wasMobile = mobile; return; }
+        if (mobile === wasMobile) return;
+        wasMobile = mobile;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+            document.querySelectorAll('.window').forEach((win, i) => {
+                if (win.style.display === 'none') return;
+                win.classList.remove('snapped-left', 'snapped-right');
+                delete win.dataset.snapZone;
+                if (mobile) {
+                    win.style.left = '0px';
+                    win.style.top = '0px';
+                    win.style.width = '';
+                    win.style.height = '';
+                    win.style.transform = '';
+                } else {
+                    win.style.left = `${50 + (i * 30) % 200}px`;
+                    win.style.top = `${50 + (i * 30) % 200}px`;
+                    win.style.width = '';
+                    win.style.height = '';
+                }
+            });
+            hideAllContextMenus();
+            hideSnapPreview();
+        });
+    };
+})());
+
+let dragStartPt = null;
+let mobileGestureHint = null;
+let mobileGestureArmed = null;
+
+function showMobileGestureHint(text, edge) {
+    if (!mobileGestureHint) {
+        mobileGestureHint = document.createElement('div');
+        mobileGestureHint.className = 'window-gesture-hint';
+        document.body.appendChild(mobileGestureHint);
+    }
+    mobileGestureHint.textContent = text;
+    mobileGestureHint.style[edge === 'top' ? 'top' : 'bottom'] = '12px';
+    mobileGestureHint.style[edge === 'top' ? 'bottom' : 'top'] = 'auto';
+    mobileGestureHint.style.display = 'block';
+}
+
+function hideMobileGestureHint() {
+    if (mobileGestureHint) mobileGestureHint.style.display = 'none';
+}
+
 function startDrag(e, windowId) {
     if (e.target.closest('.window-button')) return;
     if (e.cancelable) e.preventDefault();
@@ -2959,6 +3129,8 @@ function startDrag(e, windowId) {
 
     const rect = currentWindow.getBoundingClientRect();
     const pt = getPointer(e);
+    dragStartPt = { x: pt.x, y: pt.y };
+    mobileGestureArmed = isMobileViewport() ? 'none' : null;
     offset.x = pt.x - rect.left;
     offset.y = pt.y - rect.top;
 
@@ -3000,6 +3172,29 @@ function drag(e) {
     wasDragging = true;
     if (e.cancelable) e.preventDefault();
     const pt = getPointer(e);
+
+    // Mobile: windows are full-screen, so the title-bar gesture pulls the
+    // window down (swipe down = minimize) instead of free dragging.
+    if (mobileGestureArmed !== null) {
+        const dx = pt.x - dragStartPt.x;
+        const dy = pt.y - dragStartPt.y;
+        if (mobileGestureArmed === 'none') {
+            if (Math.abs(dy) > 12 && Math.abs(dy) >= Math.abs(dx)) {
+                mobileGestureArmed = dy > 0 ? 'down' : 'cancel';
+            } else if (Math.abs(dx) > 12) {
+                mobileGestureArmed = 'cancel';
+            }
+        }
+        if (mobileGestureArmed === 'down') {
+            const pull = Math.max(0, Math.min(dy, 180));
+            currentWindow.style.transition = 'none';
+            currentWindow.style.transform = `translateY(${pull}px)`;
+            if (dy > 90) showMobileGestureHint('Loslassen zum Minimieren', 'bottom');
+            else hideMobileGestureHint();
+        }
+        return;
+    }
+
     const x = pt.x - offset.x;
     const y = pt.y - offset.y;
 
@@ -3015,25 +3210,44 @@ function drag(e) {
 }
 
 function stopDrag() {
+    let minimizeAfterGesture = false;
     if (currentWindow) {
-        if (currentWindow.dataset.noteId) {
-            updateStickyNotePosition(currentWindow.dataset.noteId, currentWindow.style.left, currentWindow.style.top);
-        }
-        // Apply snap on release
-        if (activeSnapZone) {
-            applySnap(currentWindow.id, activeSnapZone);
+        if (mobileGestureArmed !== null) {
+            if (mobileGestureArmed === 'down') {
+                const rect = currentWindow.getBoundingClientRect();
+                if (rect.top > 90) minimizeAfterGesture = true;
+            }
+            currentWindow.style.transition = 'transform 0.2s ease';
+            currentWindow.style.transform = '';
+            const winRef = currentWindow;
+            setTimeout(() => { winRef.style.transition = ''; }, 220);
+            hideMobileGestureHint();
+        } else {
+            if (currentWindow.dataset.noteId) {
+                updateStickyNotePosition(currentWindow.dataset.noteId, currentWindow.style.left, currentWindow.style.top);
+            }
+            // Apply snap on release
+            if (activeSnapZone) {
+                applySnap(currentWindow.id, activeSnapZone);
+            }
         }
     }
+    const gestureWindowId = currentWindow ? currentWindow.id : null;
     hideSnapPreview();
     isDragging = false;
     wasDragging = false;
     currentWindow = null;
     activeSnapZone = null;
+    dragStartPt = null;
+    mobileGestureArmed = null;
     document.removeEventListener('mousemove', drag);
     document.removeEventListener('mouseup', stopDrag);
     document.removeEventListener('touchmove', drag);
     document.removeEventListener('touchend', stopDrag);
     document.removeEventListener('touchcancel', stopDrag);
+    if (minimizeAfterGesture && gestureWindowId) {
+        minimizeWindow(gestureWindowId);
+    }
 }
 
 // ===================== WINDOW MANAGEMENT HELPERS =====================
@@ -3096,6 +3310,7 @@ document.addEventListener('keydown', (e) => {
         if (startMenu && startMenu.style.display === 'block') {
             startMenu.style.display = 'none';
             document.getElementById('start-button')?.classList.remove('active');
+            document.getElementById('start-menu-backdrop')?.classList.remove('visible');
         }
         hideAllContextMenus();
         const powerMenu = document.getElementById('power-menu');
