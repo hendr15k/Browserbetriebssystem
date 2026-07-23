@@ -1,0 +1,12 @@
+{
+  "name": "light",
+  "variables": {
+    "--bg-color": "#f0f2f5",
+    "--text-color": "#212529",
+    "--taskbar-bg": "#ffffff",
+    "--taskbar-text": "#212529",
+    "--window-bg": "#ffffff",
+    "--window-border": "#ced4da",
+    "--accent-color": "#0078d7"
+  }
+}

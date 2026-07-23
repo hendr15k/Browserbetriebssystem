@@ -1,0 +1,12 @@
+{
+  "name": "solarized",
+  "variables": {
+    "--bg-color": "#fdf6e3",
+    "--text-color": "#657b83",
+    "--taskbar-bg": "#eee8d5",
+    "--taskbar-text": "#586e75",
+    "--window-bg": "#eee8d5",
+    "--window-border": "#93a1a1",
+    "--accent-color": "#2aa198"
+  }
+}

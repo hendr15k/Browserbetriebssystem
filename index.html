@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,7 +23,7 @@
         <div id="desktop-icons"></div>
     </div>
 
-    <div id="start-menu">
+    <div id="start-menu" role="dialog" aria-label="Start Menu">
         <div class="start-menu-inner">
             <div class="start-sidebar">
                 <div class="start-profile">
@@ -82,8 +82,8 @@
         </div>
     </div>
 
-    <div id="taskbar">
-        <button id="start-button" onclick="toggleStartMenu()">Start</button>
+    <div id="taskbar" role="region" aria-label="Taskbar">
+        <button id="start-button" aria-haspopup="true" aria-expanded="false" aria-label="Start Menu" onclick="toggleStartMenu()">Start</button>
         <div id="pinned-apps"></div>
         <div id="taskbar-apps"></div>
         <div id="clock-tooltip">
@@ -91,7 +91,7 @@
             <div class="clock-tooltip-date" id="clock-tooltip-date">Montag, 1. Januar 2026</div>
             <div class="clock-tooltip-day" id="clock-tooltip-day">KW 1</div>
         </div>
-        <button id="power-button" onclick="togglePowerMenu()" title="Power">⏻</button>
+        <button id="power-button" aria-label="Power options" onclick="togglePowerMenu()" title="Power">⏻</button>
         <div id="power-menu">
             <button onclick="lockSystem()">🔒 Sperren</button>
             <button onclick="restartSystem()">🔄 Neustarten</button>
@@ -193,6 +193,11 @@
     <script src="js/core/vfs.js"></script>
     <script src="js/core/plugin-loader.js"></script>
     <script src="js/core/ai-copilot.js"></script>
+    <script src="js/core/ai-code-gen.js"></script>
+    <script src="js/core/voice-input.js"></script>
+    <script src="js/core/ai-reasoning.js"></script>
+    <script src="js/core/ai-memory.js"></script>
+    <script src="js/core/ai-skills.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

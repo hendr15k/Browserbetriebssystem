@@ -753,8 +753,10 @@ const ICON_DRAG_THRESHOLD = 5;
 let iconDownPoint = null;
 let iconDragArmed = false;
 
+let iconDragSafetyTimeout = null;
+
 function startDragIcon(e, icon) {
-    if (e.button !== undefined && e.button !== 0) return; // only primary button
+    if (e.button !== undefined && e.button !== 0) return;
     currentDragIcon = icon;
     const pt = getPointer(e);
     iconDownPoint = { x: pt.x, y: pt.y };
@@ -766,6 +768,9 @@ function startDragIcon(e, icon) {
     document.addEventListener('touchmove', dragIcon, { passive: false });
     document.addEventListener('touchend', stopDragIcon);
     document.addEventListener('touchcancel', stopDragIcon);
+
+    clearTimeout(iconDragSafetyTimeout);
+    iconDragSafetyTimeout = setTimeout(stopDragIcon, 10000);
 }
 
 function dragIcon(e) {
@@ -804,14 +809,8 @@ function dragIcon(e) {
 }
 
 function stopDragIcon() {
-    if (!iconDragArmed && !currentDragIcon) {
-        document.removeEventListener('mousemove', dragIcon);
-        document.removeEventListener('mouseup', stopDragIcon);
-        document.removeEventListener('touchmove', dragIcon);
-        document.removeEventListener('touchend', stopDragIcon);
-        document.removeEventListener('touchcancel', stopDragIcon);
-        return;
-    }
+    clearTimeout(iconDragSafetyTimeout);
+    iconDragSafetyTimeout = null;
     if (isDraggingIcon && currentDragIcon) {
         const savedPositions = safeJsonParse('desktopIconPositions', {});
         const positions = (savedPositions && typeof savedPositions === 'object' && !Array.isArray(savedPositions)) ? savedPositions : {};
@@ -2606,6 +2605,13 @@ function performWindowCleanup(windowId) {
 
     // Cleanup Piano state and AudioContext
     if (typeof pianoStates !== 'undefined' && pianoStates[windowId]) {
+        if (pianoStates[windowId].oscillators) {
+            Object.values(pianoStates[windowId].oscillators).forEach(function(entry) {
+                try { entry.osc.stop(); } catch (e) { /* defensive */ }
+                try { entry.osc.disconnect(); } catch (e) { /* defensive */ }
+                try { entry.gainNode.disconnect(); } catch (e) { /* defensive */ }
+            });
+        }
         if (pianoStates[windowId].audioContext) {
             try { pianoStates[windowId].audioContext.close(); } catch (e) { /* defensive */ }
         }
@@ -2826,6 +2832,7 @@ function focusWindow(windowId) {
 
 // Dragging Logic
 let isDragging = false;
+let wasDragging = false;
 let currentWindow = null;
 let offset = { x: 0, y: 0 };
 
@@ -2990,6 +2997,7 @@ function startDrag(e, windowId) {
 
 function drag(e) {
     if (!isDragging || !currentWindow) return;
+    wasDragging = true;
     if (e.cancelable) e.preventDefault();
     const pt = getPointer(e);
     const x = pt.x - offset.x;
@@ -3018,6 +3026,7 @@ function stopDrag() {
     }
     hideSnapPreview();
     isDragging = false;
+    wasDragging = false;
     currentWindow = null;
     activeSnapZone = null;
     document.removeEventListener('mousemove', drag);
@@ -4422,6 +4431,7 @@ function startSnake(windowId) {
 
 
     function draw() {
+        if (!snakeGames[windowId]) return;
         // Move Snake
         const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
@@ -4536,6 +4546,7 @@ function minimizeWindow(windowId) {
 
 // Resize Logic
 let isResizing = false;
+let wasResizing = false;
 let currentResizeWindow = null;
 let resizeDir = '';
 let resizeOffset = { x: 0, y: 0 };
@@ -4576,6 +4587,7 @@ function startResize(e, windowId, direction) {
 
 function resize(e) {
     if (!isResizing || !currentResizeWindow) return;
+    wasResizing = true;
     if (e.cancelable) e.preventDefault();
     const pt = getPointer(e);
     const dx = pt.x - resizeOffset.x;
@@ -4594,6 +4606,7 @@ function stopResize() {
         updateStickyNoteSize(currentResizeWindow.dataset.noteId, currentResizeWindow.style.width, currentResizeWindow.style.height);
     }
     isResizing = false;
+    wasResizing = false;
     currentResizeWindow = null;
     document.removeEventListener('mousemove', resize);
     document.removeEventListener('mouseup', stopResize);
@@ -4773,10 +4786,12 @@ function restoreWindowStates() {
 // Auto-save window states on window close and interactions
 // (closeWindow is modified in-place; openApp already handles save via mouseup)
 document.addEventListener('mouseup', () => {
-    if ((typeof isDragging !== 'undefined' && isDragging) || (typeof isResizing !== 'undefined' && isResizing)) {
+    if (wasDragging || wasResizing) {
         clearTimeout(window._saveWindowStateTimer);
         window._saveWindowStateTimer = setTimeout(saveWindowStates, 200);
     }
+    wasDragging = false;
+    wasResizing = false;
 });
 
 // Also save state when minimize/restore happens
