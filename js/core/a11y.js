@@ -178,6 +178,8 @@ class A11yManager {
                 const startMenu = document.getElementById('start-menu');
                 if (startMenu && startMenu.style.display === 'block') {
                     startMenu.style.display = 'none';
+                    const backdrop = document.getElementById('start-menu-backdrop');
+                    if (backdrop) backdrop.classList.remove('visible');
                     const startBtn = document.getElementById('start-button');
                     if (startBtn) startBtn.focus();
                     e.preventDefault();

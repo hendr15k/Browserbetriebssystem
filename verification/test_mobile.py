@@ -19,7 +19,7 @@ def test_mobile_view(page: Page):
     # Wait for desktop to load
     page.wait_for_selector("#desktop")
 
-    # Open Calculator (it should maximize automatically)
+    # Open Calculator (on phones it fills the screen via mobile CSS rules)
     page.evaluate("openApp('calculator')")
 
     # Wait for window to appear
