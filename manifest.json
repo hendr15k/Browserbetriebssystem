@@ -4,8 +4,8 @@
     "short_name": "WebOS",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#1e1e1e",
-    "theme_color": "#007acc",
+    "background_color": "#070a12",
+    "theme_color": "#070a12",
     "icons": [
         {
             "src": "favicon.ico",

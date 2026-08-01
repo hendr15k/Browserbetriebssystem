@@ -3025,7 +3025,7 @@ function applySnap(windowId, zone) {
     if (!win) return;
 
     const vw = window.innerWidth;
-    const taskbarH = 40;
+    const taskbarH = 48;
     const vh = window.innerHeight - taskbarH;
 
     if (!win.dataset.snapPrevLeft) {
@@ -3074,7 +3074,7 @@ function clearSnapZone(win) {
 function showSnapPreview(zone) {
     const preview = ensureSnapPreview();
     const vw = window.innerWidth;
-    const taskbarH = 40;
+    const taskbarH = 48;
     const vh = window.innerHeight - taskbarH;
     preview.style.display = 'block';
     if (zone === 'top') {

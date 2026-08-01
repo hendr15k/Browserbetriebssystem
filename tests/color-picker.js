@@ -184,4 +184,4 @@ test('setColorField is idempotent with missing elements (no throw)', () => {
 
 // ---------- Summary ----------
 console.log(`\nColor Picker tests: ${passed} passed, ${failed} failed.`);
-if (failed > 0) process.exit(1);
+process.exit(failed ? 1 : 0);
