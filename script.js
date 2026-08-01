@@ -2,7 +2,7 @@ const appCategories = {
     system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock', 'wine', 'calculator', 'printer', 'recyclebin'],
     productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
     games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
-    creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery'],
+    creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery', 'color-picker'],
     internet: ['browser', 'weather', 'chat']
 };
 
@@ -75,7 +75,8 @@ const appData = {
     'photo-gallery': { name: 'Photo Gallery', icon: '🖼️', bg: '#9b59b6', color: 'white' },
     printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' },
     wine: { name: 'Wine', icon: '🍷', bg: '#8b0000', color: 'white' },
-    recyclebin: { name: 'Recycle Bin', icon: '🗑️', bg: '#16a085', color: 'white' }
+    recyclebin: { name: 'Recycle Bin', icon: '🗑️', bg: '#16a085', color: 'white' },
+    'color-picker': { name: 'Color Picker', icon: '🎨', bg: '#8e44ad', color: 'white' }
 };
 
 let currentCategory = 'all';
@@ -2237,6 +2238,47 @@ function openApp(appName, arg = null, restoreData = null) {
                 </iframe>
             </div>
         `;
+    } else if (appName === 'color-picker') {
+        title = "Color Picker";
+        win.classList.add('color-picker-window');
+        win.style.width = '360px';
+        win.style.height = '520px';
+        content = `
+            <div class="colorpicker-container" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+                <div class="cp-canvas-row" style="display: flex; gap: 12px; align-items: flex-start;">
+                    <canvas id="cp-spectrum-${windowId}" width="240" height="220"
+                        style="border: 1px solid #ccc; border-radius: 6px; cursor: crosshair;"></canvas>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div id="cp-preview-${windowId}" style="width: 64px; height: 64px; border-radius: 8px; border: 1px solid #ccc; background: #000;"></div>
+                        <input type="color" id="cp-color-input-${windowId}" value="#000000" style="width: 64px; height: 32px; border: none; padding: 0; cursor: pointer;">
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction: column; gap: 6px; font-family: monospace; font-size: 13px;">
+                    <div class="cp-field" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="width: 30px; font-weight: bold;">HEX</label>
+                        <input id="cp-hex-${windowId}" value="#000000" readonly style="flex:1; padding:4px; font-family:monospace; background:#f5f5f5; border:1px solid #ccc; border-radius:4px;">
+                        <button onclick="copyColorValue('${windowId}','cp-hex')" title="Copy">📋</button>
+                    </div>
+                    <div class="cp-field" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="width: 30px; font-weight: bold;">RGB</label>
+                        <input id="cp-rgb-${windowId}" value="rgb(0, 0, 0)" readonly style="flex:1; padding:4px; font-family:monospace; background:#f5f5f5; border:1px solid #ccc; border-radius:4px;">
+                        <button onclick="copyColorValue('${windowId}','cp-rgb')" title="Copy">📋</button>
+                    </div>
+                    <div class="cp-field" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="width: 30px; font-weight: bold;">HSL</label>
+                        <input id="cp-hsl-${windowId}" value="hsl(0, 0%, 0%)" readonly style="flex:1; padding:4px; font-family:monospace; background:#f5f5f5; border:1px solid #ccc; border-radius:4px;">
+                        <button onclick="copyColorValue('${windowId}','cp-hsl')" title="Copy">📋</button>
+                    </div>
+                </div>
+                <div class="cp-presets" style="display:flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+                    ${['#E74C3C','#E67E22','#F1C40F','#2ECC71','#3498DB','#9B59B6','#34495E','#000000','#FFFFFF','#95A5A6'].map(c =>
+                        `<button onclick="setColorPickerFromHex('${windowId}','${c}')"
+                            style="width:28px;height:28px;border-radius:6px;border:1px solid #ccc;background:${c};cursor:pointer;"
+                            title="${c}"></button>`).join('')}
+                </div>
+            </div>
+        `;
+        safeInit(windowId, initColorPicker);
     }
 
     win.innerHTML = `
@@ -6690,6 +6732,107 @@ function convertUnits(windowId) {
 
     // Format output
     outputInput.value = parseFloat(result.toFixed(4));
+}
+
+// ---------- Color Picker ----------
+function initColorPicker(windowId) {
+    const canvas = document.getElementById(`cp-spectrum-${windowId}`);
+    if (!canvas) return;
+    drawColorPickerSpectrum(canvas);
+
+    const pick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.max(0, Math.min(canvas.width - 1, Math.round(e.clientX - rect.left)));
+        const y = Math.max(0, Math.min(canvas.height - 1, Math.round(e.clientY - rect.top)));
+        const ctx = canvas.getContext('2d');
+        const data = ctx.getImageData(x, y, 1, 1).data;
+        applyColorPickerColor(windowId, data[0], data[1], data[2]);
+    };
+    const move = (e) => { if (e.buttons === 1) pick(e); };
+
+    canvas.addEventListener('mousedown', pick);
+    canvas.addEventListener('mousemove', move);
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); pick(e.touches[0]); }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); pick(e.touches[0]); }, { passive: false });
+
+    const colorInput = document.getElementById(`cp-color-input-${windowId}`);
+    if (colorInput) {
+        colorInput.addEventListener('input', () => {
+            const hex = colorInput.value;
+            applyColorPickerColor(windowId, parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16));
+        });
+    }
+}
+
+function drawColorPickerSpectrum(canvas) {
+    const ctx = canvas.getContext('2d');
+    const hue = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    for (let i = 0; i <= 6; i++) {
+        hue.addColorStop(i / 6, `hsl(${i * 60}, 100%, 50%)`);
+    }
+    ctx.fillStyle = hue;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const sat = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    sat.addColorStop(0, 'rgba(255,255,255,1)');
+    sat.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = sat;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function applyColorPickerColor(windowId, r, g, b) {
+    const hex = rgbToHex(r, g, b);
+    const preview = document.getElementById(`cp-preview-${windowId}`);
+    const colorInput = document.getElementById(`cp-color-input-${windowId}`);
+    if (preview) preview.style.background = hex;
+    if (colorInput) colorInput.value = hex;
+    setColorField(windowId, 'cp-hex', hex);
+    setColorField(windowId, 'cp-rgb', `rgb(${r}, ${g}, ${b})`);
+    const hsl = rgbToHsl(r, g, b);
+    setColorField(windowId, 'cp-hsl', `hsl(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%)`);
+}
+
+function setColorPickerFromHex(windowId, hex) {
+    applyColorPickerColor(windowId, parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16));
+}
+
+function setColorField(windowId, id, value) {
+    const el = document.getElementById(`${id}-${windowId}`);
+    if (el) el.value = value;
+}
+
+function copyColorValue(windowId, id) {
+    const el = document.getElementById(`${id}-${windowId}`);
+    if (!el) return;
+    const text = el.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => showToast('Color Picker', 'Kopiert: ' + text));
+    } else {
+        el.select();
+        el.setSelectionRange(0, text.length);
+        try { document.execCommand('copy'); showToast('Color Picker', 'Kopiert: ' + text); } catch (e) { /* unsupported */ }
+    }
+}
+
+function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
 }
 
 // Solitaire Logic
