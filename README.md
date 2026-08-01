@@ -15,16 +15,16 @@ Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nö
 - **Tastatur-Shortcuts** — Alt+Tab (Fenster wechseln), Ctrl+Shift+D (Desktop anzeigen), Ctrl+Alt+W (Fokus-Fenster schließen), Ctrl+Alt+M (minimieren), Ctrl+Alt+X (maximieren), Esc (Menüs schließen)
 - **Touch-Support** — Fenster und Desktop-Icons per Touch verschieben/ändern (für Tablets)
 - **Virtuelles Dateisystem** — Dateien speichern, verwalten, durchsuchen
-- **42 integrierte Apps** — System, Produktivität, Spiele, Kreativ, Internet
+- **43 integrierte Apps** — System, Produktivität, Spiele, Kreativ, Internet
 
-## 📱 42 Apps in 5 Kategorien
+## 📱 43 Apps in 5 Kategorien
 
 | Kategorie | Apps | Beispiele |
 |-----------|------|-----------|
 | 🖥️ System (12) | terminal, file-explorer, task-manager, system-monitor, system-center, settings, about, clock, recycle-bin, calculator, printer, wine |
 | 💼 Produktivität (10) | notepad, code-editor, spreadsheet, markdown-editor, pdf-viewer, pomodoro, calendar, sticky-notes, email, unit-converter |
 | 🎮 Spiele (9) | snake, minesweeper, 2048, tetris, solitaire, sudoku, pong, memory, tictactoe |
-| 🎨 Kreativ & Medien (8) | paint, piano, voice-recorder, camera, music-player, video-player, speak, photo-gallery |
+| 🎨 Kreativ & Medien (9) | paint, piano, voice-recorder, camera, music-player, video-player, speak, photo-gallery, color-picker |
 | 📡 Internet & Daten (3) | browser, weather, chat |
 
 📄 **Vollständiges App-Verzeichnis:** Siehe [APPS.md](APPS.md)

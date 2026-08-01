@@ -95,10 +95,13 @@ Sudoku mit 3 Schwierigkeitsgraden, Eingabevalidierung, Notizzettel-Modus, Hinwei
 ### Memory
 Memory-Kartenspiel mit Paarfindung, Zug-Zähler, Score-Tracking, und Bestenliste.
 
-## 🎨 Kreativ & Medien (8)
+## 🎨 Kreativ & Medien (9)
 
 ### Paint
 Zeichenprogramm mit Pinsel, Radiergummi, Farbpalette, Pinselformen, Strichstärke, Canvas zurücksetzen, und Bildspeicherung.
+
+### Color Picker
+Farbwähler mit Spektrum-Canvas (HSV-Farbraum), Live-Vorschau, HEX/RGB/HSL-Ausgabe, Zwischenablage-Kopie, und vordefinierten Farbpaletten.
 
 ### Piano
 Virtuelles Klavier mit 2 Oktaven, Playable via Tastatur (A-L, W-U), MIDI-Support, Aufnahme/Wiedergabe, und Lautstärkeregler.

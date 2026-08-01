@@ -1666,6 +1666,17 @@ body {
     border-color: var(--theme-color);
 }
 
+/* Color Picker Styles */
+.color-picker-window .window-content {
+    background-color: #ffffff;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.cp-presets button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
 /* Sticky Notes Styles */
 .sticky-note-window {
     background-color: #fefeb3 !important;
