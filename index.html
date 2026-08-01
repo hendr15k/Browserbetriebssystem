@@ -24,7 +24,27 @@
     </script>
 </head>
 <body>
+    <!-- Boot sequence overlay — removed by bootSystem() in script.js -->
+    <div id="boot-screen" aria-hidden="true">
+        <div class="boot-inner">
+            <div class="boot-logo">
+                <span class="boot-logo-glyph">⊞</span>
+            </div>
+            <div class="boot-wordmark">Web<span>OS</span></div>
+            <div class="boot-log" aria-hidden="true">
+                <div class="boot-line"><span class="boot-ok">[ OK ]</span> kernel 6.1-webos loaded</div>
+                <div class="boot-line"><span class="boot-ok">[ OK ]</span> mounting /vfs … done</div>
+                <div class="boot-line"><span class="boot-ok">[ OK ]</span> starting compositor</div>
+                <div class="boot-line"><span class="boot-ok">[ OK ]</span> launching session</div>
+            </div>
+            <div class="boot-progress"><div class="boot-progress-fill"></div></div>
+        </div>
+    </div>
+
     <div id="desktop">
+        <!-- Ambient shooting stars -->
+        <div class="shooting-star" aria-hidden="true"></div>
+        <div class="shooting-star shooting-star--late" aria-hidden="true"></div>
         <!-- Desktop Icons - dynamically generated from appData -->
         <div id="desktop-icons"></div>
     </div>

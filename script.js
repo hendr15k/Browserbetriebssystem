@@ -279,6 +279,23 @@ function runStartupApps() {
 }
 
 // Load Settings
+// Remove the boot overlay once its CSS fade-out has finished. Defensive so it
+// never throws in environments without a real DOM (e.g. the Node test sandbox).
+function bootSystem() {
+    const boot = document.getElementById('boot-screen');
+    if (!boot) return;
+    const remove = () => boot.remove();
+    if (typeof boot.addEventListener === 'function') {
+        boot.addEventListener('animationend', (e) => {
+            if (e.animationName === 'bootFadeOut') remove();
+        }, { once: true });
+    }
+    // Fallback in case animationend never fires (reduced-motion, etc.)
+    setTimeout(remove, 2600);
+}
+
+document.addEventListener('DOMContentLoaded', bootSystem);
+
 window.addEventListener('load', () => {
     const savedBg = localStorage.getItem('desktopBackground');
     if (savedBg) {
@@ -756,6 +773,7 @@ function renderDesktopIcons() {
 
     const categoryOrder = ['system', 'productivity', 'games', 'creative', 'internet'];
     const added = new Set();
+    let iconIndex = 0;
 
     categoryOrder.forEach(cat => {
         const apps = appCategories[cat] || [];
@@ -769,6 +787,7 @@ function renderDesktopIcons() {
             const icon = document.createElement('div');
             icon.className = 'icon';
             icon.dataset.app = appId;
+            icon.style.animationDelay = `${Math.min(iconIndex++, 24) * 35}ms`;
             icon.onclick = (e) => {
                 createRipple(e, icon);
                 openApp(appId);
