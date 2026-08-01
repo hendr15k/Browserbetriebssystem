@@ -439,4 +439,4 @@ test('BUG 3: attachFileReaderErrorHandler is referenced everywhere a FileReader 
 // Done
 // =================================================================
 console.log(`\nRound 5 fixes: ${passed} passed, ${failed} failed`);
-process.exitCode = failed > 0 ? 1 : 0;
+process.exit(failed ? 1 : 0);

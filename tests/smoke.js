@@ -578,4 +578,4 @@ assert(Utils.escapeHtml('<div>') === '&lt;div&gt;', 'Utils escapeHtml should san
     assert(wsMgr.getActiveWorkspace().id === ws.id, 'WorkspaceManager switches workspace');
 
 console.log(`\nSmoke Tests Complete: ${passed} passed, ${failed} failed.`);
-if (failed > 0) process.exit(1);
+process.exit(failed ? 1 : 0);

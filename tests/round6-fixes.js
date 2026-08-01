@@ -387,4 +387,4 @@ test('Round 5 regression: safeInit + closingWindowIds still exist', () => {
 // Done
 // =================================================================
 console.log(`\nRound 6 fixes: ${passed} passed, ${failed} failed`);
-process.exitCode = failed > 0 ? 1 : 0;
+process.exit(failed ? 1 : 0);
