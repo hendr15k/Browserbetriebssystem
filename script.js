@@ -3359,7 +3359,210 @@ function altTabNext() {
     const currentIdx = focused ? altTabWindowList.indexOf(focused.id) : -1;
     const nextIdx = (currentIdx + 1) % altTabWindowList.length;
     const nextId = altTabWindowList[nextIdx];
-    if (nextId) focusWindow(nextId);
+    if (nextId) {
+        focusWindow(nextId);
+        renderTaskSwitcher(nextId);
+    }
+}
+
+// ===================== TASK SWITCHER (Alt+Tab overlay) =====================
+
+let taskSwitcherEl = null;
+
+function getTaskSwitcherEl() {
+    if (taskSwitcherEl) return taskSwitcherEl;
+    const el = document.createElement('div');
+    el.id = 'task-switcher';
+    el.setAttribute('aria-hidden', 'true');
+    const tiles = document.createElement('div');
+    tiles.className = 'task-switcher-tiles';
+    const label = document.createElement('div');
+    label.className = 'task-switcher-label';
+    el.appendChild(tiles);
+    el.appendChild(label);
+    document.body.appendChild(el);
+    taskSwitcherEl = el;
+    return el;
+}
+
+function renderTaskSwitcher(highlightId) {
+    const el = getTaskSwitcherEl();
+    const tiles = el.querySelector('.task-switcher-tiles');
+    const label = el.querySelector('.task-switcher-label');
+    const visible = getVisibleWindows();
+    visible.sort((a, b) => parseInt(b.style.zIndex || 0) - parseInt(a.style.zIndex || 0));
+    Array.from(tiles.children).forEach(c => tiles.removeChild(c));
+    visible.forEach(w => {
+        const app = appData[w.dataset.appName];
+        const tile = document.createElement('div');
+        tile.className = 'task-switcher-tile';
+        if (w.id === highlightId) tile.classList.add('selected');
+        const icon = document.createElement('div');
+        icon.className = 'task-switcher-tile-icon';
+        icon.textContent = app ? app.icon : '▣';
+        if (app && app.bg) icon.style.background = app.bg;
+        const name = document.createElement('div');
+        name.className = 'task-switcher-tile-name';
+        name.textContent = app ? app.name : (w.dataset.appName || 'Window');
+        tile.appendChild(icon);
+        tile.appendChild(name);
+        tiles.appendChild(tile);
+    });
+    const hl = visible.find(w => w.id === highlightId);
+    const hlApp = hl ? appData[hl.dataset.appName] : null;
+    label.textContent = hlApp ? hlApp.name : '';
+    el.classList.add('visible');
+}
+
+function hideTaskSwitcher() {
+    if (taskSwitcherEl) taskSwitcherEl.classList.remove('visible');
+}
+
+// ===================== COMMAND PALETTE (Ctrl+K) =====================
+
+let paletteCommands = null;
+let paletteResults = [];
+let paletteSelected = 0;
+
+function buildPaletteCommands() {
+    const cmds = [];
+    for (const id in appData) {
+        const app = appData[id];
+        cmds.push({
+            id: 'app:' + id,
+            title: app.name,
+            subtitle: 'App · ' + (appCategories[id] || 'System'),
+            icon: app.icon,
+            bg: app.bg,
+            color: app.color,
+            category: 'App',
+            keywords: id,
+            run: () => openApp(id)
+        });
+    }
+    cmds.push(
+        { id: 'sys:settings', title: 'Einstellungen', subtitle: 'Systemeinstellungen öffnen', icon: '⚙', category: 'System', keywords: 'settings einstellungen preferences', run: () => openApp('settings') },
+        { id: 'sys:terminal', title: 'Terminal', subtitle: 'Eingabeaufforderung', icon: '>_', category: 'System', keywords: 'shell cmd konsole', run: () => openApp('terminal') },
+        { id: 'sys:taskmgr', title: 'Task Manager', subtitle: 'Prozesse und Fenster', icon: '📊', category: 'System', keywords: 'task manager prozesse', run: () => openApp('task-manager') },
+        { id: 'sys:about', title: 'Über WebOS', subtitle: 'Systeminformationen', icon: '?', category: 'System', keywords: 'about info version', run: () => openApp('about') },
+        { id: 'sys:lock', title: 'Sperren', subtitle: 'Bildschirm sperren', icon: '🔒', category: 'Power', keywords: 'lock sperren', run: () => lockSystem() },
+        { id: 'sys:restart', title: 'Neustarten', subtitle: 'System neu starten', icon: '🔄', category: 'Power', keywords: 'restart reboot neustart', run: () => restartSystem() },
+        { id: 'sys:shutdown', title: 'Herunterfahren', subtitle: 'System ausschalten', icon: '⏻', category: 'Power', keywords: 'shutdown off aus', run: () => shutdownSystem() },
+        { id: 'sys:desktop', title: 'Desktop anzeigen', subtitle: 'Alle Fenster minimieren', icon: '▭', category: 'Power', keywords: 'show desktop windows', run: () => toggleDesktop() },
+        { id: 'sys:search', title: 'Hilfe & Suche', subtitle: 'Tastenkombinationen (F1)', icon: '?', category: 'System', keywords: 'help hilfe shortcuts', run: () => openApp('about') }
+    );
+    return cmds;
+}
+
+function fuzzyPaletteScore(query, target) {
+    const q = query.trim().toLowerCase();
+    const t = String(target).toLowerCase();
+    if (!q || !t) return 0;
+    if (t === q) return 1000;
+    if (t.startsWith(q)) return 600 - (t.length - q.length);
+    let score = 0, qi = 0;
+    for (let i = 0; i < t.length && qi < q.length; i++) {
+        if (t[i] === q[qi]) { score += (i === qi) ? 40 : 15; qi++; }
+    }
+    return qi === q.length ? score : 0;
+}
+
+function searchCommands(query) {
+    if (!paletteCommands) paletteCommands = buildPaletteCommands();
+    const q = (query || '').trim();
+    if (!q) return paletteCommands.slice(0, 8);
+    const scored = paletteCommands.map(cmd => {
+        let score = fuzzyPaletteScore(q, cmd.title);
+        score = Math.max(score, fuzzyPaletteScore(q, cmd.subtitle) * 0.8);
+        score = Math.max(score, fuzzyPaletteScore(q, cmd.keywords));
+        return { cmd, score };
+    }).filter(x => x.score > 0);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, 8).map(x => x.cmd);
+}
+
+function renderPalette(commandList) {
+    const resultsEl = document.getElementById('command-results');
+    const emptyEl = document.getElementById('command-empty');
+    if (!resultsEl) return;
+    paletteResults = commandList;
+    paletteSelected = 0;
+    resultsEl.innerHTML = '';
+    if (commandList.length === 0) {
+        emptyEl.classList.add('show');
+        return;
+    }
+    emptyEl.classList.remove('show');
+    commandList.forEach((cmd, idx) => {
+        const row = document.createElement('div');
+        row.className = 'command-result' + (idx === 0 ? ' selected' : '');
+        row.dataset.index = idx;
+        const icon = document.createElement('div');
+        icon.className = 'command-result-icon';
+        icon.textContent = cmd.icon;
+        if (cmd.bg) { icon.style.background = cmd.bg; icon.style.color = cmd.color || '#fff'; if (cmd.bg === 'white') icon.style.border = '1px solid #ccc'; }
+        const body = document.createElement('div');
+        body.className = 'command-result-body';
+        const title = document.createElement('div');
+        title.className = 'command-result-title';
+        title.textContent = cmd.title;
+        const subtitle = document.createElement('div');
+        subtitle.className = 'command-result-subtitle';
+        subtitle.textContent = cmd.subtitle;
+        body.appendChild(title);
+        body.appendChild(subtitle);
+        const cat = document.createElement('div');
+        cat.className = 'command-result-cat';
+        cat.textContent = cmd.category;
+        row.appendChild(icon);
+        row.appendChild(body);
+        row.appendChild(cat);
+        row.onclick = () => executePaletteCommand(idx);
+        row.onmousemove = () => setPaletteSelected(idx);
+        resultsEl.appendChild(row);
+    });
+    scrollSelectedIntoView();
+}
+
+function setPaletteSelected(idx) {
+    if (idx < 0 || idx >= paletteResults.length || idx === paletteSelected) return;
+    paletteSelected = idx;
+    const rows = document.querySelectorAll('.command-result');
+    if (!rows.length) return;
+    Array.from(rows).forEach(r => r.classList.remove('selected'));
+    const row = rows[idx];
+    if (row) row.classList.add('selected');
+    scrollSelectedIntoView();
+}
+
+function scrollSelectedIntoView() {
+    const rows = document.querySelectorAll('.command-result');
+    const row = rows[paletteSelected];
+    if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+function executePaletteCommand(idx) {
+    if (idx < 0 || idx >= paletteResults.length) return;
+    const cmd = paletteResults[idx];
+    togglePalette(false);
+    try { cmd.run(); } catch (e) { showToast('Fehler', e.message, '⚠️'); }
+}
+
+function togglePalette(force) {
+    const palette = document.getElementById('command-palette');
+    const input = document.getElementById('command-input');
+    if (!palette) return;
+    const open = force !== undefined ? force : palette.classList.contains('hidden');
+    if (open) {
+        palette.classList.remove('hidden');
+        if (input) {
+            input.value = '';
+            renderPalette(searchCommands(''));
+            setTimeout(() => input.focus(), 30);
+        }
+    } else {
+        palette.classList.add('hidden');
+    }
 }
 
 // ===================== GLOBAL KEYBOARD SHORTCUTS =====================
@@ -3377,8 +3580,35 @@ document.addEventListener('keydown', (e) => {
         const powerMenu = document.getElementById('power-menu');
         if (powerMenu && powerMenu.style.display === 'flex') powerMenu.style.display = 'none';
         hideSnapPreview();
+        hideTaskSwitcher();
+        togglePalette(false);
         altTabWindowList = null;
         return;
+    }
+
+    // Command palette: Ctrl+K (or Cmd+K)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        togglePalette();
+        return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const palette = document.getElementById('command-palette');
+        if (palette && !palette.classList.contains('hidden')) {
+            e.preventDefault();
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            if (paletteResults.length === 0) return;
+            setPaletteSelected((paletteSelected + delta + paletteResults.length) % paletteResults.length);
+            return;
+        }
+    }
+    if (e.key === 'Enter') {
+        const palette = document.getElementById('command-palette');
+        if (palette && !palette.classList.contains('hidden')) {
+            e.preventDefault();
+            executePaletteCommand(paletteSelected);
+            return;
+        }
     }
 
     // Alt+Tab (also Ctrl+Alt+Tab for reliability): cycle through open windows
@@ -3392,6 +3622,7 @@ document.addEventListener('keydown', (e) => {
     // Reset the Alt-Tab session when Alt is released
     if (e.key === 'Alt' && !e.altKey) {
         altTabWindowList = null;
+        hideTaskSwitcher();
     }
 
     // Keyboard Shortcuts Help Modal: Ctrl+Shift+H or F1
@@ -3434,11 +3665,24 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// End the Alt-Tab session on keyup of Alt/Tab
-document.addEventListener('keyup', (e) => {
-    if (e.key === 'Tab' && !e.altKey) altTabWindowList = null;
-});
-const fileSystem = {
+ // End the Alt-Tab session on keyup of Alt/Tab
+ document.addEventListener('keyup', (e) => {
+     if (e.key === 'Tab' && !e.altKey) {
+         altTabWindowList = null;
+         hideTaskSwitcher();
+     }
+ });
+
+ // Command palette: live search + backdrop click-to-close
+ document.addEventListener('input', (e) => {
+     if (e.target && e.target.id === 'command-input') {
+         renderPalette(searchCommands(e.target.value));
+     }
+ });
+ document.getElementById('command-palette')?.addEventListener('click', (e) => {
+     if (e.target.id === 'command-palette') togglePalette(false);
+ });
+ const fileSystem = {
     'readme.txt': 'Welcome to WebOS! This is a simple browser-based OS.',
     'todo.list': '- Buy milk\n- Walk the dog\n- Code more',
 };
@@ -4801,18 +5045,30 @@ function minimizeWindow(windowId) {
     const taskbarItem = document.getElementById(`taskbar-${windowId}`);
 
     if (win.style.display === 'none') {
-        // Restore
+        // Restore — clear the minimize reset so the open animation can run
+        win.style.animation = '';
         win.classList.remove('minimizing');
         win.style.display = 'flex';
+        win.classList.add('window-opening');
+        win.addEventListener('animationend', () => {
+            win.classList.remove('window-opening');
+        }, { once: true });
         focusWindow(windowId);
     } else {
-        // Minimize with animation
+        // Minimize with animation — shrink toward the taskbar item so the
+        // window visibly "lands" where it will live
+        if (taskbarItem) {
+            const tb = taskbarItem.getBoundingClientRect();
+            const wr = win.getBoundingClientRect();
+            win.style.transformOrigin = `${tb.left + tb.width / 2 - wr.left}px ${tb.top + tb.height / 2 - wr.top}px`;
+        }
         win.style.animation = 'none'; // Reset
         void win.offsetWidth; // Trigger reflow
         win.classList.add('minimizing');
         setTimeout(() => {
             win.style.display = 'none';
             win.classList.remove('minimizing');
+            win.style.transformOrigin = '';
         }, 250);
         if (taskbarItem) {
             taskbarItem.classList.remove('active');

@@ -147,6 +147,19 @@
 
     <div id="notification-area"></div>
 
+    <!-- Command Palette (Ctrl+K) -->
+    <div id="command-palette" class="hidden" role="dialog" aria-label="Command Palette">
+        <div class="command-pop">
+            <div class="command-input-wrap">
+                <span class="command-input-icon">⌘</span>
+                <input type="text" id="command-input" placeholder="Type a command or app name…" autocomplete="off" spellcheck="false">
+                <span class="command-kbd-hint">Esc</span>
+            </div>
+            <div class="command-results" id="command-results"></div>
+            <div class="command-empty" id="command-empty">No matching commands</div>
+        </div>
+    </div>
+
     <!-- Context Menu -->
     <div id="context-menu" class="context-menu hidden">
         <div class="context-menu-header">WebOS</div>
