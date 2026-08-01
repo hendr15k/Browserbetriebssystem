@@ -420,6 +420,127 @@ test('MOB 6c: viewport meta is mobile-ready', () => {
   assert(/user-scalable=no/.test(html), 'user-scalable=no missing (prevents accidental page zoom)');
 });
 
+// =================================================================
+// Section 7 — Task switcher (Alt+Tab overlay)
+// =================================================================
+section('Task switcher (Alt+Tab)');
+
+function makeSwitcherWindow(id, appName, zIndex) {
+  const win = makeElWithId(id);
+  win.style = { display: 'flex', zIndex: String(zIndex) };
+  win.dataset.appName = appName;
+  win.getBoundingClientRect = () => ({ left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 });
+  return win;
+}
+
+test('TS 1a: renderTaskSwitcher builds a tile per window and highlights the target', () => {
+  const winA = makeSwitcherWindow('win-ts-a', 'notepad', 20);
+  const winB = makeSwitcherWindow('win-ts-b', 'calculator', 10);
+  const origQSA = document.querySelectorAll;
+  document.querySelectorAll = (sel) => sel === '.window' ? [winA, winB] : [];
+  try {
+    vm.runInContext(`renderTaskSwitcher('win-ts-b')`, sandbox);
+  } finally {
+    document.querySelectorAll = origQSA;
+  }
+  const overlay = document.body.children.find(c => c.id === 'task-switcher');
+  assert(overlay, 'Task switcher overlay was not created');
+  assert(overlay._classSet.has('visible'), 'Overlay should be visible after render');
+  const tiles = overlay.querySelector('.task-switcher-tiles');
+  assert(tiles.children.length === 2, `Expected 2 tiles, got ${tiles.children.length}`);
+  const selected = tiles.children.filter(t => t._classSet.has('selected'));
+  assert(selected.length === 1, 'Exactly one tile should be selected');
+  const label = overlay.querySelector('.task-switcher-label');
+  assert(label.textContent === 'Calculator', `Label should show highlighted app, got "${label.textContent}"`);
+});
+
+test('TS 1b: hideTaskSwitcher removes the visible class', () => {
+  vm.runInContext(`hideTaskSwitcher()`, sandbox);
+  const overlay = document.body.children.find(c => c.id === 'task-switcher');
+  assert(overlay && !overlay._classSet.has('visible'), 'Overlay should be hidden');
+});
+
+test('TS 1c: Alt+Tab (altTabNext) focuses the next window and shows the switcher', () => {
+  const winA = makeSwitcherWindow('win-ts-a', 'notepad', 20);
+  const winB = makeSwitcherWindow('win-ts-b', 'calculator', 10);
+  elementRegistry['win-ts-a'] = winA;
+  elementRegistry['win-ts-b'] = winB;
+  elementRegistry['taskbar-win-ts-a'] = makeElWithId('taskbar-win-ts-a');
+  elementRegistry['taskbar-win-ts-b'] = makeElWithId('taskbar-win-ts-b');
+  const origQSA = document.querySelectorAll;
+  document.querySelectorAll = (sel) => {
+    if (sel === '.window') return [winA, winB];
+    if (sel === '.taskbar-item') return [];
+    return [];
+  };
+  try {
+    vm.runInContext(`altTabWindowList = null; altTabNext()`, sandbox);
+  } finally {
+    document.querySelectorAll = origQSA;
+  }
+  // winA was focused (z=20); altTabNext should move focus to winB
+  assert(!winB._classSet.has('inactive'), 'winB should be focused (inactive removed)');
+  const overlay = document.body.children.find(c => c.id === 'task-switcher');
+  assert(overlay && overlay._classSet.has('visible'), 'Switcher should be visible during Alt+Tab');
+});
+
+test('TS 1d: releasing Alt hides the switcher', () => {
+  vm.runInContext(`altTabWindowList = null; hideTaskSwitcher()`, sandbox);
+  const overlay = document.body.children.find(c => c.id === 'task-switcher');
+  assert(overlay && !overlay._classSet.has('visible'), 'Switcher should hide when Alt is released');
+});
+
+// =================================================================
+// Section 8 — Command palette (Ctrl+K)
+// =================================================================
+section('Command palette (Ctrl+K)');
+
+test('CP 1a: buildPaletteCommands returns every app plus system commands', () => {
+  vm.runInContext('paletteCommands = null', sandbox);
+  const cmds = get('buildPaletteCommands')();
+  assert(cmds.length >= 40, `Expected many commands (apps+system), got ${cmds.length}`);
+  assert(cmds.some(c => c.id === 'sys:lock'), 'Missing sys:lock command');
+  assert(cmds.some(c => c.id === 'sys:restart'), 'Missing sys:restart command');
+  assert(cmds.some(c => c.id === 'sys:shutdown'), 'Missing sys:shutdown command');
+  assert(cmds.every(c => typeof c.run === 'function'), 'Every command must be runnable');
+});
+
+test('CP 1b: searchCommands fuzzy-matches apps by name and keywords', () => {
+  const byName = get('searchCommands')('calculator');
+  assert(byName.length > 0 && byName[0].title === 'Calculator', 'Calculator should rank first for "calculator"');
+  const byKw = get('searchCommands')('sperren');
+  assert(byKw.some(c => c.id === 'sys:lock'), 'Keyword "sperren" should match the lock command');
+  const empty = get('searchCommands')('zzzznothing');
+  assert(empty.length === 0, 'No matches for gibberish');
+});
+
+test('CP 1c: togglePalette shows and hides the overlay', () => {
+  const palette = makeElWithId('command-palette');
+  elementRegistry['command-palette'] = palette;
+  const input = makeElWithId('command-input');
+  elementRegistry['command-input'] = input;
+  palette.classList.add('hidden');
+
+  vm.runInContext('togglePalette(true)', sandbox);
+  assert(!palette._classSet.has('hidden'), 'Palette should open');
+
+  vm.runInContext('togglePalette(false)', sandbox);
+  assert(palette._classSet.has('hidden'), 'Palette should close');
+});
+
+test('CP 1d: renderPalette renders results and selects the first row', () => {
+  const results = makeElWithId('command-results');
+  elementRegistry['command-results'] = results;
+  const empty = makeElWithId('command-empty');
+  elementRegistry['command-empty'] = empty;
+
+  const cmds = get('buildPaletteCommands')();
+  vm.runInContext('renderPalette(' + JSON.stringify(cmds) + ')', sandbox);
+  assert(results.children.length > 0, 'Results should be populated');
+  const first = results.children[0];
+  assert(first.className.includes('selected'), 'First result should be selected');
+});
+
 // ---------- Summary ----------
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
