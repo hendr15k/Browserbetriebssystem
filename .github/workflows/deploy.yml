@@ -16,12 +16,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate HTML
-        run: |
-          if [ -f index.html ]; then
-            echo "index.html found"
-            grep -c "</html>" index.html && echo "HTML complete"
-          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: npm test
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
