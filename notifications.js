@@ -1,6 +1,22 @@
 
 /* Notifications */
 function showNotification(title, message, duration = 3000) {
+    // Record into the notification-center history (persisted for the quick
+    // settings "Benachrichtigungen" tab).
+    if (typeof window !== 'undefined') {
+        if (!Array.isArray(window.webosNotificationHistory)) window.webosNotificationHistory = [];
+        window.webosNotificationHistory.push({ title, message, time: Date.now() });
+        if (window.webosNotificationHistory.length > 100) {
+            window.webosNotificationHistory.splice(0, window.webosNotificationHistory.length - 100);
+        }
+        if (typeof window.webosOnNewNotification === 'function') {
+            try { window.webosOnNewNotification(); } catch (e) {}
+        }
+    }
+
+    // "Do not disturb" suppresses the visible toast but still keeps history.
+    if (typeof window !== 'undefined' && window.webosDndEnabled) return;
+
     const container = document.getElementById('notification-area');
     if (!container) return;
 

@@ -49,6 +49,17 @@
         <div class="shooting-star shooting-star--late" aria-hidden="true"></div>
         <!-- Desktop Icons - dynamically generated from appData -->
         <div id="desktop-icons"></div>
+        <!-- Desktop Widgets - clock, weather, system stats -->
+        <div id="desktop-widgets"></div>
+    </div>
+
+    <!-- Drag & Drop file upload overlay -->
+    <div id="drop-overlay" class="hidden" aria-hidden="true">
+        <div class="drop-overlay-inner">
+            <div class="drop-overlay-icon">📥</div>
+            <div class="drop-overlay-title">Dateien auf den Desktop legen</div>
+            <div class="drop-overlay-sub">Sie werden ins virtuelle Dateisystem geladen</div>
+        </div>
     </div>
 
     <div id="start-menu-backdrop" onclick="toggleStartMenu()"></div>
@@ -120,6 +131,24 @@
             <div class="clock-tooltip-date" id="clock-tooltip-date">Montag, 1. Januar 2026</div>
             <div class="clock-tooltip-day" id="clock-tooltip-day">KW 1</div>
         </div>
+        <button id="desktop-switcher" aria-label="Virtuelle Desktops" aria-haspopup="true" aria-expanded="false" onclick="toggleWorkspaceMenu()" title="Virtuelle Desktops">
+            <span class="desktop-switcher-icon">▦</span><span id="workspace-label">1</span>
+        </button>
+        <div id="workspace-menu" class="panel-pop hidden" role="menu" aria-label="Virtuelle Desktops">
+            <div class="panel-pop-header">Virtuelle Desktops</div>
+            <div id="workspace-list"></div>
+            <button id="workspace-add-btn" onclick="addWorkspace()"><span>＋</span> Neuer Desktop</button>
+            <div class="workspace-hint">Strg + Alt + ←/→ wechselt den Desktop</div>
+        </div>
+        <div id="tray">
+            <span class="tray-icon" id="tray-wifi" title="WLAN verbunden">📶</span>
+            <span class="tray-icon" id="tray-volume" title="Lautstärke" onclick="toggleQuickSettings()">🔊</span>
+            <span class="tray-icon" id="tray-battery" title="Akkulaufzeit">🔋</span>
+        </div>
+        <button id="tray-button" aria-haspopup="true" aria-expanded="false" aria-label="Schnelleinstellungen" onclick="toggleQuickSettings()" title="Schnelleinstellungen">
+            <span class="tray-button-glyph">🔔</span>
+            <span id="qs-open-badge" class="qs-open-badge hidden"></span>
+        </button>
         <button id="power-button" aria-label="Power options" onclick="togglePowerMenu()" title="Power">⏻</button>
         <div id="power-menu">
             <button onclick="lockSystem()">🔒 Sperren</button>
@@ -129,6 +158,54 @@
         <div id="clock" onclick="openApp('clock')">00:00</div>
         <button id="show-desktop" onclick="toggleDesktop()" title="Show Desktop">┃</button>
         <div id="schedule-badge" class="notification-badge" style="display: none;">0</div>
+    </div>
+
+    <!-- Quick Settings + Notification Center -->
+    <div id="quick-settings" class="hidden" role="dialog" aria-label="Schnelleinstellungen">
+        <div class="qs-header">
+            <span class="qs-title">Schnelleinstellungen</span>
+            <button class="qs-close" onclick="toggleQuickSettings()" aria-label="Schließen">✕</button>
+        </div>
+        <div class="qs-tabs">
+            <button class="qs-tab active" data-qs-tab="toggles" onclick="switchQuickSettingsTab('toggles')">Schnell</button>
+            <button class="qs-tab" data-qs-tab="notifications" onclick="switchQuickSettingsTab('notifications')">Benachrichtigungen</button>
+        </div>
+        <div id="qs-toggles" class="qs-pane">
+            <div class="qs-grid">
+                <button class="qs-toggle" id="qs-wifi" onclick="toggleQuickSetting('wifi')"><span class="qs-toggle-icon">📶</span><span>WLAN</span></button>
+                <button class="qs-toggle" id="qs-bluetooth" onclick="toggleQuickSetting('bluetooth')"><span class="qs-toggle-icon">🔵</span><span>Bluetooth</span></button>
+                <button class="qs-toggle" id="qs-dnd" onclick="toggleQuickSetting('dnd')"><span class="qs-toggle-icon">🔕</span><span>Nicht stören</span></button>
+                <button class="qs-toggle" id="qs-sound" onclick="toggleQuickSetting('sound')"><span class="qs-toggle-icon">🔊</span><span>Ton</span></button>
+                <button class="qs-toggle" id="qs-widgets" onclick="toggleQuickSetting('widgets')"><span class="qs-toggle-icon">📊</span><span>Widgets</span></button>
+                <button class="qs-toggle" id="qs-darkmode" onclick="toggleQuickSetting('darkmode')"><span class="qs-toggle-icon">🌙</span><span>Dunkel</span></button>
+            </div>
+            <div class="qs-section">
+                <div class="qs-section-title">Akzentfarbe</div>
+                <div class="qs-accent-row" id="qs-accent-row"></div>
+            </div>
+            <div class="qs-section">
+                <div class="qs-section-title">System</div>
+                <div class="qs-stats">
+                    <div class="qs-stat"><span class="qs-stat-label">CPU</span><div class="qs-stat-bar"><div class="qs-stat-bar-fill" id="qs-cpu-bar"></div></div></div>
+                    <div class="qs-stat"><span class="qs-stat-label">RAM</span><div class="qs-stat-bar"><div class="qs-stat-bar-fill" id="qs-ram-bar"></div></div></div>
+                    <div class="qs-stat"><span class="qs-stat-label">Speicher</span><div class="qs-stat-bar"><div class="qs-stat-bar-fill" id="qs-storage-bar"></div></div></div>
+                </div>
+            </div>
+        </div>
+        <div id="qs-notifications" class="qs-pane hidden">
+            <div id="qs-notif-list"></div>
+            <div class="qs-notif-empty" id="qs-notif-empty">Keine Benachrichtigungen</div>
+            <button class="qs-clear-btn" onclick="clearNotificationHistory()">Alle löschen</button>
+        </div>
+    </div>
+
+    <!-- Snap Layout menu (Win+Z style) -->
+    <div id="snap-layout-menu" class="hidden" role="menu" aria-label="Fenster-Layout">
+        <div class="snap-layout-title">Fenster-Layout</div>
+        <div class="snap-layout-body">
+            <div class="snap-layout-grid" id="snap-layout-grid"></div>
+            <div class="snap-layout-tip">Klicke ein Feld für das Layout</div>
+        </div>
     </div>
 
     <div id="lock-screen" class="hidden">

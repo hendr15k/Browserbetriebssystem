@@ -9,6 +9,12 @@ Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nö
 ## Features auf einen Blick
 
 - **Desktop-Umgebung** mit Icons, Taskleiste, Startmenü und Uhr
+- **Virtuelle Desktops** — mehrere Desktops mit Taskbar-Umschalter und Tastenkürzel (Strg+Alt+←/→)
+- **Snap-Layouts (Win+Z-Stil)** — Fenster-Layout-Raster über den Maximieren-Button mit Live-Vorschau
+- **Quick Settings + Notification Center** — Schnelleinstellungen (WLAN, Bluetooth, Nicht-stören, Ton, Widgets, Hell/Dunkel, Akzentfarbe) plus Benachrichtigungsverlauf an der Taskleiste
+- **System Tray** — WLAN-, Lautstärke- und Akku-Indikatoren in der Taskleiste
+- **Desktop-Widgets** — schwebende Karten für Uhr, Wetter und System-Statistiken
+- **Drag & Drop Upload** — Dateien aus dem lokalen Dateisystem direkt auf den Desktop ins virtuelle Dateisystem ziehen
 - **Startmenü-Suche** mit Tastatursteuerung (↑/↓/Enter/Escape)
 - **Fenstermanagement** — Verschieben, Resize, Minimieren, Maximieren, Schließen, Fokussieren
 - **Aero Snap** — Fenster an Bildschirmränder ziehen zum Andocken (links/rechts halb, oben = maximieren) mit Live-Vorschau
