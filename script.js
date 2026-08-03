@@ -3075,6 +3075,27 @@ function isMobileViewport() {
     return window.innerWidth <= 768;
 }
 
+// Shared gate for hot render loops (games, visualizers, pollers). Returns
+// false when the tab is hidden or the given window is minimized/closed so the
+// per-frame / per-tick work can be skipped cheaply. `windowId` is optional.
+function isWindowActive(windowId) {
+    if (typeof document !== 'undefined' && document.hidden) return false;
+    if (windowId) {
+        const win = document.getElementById(windowId);
+        if (!win || win.style.display === 'none') return false;
+    }
+    return true;
+}
+
+// Track RAF ids so cleanup can cancel pending frames, but keep the list
+// bounded — cancelAnimationFrame on an already-fired id is a no-op, so only a
+// handful of the most recent ids are ever useful.
+function trackRafId(list, id) {
+    list.push(id);
+    if (list.length > 8) list.shift();
+    return list;
+}
+
 function isCoarsePointer() {
     return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 }
@@ -5025,6 +5046,8 @@ function startSnake(windowId) {
 
     function draw() {
         if (!snakeGames[windowId]) return;
+        // Skip the tick while the tab is hidden or the window is minimized.
+        if (!isWindowActive(windowId)) return;
         // Move Snake
         const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
@@ -6555,6 +6578,17 @@ function initTetris(windowId) {
     function update(time = 0) {
         if (!tetrisGames[windowId]) return;
 
+        // Skip simulation + drawing while the tab is hidden or the window is
+        // minimized, but keep `lastTime` in sync so the piece doesn't drop a
+        // burst of rows the moment the window becomes visible again.
+        if (!isWindowActive(windowId)) {
+            lastTime = time;
+            const nextRaf = requestAnimationFrame(update);
+            tetrisGames[windowId].requestId = nextRaf;
+            tetrisGames[windowId]._pendingRaf = [nextRaf];
+            return;
+        }
+
         const deltaTime = time - lastTime;
         lastTime = time;
 
@@ -6671,10 +6705,11 @@ function updateClockTab(windowId) {
     const timeDisplay = document.getElementById(`clock-time-${windowId}`);
     const dateDisplay = document.getElementById(`clock-date-${windowId}`);
     if (!timeDisplay) return;
+    if (!isWindowActive(windowId)) return;
 
     const now = new Date();
     timeDisplay.textContent = now.toLocaleTimeString();
-    dateDisplay.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    dateDisplay.textContent = getCachedFullDateString(now);
 
     // Update World Clocks if visible
     const worldTab = document.getElementById(`clock-tab-world-${windowId}`);
@@ -6813,7 +6848,9 @@ function startStopwatch(windowId) {
     state.startTime = Date.now() - state.elapsed;
     state.interval = setInterval(() => {
         state.elapsed = Date.now() - state.startTime;
-        updateStopwatchDisplay(windowId);
+        // Only touch the DOM when the stopwatch is actually visible — the
+        // elapsed time still accrues in the background while minimized.
+        if (isWindowActive(windowId)) updateStopwatchDisplay(windowId);
     }, 10);
 
     // Toggle Buttons
@@ -7728,6 +7765,15 @@ function initPong(windowId) {
     function update() {
         if (!pongGames[windowId]) return;
 
+        // Skip simulation + drawing while the tab is hidden or the window is
+        // minimized — keep the RAF chain alive so it resumes seamlessly.
+        if (!isWindowActive(windowId)) {
+            const idleRaf = requestAnimationFrame(update);
+            game.requestId = idleRaf;
+            trackRafId((game._pendingRaf || (game._pendingRaf = [])), idleRaf);
+            return;
+        }
+
         // Player movement
         game.player.y += game.player.dy;
         if (game.player.y < 0) game.player.y = 0;
@@ -7793,7 +7839,7 @@ function initPong(windowId) {
         // BUG 21 (round 6): track every RAF id we own for this Pong window so
         // that, on re-init OR cleanup, we can cancel ALL pending ones, not
         // just the most recent.
-        (game._pendingRaf || (game._pendingRaf = [])).push(nextRaf);
+        trackRafId((game._pendingRaf || (game._pendingRaf = [])), nextRaf);
     }
 
     function updateScore() {
@@ -8705,9 +8751,20 @@ function drawVisualizer(windowId) {
 
     const canvas = document.getElementById(`vr-visualizer-${windowId}`);
     if (!canvas) return;
+
+    // Reuse the data buffer instead of allocating a fresh Uint8Array on every
+    // frame, and skip drawing while the tab is hidden or the window minimized.
+    if (!state._visualizerBuffer) {
+        state._visualizerBuffer = new Uint8Array(state.analyser.frequencyBinCount);
+    }
+    if (!isWindowActive(windowId)) {
+        state.visualizerAnimationFrame = requestAnimationFrame(() => drawVisualizer(windowId));
+        return;
+    }
+
     const ctx = canvas.getContext('2d');
     const bufferLength = state.analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    const dataArray = state._visualizerBuffer;
 
     state.analyser.getByteTimeDomainData(dataArray);
 
@@ -9909,9 +9966,12 @@ function updateLineNumbers(windowId) {
 
     if (textarea && gutter) {
         const lines = textarea.value.split('\n').length;
-        // Simple optimization: check if we really need to rebuild
-        // But for simplicity, just rebuild or be smarter?
-        // Let's rebuild for now.
+        // Only rebuild the gutter when the line count actually changed —
+        // typing within a line otherwise rebuilds N DOM nodes per keystroke.
+        const counts = updateLineNumbers._counts || (updateLineNumbers._counts = {});
+        if (counts[windowId] === lines) return;
+        counts[windowId] = lines;
+
         let html = '';
         for (let i = 1; i <= lines; i++) {
             html += `<div>${i}</div>`;
@@ -10839,6 +10899,7 @@ function refreshWeatherWidget() {
     const cached = safeJsonParse('webos-weather-cache', null);
     if (cached && cached.ts && Date.now() - cached.ts < 15 * 60 * 1000) {
         applyWeather(cached);
+        return;
     }
     fetchWeatherForWidget(DEFAULT_WEATHER.lat, DEFAULT_WEATHER.lon, DEFAULT_WEATHER.name);
 }
