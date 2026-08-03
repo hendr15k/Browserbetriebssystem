@@ -4743,10 +4743,15 @@ function initSystemMonitor(windowId) {
 
         const openWindows = Array.from(document.querySelectorAll('.window'));
         const appNames = openWindows.map(w => w.querySelector('.title-bar-text')?.textContent || 'Application');
+        const winCount = String(openWindows.length);
+        const appsList = appNames.length ? appNames.join('\n') : 'Keine Apps aktiv';
+
         cpuEl.textContent = `${Math.floor(Math.random() * 45) + 10}%`;
         ramEl.textContent = `${Math.floor(Math.random() * 2200) + 900} MB`;
-        winEl.textContent = String(openWindows.length);
-        appsEl.textContent = appNames.length ? appNames.join('\n') : 'Keine Apps aktiv';
+        // The window/apps rows only change when windows open/close — skip the
+        // redundant textContent write (and its reflow) when they haven't.
+        if (winEl.textContent !== winCount) winEl.textContent = winCount;
+        if (appsEl.textContent !== appsList) appsEl.textContent = appsList;
     };
 
     update();
@@ -6354,11 +6359,37 @@ function renderTaskManager(windowId) {
     // Get all windows
     const windows = document.querySelectorAll('.window');
 
-    // Store current scroll position if needed, or just rebuild (simple)
-    // To avoid flickering, maybe diff? But simple rebuild is okay for now.
+    // The 1s tick used to rebuild the entire list via innerHTML every time.
+    // Instead, only rebuild when the set of open windows actually changes
+    // (ids/titles/visibility), and otherwise just refresh the two "live"
+    // numeric cells in place — far fewer node allocations per tick.
+    let sig = '';
+    let count = 0;
+    windows.forEach(w => {
+        const titleEl = w.querySelector('.title-bar-text');
+        sig += `${w.id}:${titleEl ? titleEl.textContent : 'Unknown'}:${w.style.display}|`;
+        count++;
+    });
+
+    if (countSpan && Number(countSpan.textContent) !== count) {
+        countSpan.textContent = count;
+    }
+
+    if (sig === renderTaskManager._lastSig && list.children.length > 0) {
+        // Window set unchanged — cheap in-place update of the CPU/MEM cells.
+        windows.forEach(w => {
+            const row = list.querySelector(`[data-window-id="${w.id}"]`);
+            if (!row) return;
+            const cpuEl = row.querySelector('.task-cpu');
+            const memEl = row.querySelector('.task-mem');
+            if (cpuEl) cpuEl.textContent = `${(Math.random() * 5).toFixed(1)}%`;
+            if (memEl) memEl.textContent = `${Math.floor(Math.random() * 50 + 20)} MB`;
+        });
+        return;
+    }
+    renderTaskManager._lastSig = sig;
 
     let html = '';
-    let count = 0;
 
     windows.forEach(win => {
         // Skip hidden windows? No, Task Manager should show them unless closed.
@@ -6378,20 +6409,18 @@ function renderTaskManager(windowId) {
         const isSelf = (id === windowId);
 
         html += `
-            <div class="task-row" style="display: grid; grid-template-columns: 2fr 1fr 1fr 80px; padding: 5px 10px; border-bottom: 1px solid #eee; align-items: center; font-size: 12px; background: ${isSelf ? '#f9f9f9' : 'white'};">
+            <div class="task-row" data-window-id="${id}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 80px; padding: 5px 10px; border-bottom: 1px solid #eee; align-items: center; font-size: 12px; background: ${isSelf ? '#f9f9f9' : 'white'};">
                 <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${title} <span style="color: #999; font-size: 10px;">(${id})</span></div>
-                <div>${cpu}%</div>
-                <div>${mem} MB</div>
+                <div class="task-cpu">${cpu}%</div>
+                <div class="task-mem">${mem} MB</div>
                 <div style="text-align: center;">
                     <button onclick="closeWindow('${id}')" style="background: #e74c3c; color: white; border: none; border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 10px;">End Task</button>
                 </div>
             </div>
         `;
-        count++;
     });
 
     list.innerHTML = html;
-    if (countSpan) countSpan.textContent = count;
 }
 
 // Tetris Logic
