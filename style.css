@@ -283,18 +283,26 @@ button {
     overflow: hidden;
 }
 
-/* starfield — two tiled layers drifting at different speeds for parallax */
+/* starfield — two tiled layers drifting at different speeds for parallax.
+   Each layer is oversized by exactly one tile in both directions so the whole
+   drift can be a GPU-composited `transform` (a full-tile multiple of a repeating
+   background is visually seamless) instead of animating `background-position`,
+   which forced a full-screen main-thread repaint on every frame. */
 #desktop::before,
 #desktop::after {
     content: '';
     position: absolute;
-    inset: -90px;
     pointer-events: none;
     background-repeat: repeat;
     z-index: 0;
+    transform: translate3d(0, 0, 0);
 }
 
 #desktop::before {
+    left: -560px;
+    top: -360px;
+    width: calc(100% + 1120px);
+    height: calc(100% + 720px);
     background-image:
         radial-gradient(1.6px 1.6px at 22px 34px, rgba(255, 255, 255, 0.9), transparent 55%),
         radial-gradient(1.2px 1.2px at 92px 120px, rgba(199, 210, 254, 0.75), transparent 55%),
@@ -315,6 +323,10 @@ button {
 }
 
 #desktop::after {
+    left: 0;
+    top: -480px;
+    width: calc(100% + 820px);
+    height: calc(100% + 960px);
     background-image:
         radial-gradient(1px 1px at 40px 80px, rgba(255, 255, 255, 0.4), transparent 55%),
         radial-gradient(1px 1px at 152px 202px, rgba(199, 210, 254, 0.35), transparent 55%),
@@ -330,13 +342,13 @@ button {
 }
 
 @keyframes starDriftA {
-    from { background-position: 0 0; }
-    to   { background-position: 560px 180px; }
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(560px, 360px, 0); }
 }
 
 @keyframes starDriftB {
-    from { background-position: 0 0; }
-    to   { background-position: -820px 120px; }
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-820px, 480px, 0); }
 }
 
 /* occasional shooting star */
@@ -2724,7 +2736,10 @@ button {
 #lock-screen::after {
     content: '';
     position: absolute;
-    inset: -90px;
+    left: -560px;
+    top: -360px;
+    width: calc(100% + 1120px);
+    height: calc(100% + 720px);
     pointer-events: none;
     background-repeat: repeat;
     background-image:

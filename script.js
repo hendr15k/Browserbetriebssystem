@@ -201,26 +201,43 @@ function getCachedFullDateString(now) {
     return _clockDateCacheStr;
 }
 
+let _clockEls = null;
+let _clockLastTimeStr = '';
+let _clockLastDateStr = '';
 function updateClock() {
     // Nothing to repaint while the tab is hidden — the interval keeps running
     // cheaply and catches up on the next visible tick.
     if (typeof document !== 'undefined' && document.hidden) return;
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const clock = document.getElementById('clock');
-    clock.textContent = `${hours}:${minutes}`;
-    clock.title = getCachedFullDateString(now);
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const dateStr = getCachedFullDateString(now);
+
+    // Cache element refs once — they are static in index.html.
+    if (!_clockEls) {
+        _clockEls = {
+            clock: document.getElementById('clock'),
+            lockScreen: document.getElementById('lock-screen'),
+            lockTime: document.getElementById('lock-time'),
+            lockDate: document.getElementById('lock-date')
+        };
+    }
+    const { clock, lockScreen, lockTime, lockDate } = _clockEls;
 
     // Don't overwrite the lock-screen when the system is in shutdown mode
-    const lockScreen = document.getElementById('lock-screen');
-    if (lockScreen && lockScreen.dataset.mode === 'shutdown') return;
+    const lockWriteable = !(lockScreen && lockScreen.dataset.mode === 'shutdown');
 
-    const lockTime = document.getElementById('lock-time');
-    const lockDate = document.getElementById('lock-date');
-    if (lockTime && lockDate) {
-        lockTime.textContent = `${hours}:${minutes}`;
-        lockDate.textContent = getCachedFullDateString(now);
+    // The values only change once a minute (time) / once a day (date). Skip the
+    // DOM writes — each would otherwise still run a setter + style invalidation
+    // every single second.
+    if (time !== _clockLastTimeStr) {
+        _clockLastTimeStr = time;
+        if (clock) clock.textContent = time;
+        if (lockWriteable && lockTime) lockTime.textContent = time;
+    }
+    if (dateStr !== _clockLastDateStr) {
+        _clockLastDateStr = dateStr;
+        if (clock) clock.title = dateStr;
+        if (lockWriteable && lockDate) lockDate.textContent = dateStr;
     }
 }
 setInterval(updateClock, 1000);
@@ -713,6 +730,15 @@ function updateClockTooltip() {
 }
 
 // Clock tooltip on hover
+let _clockTooltipTimer = null;
+function startClockTooltipTimer() {
+    if (_clockTooltipTimer) return;
+    _clockTooltipTimer = setInterval(updateClockTooltip, 1000);
+}
+function stopClockTooltipTimer() {
+    if (_clockTooltipTimer) { clearInterval(_clockTooltipTimer); _clockTooltipTimer = null; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const clock = document.getElementById('clock');
     const tooltip = document.getElementById('clock-tooltip');
@@ -720,16 +746,14 @@ document.addEventListener('DOMContentLoaded', () => {
         clock.addEventListener('mouseenter', () => {
             updateClockTooltip();
             tooltip.classList.add('visible');
+            // Only tick while the tooltip is actually shown — no permanent
+            // 1s timer just to check a classList.
+            startClockTooltipTimer();
         });
         clock.addEventListener('mouseleave', () => {
             tooltip.classList.remove('visible');
+            stopClockTooltipTimer();
         });
-        // Update tooltip time every second when visible
-        setInterval(() => {
-            if (tooltip.classList.contains('visible')) {
-                updateClockTooltip();
-            }
-        }, 1000);
     }
 
     // Initialize Desktop Icons (dynamically generated)
@@ -2855,6 +2879,12 @@ function performWindowCleanup(windowId) {
         delete galleryStates[windowId];
     }
 
+    // Cleanup debounced markdown preview timer
+    if (typeof _markdownPreviewTimers !== 'undefined' && _markdownPreviewTimers[windowId]) {
+        clearTimeout(_markdownPreviewTimers[windowId]);
+        delete _markdownPreviewTimers[windowId];
+    }
+
     // Cleanup Email
     if (emailStates[windowId]) {
         delete emailStates[windowId];
@@ -3825,10 +3855,32 @@ function initStickyNotes() {
     }
 }
 
+let _stickySaveTimer = null;
+function scheduleStickySave() {
+    if (_stickySaveTimer) return;
+    _stickySaveTimer = setTimeout(() => {
+        _stickySaveTimer = null;
+        saveStickyNotesToStorage();
+    }, 400);
+}
+function flushStickySave() {
+    if (_stickySaveTimer) {
+        clearTimeout(_stickySaveTimer);
+        _stickySaveTimer = null;
+        saveStickyNotesToStorage();
+    }
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('pagehide', flushStickySave);
+}
+
 function updateStickyNote(id, content) {
     if (!stickyNotes[id]) return;
     stickyNotes[id].content = content;
-    saveStickyNotesToStorage();
+    // Typing fires this per keystroke — debounce the full JSON.stringify +
+    // localStorage write instead of serialising every note synchronously
+    // each keypress.
+    scheduleStickySave();
 }
 
 function deleteStickyNote(noteId) {
@@ -7586,12 +7638,19 @@ function executeSolitaireMove(state, from, to) {
 }
 
 // Markdown Editor Logic
+const _markdownPreviewTimers = {};
 function updateMarkdownPreview(windowId) {
     const editor = document.getElementById(`markdown-editor-${windowId}`);
     const preview = document.getElementById(`markdown-preview-${windowId}`);
-    if (editor && preview) {
+    if (!editor || !preview) return;
+    // Debounce: renderMarkdown runs a dozen full-document regex passes, so
+    // collapsing the per-keystroke churn into one pass 120ms after typing
+    // pauses keeps typing smooth on larger documents.
+    clearTimeout(_markdownPreviewTimers[windowId]);
+    _markdownPreviewTimers[windowId] = setTimeout(() => {
+        delete _markdownPreviewTimers[windowId];
         preview.innerHTML = renderMarkdown(editor.value || editor.placeholder);
-    }
+    }, 120);
 }
 
 function saveMarkdown(windowId) {
@@ -10797,7 +10856,15 @@ function applySnapLayout(windowId, rect) {
 
 let _widgetClockTimer = null;
 let _widgetStatsTimer = null;
+let _widgetClockEl = null;
 const DEFAULT_WEATHER = { lat: 52.52, lon: 13.41, name: 'Berlin' };
+
+// Reuse one Intl formatter instead of paying for locale setup on every tick.
+const _widgetTimeFmt = (typeof Intl !== 'undefined') ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }) : null;
+function formatWidgetClockTime(d) {
+    if (_widgetTimeFmt) return _widgetTimeFmt.format(d);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 function renderWidgets() {
     const container = document.getElementById('desktop-widgets');
@@ -10810,11 +10877,12 @@ function renderWidgets() {
     buildClockWidget(container);
     buildStatsWidget(container);
     buildWeatherWidget(container);
+    _widgetClockEl = document.getElementById('widget-clock-time');
     if (!_widgetClockTimer) {
         _widgetClockTimer = setInterval(() => {
             if (document.hidden) return;
-            const t = document.getElementById('widget-clock-time');
-            if (t) t.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (!_widgetClockEl) _widgetClockEl = document.getElementById('widget-clock-time');
+            if (_widgetClockEl) _widgetClockEl.textContent = formatWidgetClockTime(new Date());
         }, 1000);
     }
     if (!_widgetStatsTimer) {
@@ -10829,6 +10897,7 @@ function renderWidgets() {
 function hideWidgets() {
     const container = document.getElementById('desktop-widgets');
     if (container) container.innerHTML = '';
+    _widgetClockEl = null;
     if (_widgetClockTimer) { clearInterval(_widgetClockTimer); _widgetClockTimer = null; }
     if (_widgetStatsTimer) { clearInterval(_widgetStatsTimer); _widgetStatsTimer = null; }
 }
@@ -10840,7 +10909,7 @@ function buildClockWidget(container) {
     const time = document.createElement('div');
     time.className = 'widget-clock-time';
     time.id = 'widget-clock-time';
-    time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    time.textContent = formatWidgetClockTime(now);
     const date = document.createElement('div');
     date.className = 'widget-clock-date';
     date.textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
