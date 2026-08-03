@@ -709,6 +709,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Restore window states from previous session
     restoreWindowStates();
 
+    // Virtual desktops, quick settings, tray, widgets & drag&drop
+    if (typeof initWebosSystemFeatures === 'function') initWebosSystemFeatures();
+
     // Welcome Notification
     setTimeout(() => {
         showNotification('Welcome', 'WebOS initialized successfully.');
@@ -1140,7 +1143,7 @@ function toggleDesktop() {
         // Standard behavior: Restore all windows that were open.
         windows.forEach(win => {
             if (win.dataset.minimizedByShowDesktop === 'true') {
-                win.style.display = 'flex';
+                win.style.display = (typeof windowIsOnCurrentWorkspace === 'function' && windowIsOnCurrentWorkspace(win)) ? 'flex' : 'none';
                 const taskbarItem = document.getElementById(`taskbar-${win.id}`);
                 // Only set active if it was focused? Or just let them be visible inactive.
                 // Let's just restore visibility.
@@ -1218,6 +1221,14 @@ function openApp(appName, arg = null, restoreData = null) {
     }
     win.id = windowId;
     win.dataset.appName = appName;
+    // Assign this window to the active virtual desktop
+    win.dataset.workspace = String(currentWorkspace);
+    if (restoreData && restoreData.workspace !== undefined) {
+        win.dataset.workspace = String(restoreData.workspace);
+    }
+    if (restoreData && restoreData.wsMinimized) {
+        win.dataset.wsMinimized = '1';
+    }
     if (restoreData && restoreData.restoredZIndex) {
         win.style.zIndex = restoreData.restoredZIndex;
     } else {
@@ -2305,7 +2316,7 @@ function openApp(appName, arg = null, restoreData = null) {
             <div class="title-bar-text">${escapeHtml(title)}</div>
             <div class="title-bar-controls">
                 <button class="window-button minimize-button" onclick="minimizeWindow('${windowId}')">_</button>
-                <button class="window-button maximize-button" onclick="maximizeWindow('${windowId}')">□</button>
+                <button class="window-button maximize-button" onmouseenter="showSnapLayoutMenu('${windowId}', this)" onmouseleave="scheduleSnapLayoutHide()" onclick="maximizeWindow('${windowId}')">□</button>
                 <button class="window-button close-button" onclick="closeWindow('${windowId}')">X</button>
             </div>
         </div>
@@ -2360,9 +2371,16 @@ function openApp(appName, arg = null, restoreData = null) {
     `;
     taskbarItem.appendChild(preview);
 
-    // Updated click logic: toggle minimize/restore
+    // Updated click logic: toggle minimize/restore; jump to the window's
+    // virtual desktop first if it lives on another one.
     taskbarItem.onclick = () => {
         const w = document.getElementById(windowId);
+        if (!w) return;
+        if (typeof windowIsOnCurrentWorkspace === 'function' && !windowIsOnCurrentWorkspace(w)) {
+            switchWorkspace(parseInt(w.dataset.workspace || 0, 10));
+            focusWindow(windowId);
+            return;
+        }
         if (w.style.display === 'none') {
             minimizeWindow(windowId); // Restores it
         } else {
@@ -3582,6 +3600,9 @@ document.addEventListener('keydown', (e) => {
         hideSnapPreview();
         hideTaskSwitcher();
         togglePalette(false);
+        if (typeof closeQuickSettings === 'function') closeQuickSettings();
+        if (typeof closeWorkspaceMenu === 'function') closeWorkspaceMenu();
+        if (typeof hideSnapLayoutMenu === 'function') hideSnapLayoutMenu();
         altTabWindowList = null;
         return;
     }
@@ -3661,6 +3682,14 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         const focused = getFocusedWindow();
         if (focused) maximizeWindow(focused.id);
+        return;
+    }
+
+    // Switch virtual desktop: Ctrl+Alt+←/→ (Ctrl+Cmd+←/→ also works on macOS)
+    if (e.ctrlKey && (e.altKey || e.metaKey) && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        switchWorkspace(currentWorkspace + (e.key === 'ArrowRight' ? 1 : -1), true);
         return;
     }
 });
@@ -5048,15 +5077,17 @@ function minimizeWindow(windowId) {
         // Restore — clear the minimize reset so the open animation can run
         win.style.animation = '';
         win.classList.remove('minimizing');
-        win.style.display = 'flex';
+        delete win.dataset.wsMinimized;
+        win.style.display = windowIsOnCurrentWorkspace(win) ? 'flex' : 'none';
         win.classList.add('window-opening');
         win.addEventListener('animationend', () => {
             win.classList.remove('window-opening');
         }, { once: true });
-        focusWindow(windowId);
+        if (windowIsOnCurrentWorkspace(win)) focusWindow(windowId);
     } else {
         // Minimize with animation — shrink toward the taskbar item so the
         // window visibly "lands" where it will live
+        win.dataset.wsMinimized = '1';
         if (taskbarItem) {
             const tb = taskbarItem.getBoundingClientRect();
             const wr = win.getBoundingClientRect();
@@ -5075,7 +5106,6 @@ function minimizeWindow(windowId) {
         }
     }
 }
-
 // Resize Logic
 let isResizing = false;
 let wasResizing = false;
@@ -5257,7 +5287,9 @@ function saveWindowStates() {
             display: win.style.display,
             appName: win.dataset.appName || '',
             maximized: win.classList.contains('maximized'),
-            zIndex: win.style.zIndex
+            zIndex: win.style.zIndex,
+            workspace: win.dataset.workspace || '0',
+            wsMinimized: win.dataset.wsMinimized || ''
         });
     });
     try {
@@ -5307,9 +5339,14 @@ function restoreWindowStates() {
                 height: state.height,
                 restoredDisplay: state.display,
                 restoredMaximized: state.maximized,
-                restoredZIndex: state.zIndex
+                restoredZIndex: state.zIndex,
+                workspace: state.workspace || '0',
+                wsMinimized: state.wsMinimized || ''
             });
         });
+
+        // Re-apply virtual-desktop visibility now that restored windows exist
+        if (typeof refreshWorkspaceVisibility === 'function') refreshWorkspaceVisibility();
     } catch (e) {
         console.error('Failed to restore window states:', e);
     }
@@ -10120,4 +10157,816 @@ function restoreAllRecycleBinItems(windowId) {
         if (conflicts > 0) msg += ` ${conflicts} skipped (name conflict).`;
     }
     showNotification('Recycle Bin', msg);
+}
+
+// =====================================================================
+// WEBOS SYSTEM FEATURES
+// ---------------------------------------------------------------------
+// Virtual desktops (workspaces), snap layouts (Win+Z style), quick
+// settings + notification center, system tray, desktop widgets and
+// drag&drop file import into the virtual file system.
+// =====================================================================
+
+// ------------------------- VIRTUAL DESKTOPS -------------------------
+
+let workspaces = [];
+let currentWorkspace = 0;
+const WS_STORAGE_KEY = 'webos-workspaces';
+
+function loadWorkspaceState() {
+    const saved = safeJsonParse(WS_STORAGE_KEY, null);
+    if (saved && Array.isArray(saved.list) && saved.list.length) {
+        workspaces = saved.list.map((w, i) => ({
+            id: (w && w.id) || ('ws-' + i),
+            name: (w && w.name) || ('Desktop ' + (i + 1))
+        }));
+        currentWorkspace = Math.min(Math.max(parseInt(saved.current) || 0, 0), workspaces.length - 1);
+    } else {
+        workspaces = [{ id: 'ws-0', name: 'Desktop 1' }];
+        currentWorkspace = 0;
+    }
+}
+
+function saveWorkspaceState() {
+    safeStorageSet(WS_STORAGE_KEY, JSON.stringify({ list: workspaces, current: currentWorkspace }));
+}
+
+function windowIsOnCurrentWorkspace(win) {
+    if (!win) return true;
+    return parseInt(win.dataset.workspace || 0, 10) === currentWorkspace;
+}
+
+function applyWindowWorkspaceVisibility(win) {
+    if (!win) return;
+    const onCurrent = windowIsOnCurrentWorkspace(win);
+    const minimized = win.dataset.wsMinimized === '1';
+    if (!onCurrent || minimized) {
+        win.style.display = 'none';
+        win.dataset.wsHidden = '1';
+    } else {
+        win.style.display = 'flex';
+        win.dataset.wsHidden = '0';
+    }
+}
+
+function refreshWorkspaceVisibility() {
+    document.querySelectorAll('.window').forEach(applyWindowWorkspaceVisibility);
+    document.querySelectorAll('.taskbar-item').forEach(item => {
+        const wid = item.id.replace('taskbar-', '');
+        const w = document.getElementById(wid);
+        if (!w) return;
+        item.classList.toggle('ws-other', !windowIsOnCurrentWorkspace(w));
+    });
+    updateWorkspaceLabel();
+}
+
+function switchWorkspace(index, silent = false) {
+    if (workspaces.length === 0) return;
+    if (index < 0) index = 0;
+    if (index >= workspaces.length) index = workspaces.length - 1;
+    if (index === currentWorkspace) {
+        if (!silent) closeWorkspaceMenu();
+        return;
+    }
+    currentWorkspace = index;
+    saveWorkspaceState();
+    refreshWorkspaceVisibility();
+    renderWorkspaceList();
+    const wins = getVisibleWindows().filter(windowIsOnCurrentWorkspace);
+    if (wins.length) focusWindow(wins[wins.length - 1].id);
+    if (!silent) {
+        closeWorkspaceMenu();
+        showToast('Desktop gewechselt', workspaces[index].name, '▦');
+    }
+}
+
+function updateWorkspaceLabel() {
+    const label = document.getElementById('workspace-label');
+    if (label) label.textContent = String(currentWorkspace + 1);
+}
+
+function renderWorkspaceList() {
+    const list = document.getElementById('workspace-list');
+    if (!list) return;
+    list.innerHTML = '';
+    workspaces.forEach((ws, i) => {
+        const item = document.createElement('div');
+        item.className = 'workspace-item' + (i === currentWorkspace ? ' active-ws' : '');
+        const name = document.createElement('span');
+        name.className = 'ws-name';
+        name.textContent = ws.name;
+        const meta = document.createElement('span');
+        meta.style.cssText = 'font-size:11px;color:var(--text-low);min-width:18px;text-align:right;';
+        meta.textContent = String(document.querySelectorAll(`.window[data-workspace="${i}"]`).length);
+        const del = document.createElement('button');
+        del.className = 'ws-close';
+        del.textContent = '✕';
+        del.title = 'Desktop löschen';
+        del.onclick = (e) => {
+            e.stopPropagation();
+            removeWorkspace(i);
+        };
+        item.appendChild(name);
+        item.appendChild(meta);
+        item.appendChild(del);
+        item.onclick = () => switchWorkspace(i);
+        list.appendChild(item);
+    });
+}
+
+function addWorkspace() {
+    const name = 'Desktop ' + (workspaces.length + 1);
+    workspaces.push({ id: 'ws-' + Date.now(), name });
+    saveWorkspaceState();
+    renderWorkspaceList();
+    showToast('Neuer Desktop', name, '▦');
+}
+
+function removeWorkspace(index) {
+    if (workspaces.length <= 1) {
+        showToast('Virtuelle Desktops', 'Der letzte Desktop kann nicht gelöscht werden.', '⚠️');
+        return;
+    }
+    const removedWs = workspaces[index];
+    const target = Math.max(0, index - 1);
+    document.querySelectorAll('.window').forEach(win => {
+        const wsIdx = parseInt(win.dataset.workspace || 0, 10);
+        if (wsIdx === index) {
+            win.dataset.workspace = String(target);
+        } else if (wsIdx > index) {
+            win.dataset.workspace = String(wsIdx - 1);
+        }
+    });
+    workspaces.splice(index, 1);
+    if (currentWorkspace >= workspaces.length) {
+        currentWorkspace = workspaces.length - 1;
+    } else if (currentWorkspace === index) {
+        currentWorkspace = target;
+    } else if (currentWorkspace > index) {
+        currentWorkspace--;
+    }
+    saveWorkspaceState();
+    refreshWorkspaceVisibility();
+    renderWorkspaceList();
+    showToast('Desktop gelöscht', removedWs.name, '🗑️');
+}
+
+function toggleWorkspaceMenu() {
+    const menu = document.getElementById('workspace-menu');
+    const btn = document.getElementById('desktop-switcher');
+    if (!menu) return;
+    if (!menu.classList.contains('hidden')) {
+        closeWorkspaceMenu();
+        return;
+    }
+    hideAllContextMenus();
+    closeQuickSettings();
+    renderWorkspaceList();
+    updateWorkspaceLabel();
+    menu.classList.remove('hidden');
+    if (btn) btn.classList.add('active');
+}
+
+function closeWorkspaceMenu() {
+    const menu = document.getElementById('workspace-menu');
+    const btn = document.getElementById('desktop-switcher');
+    if (menu) menu.classList.add('hidden');
+    if (btn) btn.classList.remove('active');
+}
+
+// ------------------------- QUICK SETTINGS -------------------------
+
+const DEFAULT_QUICK_SETTINGS = { wifi: true, bluetooth: false, dnd: false, sound: true, widgets: true, darkmode: true };
+const ACCENT_COLORS = ['#0078d7', '#2ecc71', '#e74c3c', '#9b59b6', '#34495e', '#e67e22', '#fbbf24', '#34d399'];
+let quickSettings = { ...DEFAULT_QUICK_SETTINGS };
+
+function loadQuickSettings() {
+    const saved = safeJsonParse('webos-quick-settings', null);
+    if (saved && typeof saved === 'object') {
+        quickSettings = { ...DEFAULT_QUICK_SETTINGS, ...saved };
+    }
+}
+
+function saveQuickSettings() {
+    safeStorageSet('webos-quick-settings', JSON.stringify(quickSettings));
+}
+
+function toggleQuickSettings() {
+    const panel = document.getElementById('quick-settings');
+    const btn = document.getElementById('tray-button');
+    if (!panel) return;
+    if (!panel.classList.contains('hidden')) {
+        closeQuickSettings();
+        return;
+    }
+    hideAllContextMenus();
+    closeWorkspaceMenu();
+    panel.classList.remove('hidden');
+    if (btn) btn.classList.add('active');
+    switchQuickSettingsTab('toggles');
+    updateQuickSettingsUI();
+    renderNotificationHistory();
+}
+
+function closeQuickSettings() {
+    const panel = document.getElementById('quick-settings');
+    const btn = document.getElementById('tray-button');
+    if (panel) panel.classList.add('hidden');
+    if (btn) btn.classList.remove('active');
+}
+
+function switchQuickSettingsTab(tab) {
+    document.querySelectorAll('#quick-settings .qs-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.qsTab === tab);
+    });
+    const toggles = document.getElementById('qs-toggles');
+    const notifs = document.getElementById('qs-notifications');
+    if (toggles) toggles.classList.toggle('hidden', tab !== 'toggles');
+    if (notifs) notifs.classList.toggle('hidden', tab !== 'notifications');
+    if (tab === 'notifications') renderNotificationHistory();
+}
+
+function toggleQuickSetting(key) {
+    if (!(key in quickSettings)) return;
+    quickSettings[key] = !quickSettings[key];
+    saveQuickSettings();
+    updateQuickSettingsUI();
+    applyQuickSettings();
+}
+
+function updateQuickSettingsUI() {
+    const map = { wifi: 'qs-wifi', bluetooth: 'qs-bluetooth', dnd: 'qs-dnd', sound: 'qs-sound', widgets: 'qs-widgets', darkmode: 'qs-darkmode' };
+    for (const [key, id] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('on', !!quickSettings[key]);
+    }
+
+    const wifiIcon = document.getElementById('tray-wifi');
+    if (wifiIcon) {
+        wifiIcon.textContent = quickSettings.wifi ? '📶' : '📡';
+        wifiIcon.dataset.on = quickSettings.wifi ? 'on' : 'off';
+    }
+    const volIcon = document.getElementById('tray-volume');
+    if (volIcon) {
+        volIcon.textContent = quickSettings.sound ? '🔊' : '🔇';
+        volIcon.dataset.on = quickSettings.sound ? 'on' : 'off';
+    }
+
+    const row = document.getElementById('qs-accent-row');
+    if (row) {
+        row.innerHTML = '';
+        let current = '#0078d7';
+        try {
+            current = getComputedStyle(document.documentElement).getPropertyValue('--theme-color').trim() || '#0078d7';
+        } catch (e) { /* non-browser environment */ }
+        ACCENT_COLORS.forEach(c => {
+            const b = document.createElement('button');
+            b.className = 'qs-swatch' + (c.toLowerCase() === current.toLowerCase() ? ' active' : '');
+            b.style.background = c;
+            b.title = c;
+            b.onclick = () => {
+                setThemeColor(c);
+                updateQuickSettingsUI();
+            };
+            row.appendChild(b);
+        });
+        const custom = document.createElement('label');
+        custom.className = 'qs-accent-custom';
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = /^#[0-9a-f]{6}$/i.test(current) ? current : '#0078d7';
+        custom.appendChild(input);
+        input.onchange = (e) => {
+            setThemeColor(e.target.value);
+            updateQuickSettingsUI();
+        };
+        row.appendChild(custom);
+    }
+    updateQuickStats();
+}
+
+function applyQuickSettings() {
+    document.documentElement.setAttribute('data-theme', quickSettings.darkmode ? 'dark' : 'light');
+    window.webosDndEnabled = !!quickSettings.dnd;
+    if (quickSettings.widgets) renderWidgets();
+    else hideWidgets();
+    updateTrayState();
+}
+
+function updateTrayState() {
+    const battery = document.getElementById('tray-battery');
+    if (battery) {
+        if (navigator.getBattery) {
+            navigator.getBattery().then(b => {
+                battery.textContent = b.charging ? '🔌' : '🔋';
+                battery.title = 'Akkulaufzeit: ' + Math.round(b.level * 100) + '%' + (b.charging ? ' (lädt)' : '');
+            }).catch(() => {});
+        }
+    }
+}
+
+// ---- Pseudo system stats (no real OS APIs available in the browser) ----
+
+let _lastCpuSample = performance.now();
+let _lastCpuValue = 18;
+function getPseudoCpu() {
+    const now = performance.now();
+    if (now - _lastCpuSample > 1500) {
+        _lastCpuSample = now;
+        _lastCpuValue = Math.max(5, Math.min(85, _lastCpuValue + (Math.random() * 22 - 11)));
+    }
+    return Math.round(_lastCpuValue);
+}
+
+let _lastRamSample = performance.now();
+let _lastRamValue = 42;
+function getPseudoRam() {
+    const now = performance.now();
+    if (now - _lastRamSample > 2000) {
+        _lastRamSample = now;
+        _lastRamValue = Math.max(12, Math.min(90, _lastRamValue + (Math.random() * 16 - 8)));
+    }
+    return Math.round(_lastRamValue);
+}
+
+function getStoragePct() {
+    const stats = getStorageStats();
+    const quota = 4.5 * 1024 * 1024;
+    return Math.min(100, Math.round((stats.totalBytes / quota) * 100));
+}
+
+function updateQuickStats() {
+    const cpuBar = document.getElementById('qs-cpu-bar');
+    const ramBar = document.getElementById('qs-ram-bar');
+    const storageBar = document.getElementById('qs-storage-bar');
+    if (cpuBar) cpuBar.style.width = getPseudoCpu() + '%';
+    if (ramBar) ramBar.style.width = getPseudoRam() + '%';
+    if (storageBar) storageBar.style.width = getStoragePct() + '%';
+}
+
+// --------------------- NOTIFICATION CENTER ---------------------
+
+function renderNotificationHistory() {
+    const list = document.getElementById('qs-notif-list');
+    const empty = document.getElementById('qs-notif-empty');
+    if (!list) return;
+    const history = window.webosNotificationHistory || [];
+    list.innerHTML = '';
+    if (!history.length) {
+        if (empty) empty.style.display = 'block';
+        updateQsOpenBadge();
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    history.slice().reverse().forEach(n => {
+        const item = document.createElement('div');
+        item.className = 'qs-notif-item';
+        const body = document.createElement('div');
+        body.className = 'qs-notif-body';
+        const t = document.createElement('div');
+        t.className = 'qs-notif-title';
+        t.textContent = n.title;
+        const m = document.createElement('div');
+        m.className = 'qs-notif-msg';
+        m.textContent = n.message;
+        const time = document.createElement('div');
+        time.className = 'qs-notif-time';
+        time.textContent = new Date(n.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        body.appendChild(t);
+        body.appendChild(m);
+        body.appendChild(time);
+        const icon = document.createElement('span');
+        icon.className = 'qs-notif-icon';
+        icon.textContent = '🔔';
+        item.appendChild(icon);
+        item.appendChild(body);
+        list.appendChild(item);
+    });
+    updateQsOpenBadge();
+}
+
+function clearNotificationHistory() {
+    window.webosNotificationHistory = [];
+    renderNotificationHistory();
+}
+
+function updateQsOpenBadge() {
+    const history = window.webosNotificationHistory || [];
+    const badge = document.getElementById('qs-open-badge');
+    if (!badge) return;
+    if (history.length) {
+        badge.textContent = history.length > 99 ? '99+' : String(history.length);
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function webosOnNewNotification() {
+    renderNotificationHistory();
+    updateQsOpenBadge();
+}
+
+// --------------------------- SNAP LAYOUTS ---------------------------
+
+let snapLayoutForWindow = null;
+let snapLayoutHover = false;
+
+const SNAP_LAYOUT_DEFS = [
+    { name: '2 Spalten', cols: '1fr 1fr', rows: '1fr' },
+    { name: '3 Spalten', cols: '1fr 1fr 1fr', rows: '1fr' },
+    { name: 'Viertel', cols: '1fr 1fr', rows: '1fr 1fr' },
+    { name: '2 Zeilen', cols: '1fr', rows: '1fr 1fr' }
+];
+
+function snapLayoutRect(defIdx, cellIdx) {
+    const def = SNAP_LAYOUT_DEFS[defIdx];
+    const taskbarH = 48;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight - taskbarH;
+    const colCount = def.cols.split(' ').length;
+    const rowCount = def.rows.split(' ').length;
+    const col = cellIdx % colCount;
+    const row = Math.floor(cellIdx / colCount);
+    const w = vw / colCount;
+    const h = vh / rowCount;
+    return { x: Math.round(col * w), y: Math.round(row * h), w: Math.round(w), h: Math.round(h) };
+}
+
+function renderSnapLayoutOptions() {
+    const grid = document.getElementById('snap-layout-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    SNAP_LAYOUT_DEFS.forEach((def, di) => {
+        const opt = document.createElement('div');
+        opt.className = 'snap-layout-option';
+        opt.title = def.name;
+        const preview = document.createElement('div');
+        preview.className = 'sl-preview';
+        preview.style.gridTemplateColumns = def.cols;
+        preview.style.gridTemplateRows = def.rows;
+        const cellCount = def.cols.split(' ').length * def.rows.split(' ').length;
+        for (let ci = 0; ci < cellCount; ci++) {
+            const cell = document.createElement('div');
+            cell.className = 'sl-cell';
+            cell.onclick = (e) => {
+                e.stopPropagation();
+                if (snapLayoutForWindow) {
+                    applySnapLayout(snapLayoutForWindow, snapLayoutRect(di, ci));
+                }
+            };
+            preview.appendChild(cell);
+        }
+        opt.appendChild(preview);
+        grid.appendChild(opt);
+    });
+}
+
+function showSnapLayoutMenu(windowId, btn) {
+    if (isMobileViewport()) return;
+    hideSnapLayoutMenu();
+    snapLayoutForWindow = windowId;
+    snapLayoutHover = true;
+    const menu = document.getElementById('snap-layout-menu');
+    if (!menu) return;
+    renderSnapLayoutOptions();
+    menu.classList.remove('hidden');
+    const r = btn.getBoundingClientRect();
+    const mw = 208;
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.right - mw)) + 'px';
+    menu.style.top = Math.max(8, r.bottom + 4) + 'px';
+}
+
+function scheduleSnapLayoutHide() {
+    setTimeout(() => {
+        if (!snapLayoutHover) hideSnapLayoutMenu();
+    }, 180);
+}
+
+function hideSnapLayoutMenu() {
+    const menu = document.getElementById('snap-layout-menu');
+    if (menu) menu.classList.add('hidden');
+    snapLayoutForWindow = null;
+}
+
+function applySnapLayout(windowId, rect) {
+    const win = document.getElementById(windowId);
+    if (!win || !rect) return;
+    win.classList.remove('maximized', 'snapped-left', 'snapped-right');
+    win.dataset.prevLeft = win.style.left;
+    win.dataset.prevTop = win.style.top;
+    win.dataset.prevWidth = win.style.width;
+    win.dataset.prevHeight = win.style.height;
+    win.style.left = rect.x + 'px';
+    win.style.top = rect.y + 'px';
+    win.style.width = rect.w + 'px';
+    win.style.height = rect.h + 'px';
+    hideSnapLayoutMenu();
+    focusWindow(windowId);
+    saveWindowStates();
+}
+
+// ------------------------- DESKTOP WIDGETS -------------------------
+
+let _widgetClockTimer = null;
+let _widgetStatsTimer = null;
+const DEFAULT_WEATHER = { lat: 52.52, lon: 13.41, name: 'Berlin' };
+
+function renderWidgets() {
+    const container = document.getElementById('desktop-widgets');
+    if (!container) return;
+    if (!quickSettings.widgets) {
+        hideWidgets();
+        return;
+    }
+    container.innerHTML = '';
+    buildClockWidget(container);
+    buildStatsWidget(container);
+    buildWeatherWidget(container);
+    if (!_widgetClockTimer) {
+        _widgetClockTimer = setInterval(() => {
+            const t = document.getElementById('widget-clock-time');
+            if (t) t.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }, 1000);
+    }
+    if (!_widgetStatsTimer) {
+        _widgetStatsTimer = setInterval(updateStatsWidget, 2500);
+    }
+    refreshWeatherWidget();
+}
+
+function hideWidgets() {
+    const container = document.getElementById('desktop-widgets');
+    if (container) container.innerHTML = '';
+    if (_widgetClockTimer) { clearInterval(_widgetClockTimer); _widgetClockTimer = null; }
+    if (_widgetStatsTimer) { clearInterval(_widgetStatsTimer); _widgetStatsTimer = null; }
+}
+
+function buildClockWidget(container) {
+    const w = document.createElement('div');
+    w.className = 'widget';
+    const now = new Date();
+    const time = document.createElement('div');
+    time.className = 'widget-clock-time';
+    time.id = 'widget-clock-time';
+    time.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = document.createElement('div');
+    date.className = 'widget-clock-date';
+    date.textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    const title = document.createElement('div');
+    title.className = 'widget-window-title';
+    title.textContent = '🕐 Uhr';
+    w.appendChild(title);
+    w.appendChild(time);
+    w.appendChild(date);
+    container.appendChild(w);
+}
+
+function buildStatsWidget(container) {
+    const w = document.createElement('div');
+    w.className = 'widget';
+    w.innerHTML = `
+        <div class="widget-window-title">📊 System</div>
+        <div class="widget-stats-row"><span>CPU</span><b id="ws-cpu">0%</b></div>
+        <div class="widget-mini-bar"><div class="widget-mini-bar-fill" id="ws-cpu-bar"></div></div>
+        <div class="widget-stats-row"><span>RAM</span><b id="ws-ram">0%</b></div>
+        <div class="widget-mini-bar"><div class="widget-mini-bar-fill" id="ws-ram-bar"></div></div>
+        <div class="widget-stats-row"><span>Fenster</span><b id="ws-wins">0</b></div>`;
+    container.appendChild(w);
+    updateStatsWidget();
+}
+
+function updateStatsWidget() {
+    const cpu = getPseudoCpu();
+    const ram = getPseudoRam();
+    const cpuEl = document.getElementById('ws-cpu');
+    const cpuBar = document.getElementById('ws-cpu-bar');
+    const ramEl = document.getElementById('ws-ram');
+    const ramBar = document.getElementById('ws-ram-bar');
+    const winsEl = document.getElementById('ws-wins');
+    if (cpuEl) cpuEl.textContent = cpu + '%';
+    if (cpuBar) cpuBar.style.width = cpu + '%';
+    if (ramEl) ramEl.textContent = ram + '%';
+    if (ramBar) ramBar.style.width = ram + '%';
+    if (winsEl) winsEl.textContent = String(document.querySelectorAll('.window').length);
+}
+
+function buildWeatherWidget(container) {
+    const w = document.createElement('div');
+    w.className = 'widget';
+    w.id = 'widget-weather';
+    w.innerHTML = `
+        <div class="widget-window-title">🌤️ Wetter</div>
+        <div class="widget-weather-temp"><span class="w-emoji" id="w-emoji">🌍</span><span id="w-temp">–</span></div>
+        <div class="widget-weather-desc" id="w-desc">Wird geladen…</div>
+        <div class="widget-weather-desc" id="w-city">${escapeHtml(DEFAULT_WEATHER.name)}</div>`;
+    container.appendChild(w);
+}
+
+function refreshWeatherWidget() {
+    if (!document.getElementById('widget-weather')) return;
+    const cached = safeJsonParse('webos-weather-cache', null);
+    if (cached && cached.ts && Date.now() - cached.ts < 15 * 60 * 1000) {
+        applyWeather(cached);
+    }
+    fetchWeatherForWidget(DEFAULT_WEATHER.lat, DEFAULT_WEATHER.lon, DEFAULT_WEATHER.name);
+}
+
+function fetchWeatherForWidget(lat, lon, name) {
+    if (typeof fetch !== 'function') return;
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.current_weather) return;
+            const info = {
+                ts: Date.now(),
+                temp: Math.round(data.current_weather.temperature) + '°C',
+                code: data.current_weather.weathercode,
+                wind: Math.round(data.current_weather.windspeed),
+                name: name
+            };
+            safeStorageSet('webos-weather-cache', JSON.stringify(info));
+            applyWeather(info);
+        })
+        .catch(() => {});
+}
+
+function applyWeather(info) {
+    if (!info) return;
+    const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = v;
+    };
+    set('w-emoji', weatherCodeToEmoji(info.code));
+    set('w-temp', info.temp);
+    set('w-desc', weatherCodeToDesc(info.code) + ' · Wind ' + Math.round(info.wind || 0) + ' km/h');
+    set('w-city', info.name);
+}
+
+function weatherCodeToEmoji(code) {
+    if (code === 0) return '☀️';
+    if (code <= 2) return '⛅';
+    if (code === 3) return '☁️';
+    if (code <= 48) return '🌫️';
+    if (code <= 57) return '🌦️';
+    if (code <= 67) return '🌧️';
+    if (code <= 77) return '🌨️';
+    if (code <= 82) return '🌦️';
+    if (code <= 86) return '🌨️';
+    return '⛈️';
+}
+
+function weatherCodeToDesc(code) {
+    if (code === 0) return 'Klar';
+    if (code === 1) return 'Überwiegend sonnig';
+    if (code === 2) return 'Teilweise bewölkt';
+    if (code === 3) return 'Bedeckt';
+    if (code <= 48) return 'Nebel';
+    if (code <= 57) return 'Nieselregen';
+    if (code <= 67) return 'Regen';
+    if (code <= 77) return 'Schneefall';
+    if (code <= 82) return 'Schauer';
+    if (code <= 86) return 'Schneeschauer';
+    return 'Gewitter';
+}
+
+// ------------------------- DRAG & DROP UPLOAD -------------------------
+
+function showDropOverlay() {
+    const ov = document.getElementById('drop-overlay');
+    if (ov) ov.classList.remove('hidden');
+}
+
+function hideDropOverlay() {
+    const ov = document.getElementById('drop-overlay');
+    if (ov) ov.classList.add('hidden');
+}
+
+function handleDroppedFiles(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    let pending = list.length;
+    let okCount = 0;
+    let failCount = 0;
+    const finish = () => {
+        if (--pending > 0) return;
+        if (okCount > 0) {
+            saveFileSystem();
+            document.querySelectorAll('#window-area .window[data-appname="file-explorer"]').forEach(w => renderFileExplorer(w.id));
+            showNotification('Datei importiert', okCount + ' Datei(en) ins Dateisystem geladen.', 4000);
+        }
+        if (failCount > 0) {
+            showNotification('Import', failCount + ' Datei(en) konnten nicht gelesen werden.', 4000);
+        }
+    };
+    list.forEach(file => {
+        const key = file.name.replace(/[\\/]/g, '_');
+        if (!key) {
+            failCount++;
+            finish();
+            return;
+        }
+        if (fileSystem[key] !== undefined) {
+            if (!confirm('Datei "' + file.name + '" existiert bereits. Überschreiben?')) {
+                failCount++;
+                finish();
+                return;
+            }
+        }
+        const isText = (file.type && file.type.startsWith('text/')) ||
+            /\.(txt|md|js|json|csv|html|css|py|ts|log|sh|yml|yaml|xml|ini)$/i.test(file.name);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            fileSystem[key] = String(e.target.result);
+            okCount++;
+            finish();
+        };
+        reader.onerror = () => {
+            failCount++;
+            finish();
+        };
+        attachFileReaderErrorHandler(reader, null, 'drag-drop');
+        if (isText) reader.readAsText(file);
+        else reader.readAsDataURL(file);
+    });
+}
+
+function initDragAndDrop() {
+    const desktop = document.getElementById('desktop');
+    if (!desktop) return;
+    desktop.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        showDropOverlay();
+    });
+    desktop.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+    desktop.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        if (!e.relatedTarget || !desktop.contains(e.relatedTarget)) hideDropOverlay();
+    });
+    desktop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        hideDropOverlay();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+            handleDroppedFiles(e.dataTransfer.files);
+        }
+    });
+}
+
+// --------------------------- INIT & WIRING ---------------------------
+
+function initWebosSystemFeatures() {
+    if (initWebosSystemFeatures._done) return;
+    initWebosSystemFeatures._done = true;
+
+    window.webosOnNewNotification = webosOnNewNotification;
+    updateQsOpenBadge();
+
+    loadWorkspaceState();
+    updateWorkspaceLabel();
+    renderWorkspaceList();
+    refreshWorkspaceVisibility();
+
+    loadQuickSettings();
+    applyQuickSettings();
+    updateQuickSettingsUI();
+
+    initDragAndDrop();
+
+    setInterval(updateQuickStats, 2000);
+
+    // Snap layout menu hover behaviour
+    const snapMenu = document.getElementById('snap-layout-menu');
+    if (snapMenu) {
+        snapMenu.addEventListener('mouseenter', () => { snapLayoutHover = true; });
+        snapMenu.addEventListener('mouseleave', () => {
+            snapLayoutHover = false;
+            hideSnapLayoutMenu();
+        });
+    }
+
+    // Click-outside closes quick settings / workspace menu / snap layout menu
+    document.addEventListener('click', (e) => {
+        const qs = document.getElementById('quick-settings');
+        const trayBtn = document.getElementById('tray-button');
+        const tray = document.getElementById('tray');
+        if (qs && !qs.classList.contains('hidden') && trayBtn && !trayBtn.contains(e.target) &&
+            tray && !tray.contains(e.target) && !qs.contains(e.target)) {
+            closeQuickSettings();
+        }
+        const wsMenu = document.getElementById('workspace-menu');
+        const wsBtn = document.getElementById('desktop-switcher');
+        if (wsMenu && !wsMenu.classList.contains('hidden') && wsBtn && !wsBtn.contains(e.target) && !wsMenu.contains(e.target)) {
+            closeWorkspaceMenu();
+        }
+        const sl = document.getElementById('snap-layout-menu');
+        if (sl && !sl.classList.contains('hidden') && !sl.contains(e.target) && !e.target.closest('.maximize-button')) {
+            hideSnapLayoutMenu();
+        }
+    });
+
+    // Battery indicator via Battery Status API (where available)
+    updateTrayState();
 }
