@@ -187,13 +187,30 @@ function filterStartMenu(query) {
 }
 
 // Clock
+// Locale date formatting (weekday + full date) is comparatively expensive, and
+// updateClock fires once per second — cache the formatted string per day so it
+// is only recomputed when the date actually changes.
+let _clockDateCacheKey = '';
+let _clockDateCacheStr = '';
+function getCachedFullDateString(now) {
+    const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    if (key !== _clockDateCacheKey) {
+        _clockDateCacheKey = key;
+        _clockDateCacheStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    return _clockDateCacheStr;
+}
+
 function updateClock() {
+    // Nothing to repaint while the tab is hidden — the interval keeps running
+    // cheaply and catches up on the next visible tick.
+    if (typeof document !== 'undefined' && document.hidden) return;
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const clock = document.getElementById('clock');
     clock.textContent = `${hours}:${minutes}`;
-    clock.title = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    clock.title = getCachedFullDateString(now);
 
     // Don't overwrite the lock-screen when the system is in shutdown mode
     const lockScreen = document.getElementById('lock-screen');
@@ -203,7 +220,7 @@ function updateClock() {
     const lockDate = document.getElementById('lock-date');
     if (lockTime && lockDate) {
         lockTime.textContent = `${hours}:${minutes}`;
-        lockDate.textContent = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        lockDate.textContent = getCachedFullDateString(now);
     }
 }
 setInterval(updateClock, 1000);
@@ -595,12 +612,19 @@ function handleTaskbarContextMenuAction(action) {
 
 // ===================== FEATURE 3: APP PINNING =====================
 
+// Cache the parsed pinned list so `isPinned` (called for every desktop icon /
+// context menu) doesn't re-parse localStorage JSON on each invocation.
+let _pinnedAppsCache = null;
 function getPinnedApps() {
-    const pinned = safeJsonParse('pinnedApps', []);
-    return Array.isArray(pinned) ? pinned : [];
+    if (_pinnedAppsCache === null) {
+        const pinned = safeJsonParse('pinnedApps', []);
+        _pinnedAppsCache = Array.isArray(pinned) ? pinned : [];
+    }
+    return _pinnedAppsCache;
 }
 
 function savePinnedApps(pinned) {
+    _pinnedAppsCache = pinned;
     safeStorageSet('pinnedApps', JSON.stringify(pinned));
 }
 
@@ -659,24 +683,33 @@ function renderPinnedApps() {
 
 // ===================== FEATURE 2: SYSTEM CLOCK TOOLTIP =====================
 
+// Cache the ISO week number per day — getWeekNumber() allocates several Dates.
+let _weekNumberCacheKey = '';
+let _weekNumberCacheValue = 0;
+function getWeekNumber(d) {
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (key !== _weekNumberCacheKey) {
+        _weekNumberCacheKey = key;
+        const u = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        u.setUTCDate(u.getUTCDate() + 4 - (u.getUTCDay() || 7));
+        const yearStart = new Date(Date.UTC(u.getUTCFullYear(), 0, 1));
+        _weekNumberCacheValue = Math.ceil(((u - yearStart) / 86400000 + 1) / 7);
+    }
+    return _weekNumberCacheValue;
+}
+
 function updateClockTooltip() {
+    if (document.hidden) return;
     const tooltip = document.getElementById('clock-tooltip');
     if (!tooltip) return;
     const now = new Date();
     const timeStr = now.toLocaleTimeString();
-    const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const dateStr = getCachedFullDateString(now);
     const weekNum = getWeekNumber(now);
 
     document.getElementById('clock-tooltip-time').textContent = timeStr;
     document.getElementById('clock-tooltip-date').textContent = dateStr;
     document.getElementById('clock-tooltip-day').textContent = `KW ${weekNum}`;
-}
-
-function getWeekNumber(d) {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
 
 // Clock tooltip on hover
@@ -870,6 +903,11 @@ const ICON_DRAG_THRESHOLD = 5;
 let iconDownPoint = null;
 let iconDragArmed = false;
 
+// Cached per-drag so the mousemove handler doesn't re-query the DOM or force
+// layout via getBoundingClientRect() on every pointer move.
+let iconDragDesktopEl = null;
+let iconDragDesktopRect = null;
+
 let iconDragSafetyTimeout = null;
 
 function startDragIcon(e, icon) {
@@ -879,6 +917,8 @@ function startDragIcon(e, icon) {
     iconDownPoint = { x: pt.x, y: pt.y };
     iconDragArmed = true;
     isDraggingIcon = false;
+    iconDragDesktopEl = document.getElementById('desktop');
+    iconDragDesktopRect = null;
 
     document.addEventListener('mousemove', dragIcon);
     document.addEventListener('mouseup', stopDragIcon);
@@ -903,13 +943,12 @@ function dragIcon(e) {
         if (e.cancelable) e.preventDefault();
         isDraggingIcon = true;
 
-        const desktop = document.getElementById('desktop');
+        if (iconDragDesktopEl) iconDragDesktopRect = iconDragDesktopEl.getBoundingClientRect();
         const iconRect = currentDragIcon.getBoundingClientRect();
-        const desktopRect = desktop.getBoundingClientRect();
         if (getComputedStyle(currentDragIcon).position !== 'absolute') {
             currentDragIcon.style.position = 'absolute';
-            currentDragIcon.style.left = `${iconRect.left - desktopRect.left}px`;
-            currentDragIcon.style.top = `${iconRect.top - desktopRect.top}px`;
+            currentDragIcon.style.left = `${iconRect.left - (iconDragDesktopRect ? iconDragDesktopRect.left : 0)}px`;
+            currentDragIcon.style.top = `${iconRect.top - (iconDragDesktopRect ? iconDragDesktopRect.top : 0)}px`;
             currentDragIcon.style.margin = '0';
         }
         iconDragOffset.x = pt.x - currentDragIcon.getBoundingClientRect().left;
@@ -917,10 +956,11 @@ function dragIcon(e) {
     }
 
     if (e.cancelable) e.preventDefault();
-    const desktop = document.getElementById('desktop');
-    const desktopRect = desktop.getBoundingClientRect();
-    const x = pt.x - desktopRect.left - iconDragOffset.x;
-    const y = pt.y - desktopRect.top - iconDragOffset.y;
+    if (!iconDragDesktopRect && iconDragDesktopEl) iconDragDesktopRect = iconDragDesktopEl.getBoundingClientRect();
+    const left = iconDragDesktopRect ? iconDragDesktopRect.left : 0;
+    const top = iconDragDesktopRect ? iconDragDesktopRect.top : 0;
+    const x = pt.x - left - iconDragOffset.x;
+    const y = pt.y - top - iconDragOffset.y;
     currentDragIcon.style.left = `${x}px`;
     currentDragIcon.style.top = `${y}px`;
 }
@@ -4618,6 +4658,10 @@ function handleFileUpload(windowId, input) {
 
 function initSystemMonitor(windowId) {
     const update = () => {
+        // No point polling while the tab is hidden or this window is minimized.
+        if (document.hidden) return;
+        const win = document.getElementById(windowId);
+        if (win && win.style.display === 'none') return;
         const cpuEl = document.getElementById(`sys-cpu-${windowId}`);
         const ramEl = document.getElementById(`sys-ram-${windowId}`);
         const winEl = document.getElementById(`sys-win-${windowId}`);
@@ -6223,6 +6267,11 @@ function initTaskManager(windowId) {
 }
 
 function renderTaskManager(windowId) {
+    // Skip the full innerHTML rebuild while the tab is hidden or this window
+    // is minimized — nothing is visible anyway.
+    if (document.hidden) return;
+    const win = document.getElementById(windowId);
+    if (win && win.style.display === 'none') return;
     const list = document.getElementById(`task-list-${windowId}`);
     const countSpan = document.getElementById(`task-count-${windowId}`);
     if (!list) return;
@@ -10489,13 +10538,27 @@ function getPseudoRam() {
     return Math.round(_lastRamValue);
 }
 
+// getStorageStats() walks the entire virtual file system, so cache the derived
+// percentage with a TTL — updateQuickStats calls this every 2 seconds.
+let _storagePctCache = -1;
+let _storagePctCacheTs = 0;
 function getStoragePct() {
-    const stats = getStorageStats();
-    const quota = 4.5 * 1024 * 1024;
-    return Math.min(100, Math.round((stats.totalBytes / quota) * 100));
+    const now = Date.now();
+    if (_storagePctCache < 0 || now - _storagePctCacheTs > 15000) {
+        _storagePctCacheTs = now;
+        const stats = getStorageStats();
+        const quota = 4.5 * 1024 * 1024;
+        _storagePctCache = Math.min(100, Math.round((stats.totalBytes / quota) * 100));
+    }
+    return _storagePctCache;
 }
 
 function updateQuickStats() {
+    // Skip while the tab is hidden or the panel is closed: the bars are only
+    // visible in the open Quick Settings panel, which refreshes on open.
+    if (typeof document !== 'undefined' && document.hidden) return;
+    const qs = document.getElementById('quick-settings');
+    if (qs && qs.classList.contains('hidden')) return;
     const cpuBar = document.getElementById('qs-cpu-bar');
     const ramBar = document.getElementById('qs-ram-bar');
     const storageBar = document.getElementById('qs-storage-bar');
@@ -10563,8 +10626,12 @@ function updateQsOpenBadge() {
 }
 
 function webosOnNewNotification() {
-    renderNotificationHistory();
+    // Rebuilding the (up to 100 item) list on every notification is wasted work
+    // while the panel is closed — only re-render when the tab is open, and
+    // update the badge always.
     updateQsOpenBadge();
+    const notifPane = document.getElementById('qs-notifications');
+    if (notifPane && !notifPane.classList.contains('hidden')) renderNotificationHistory();
 }
 
 // --------------------------- SNAP LAYOUTS ---------------------------
@@ -10685,12 +10752,16 @@ function renderWidgets() {
     buildWeatherWidget(container);
     if (!_widgetClockTimer) {
         _widgetClockTimer = setInterval(() => {
+            if (document.hidden) return;
             const t = document.getElementById('widget-clock-time');
             if (t) t.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }, 1000);
     }
     if (!_widgetStatsTimer) {
-        _widgetStatsTimer = setInterval(updateStatsWidget, 2500);
+        _widgetStatsTimer = setInterval(() => {
+            if (document.hidden) return;
+            updateStatsWidget();
+        }, 2500);
     }
     refreshWeatherWidget();
 }
