@@ -1,6 +1,6 @@
 # Browserbetriebssystem — App-Verzeichnis
 
-Vollständige Übersicht aller **42 Apps** in diesem Projekt.
+Vollständige Übersicht aller **43 Apps** in diesem Projekt.
 
 ## 🖥️ System & Verwaltung (12)
 
@@ -28,7 +28,7 @@ Systemeinstellungen: Designwechsel (Hell/Dunkel), Hintergrundbild anpassen, Schr
 ### About
 Systeminformationen: Versionsnummer, Credits, Lizenzhinweise, Tech-Stack-Übersicht.
 
-## 💼 Produktivität (10)
+## 💼 Produktivität (11)
 
 ### Notepad
 Vollständiger Texteditor mit Syntax-Highlighting (HTML/CSS/JS), Suchen/Ersetzen (Ctrl+F), Zeilennummern, Auto-Save, und Multi-Tab-Support.
@@ -56,6 +56,9 @@ Digital- und Analoguhr mit Zeitzonen, Weckfunktion, und Stoppuhr (Start/Stop/Res
 
 ### Unit Converter
 Einheitenumrechner für Länge (km/m/cm/mm/in/ft/mi), Gewicht (kg/g/lb/oz), Temperatur (°C/°F/K), Volumen (L/mL/gal), und Geschwindigkeit.
+
+### Notes
+Notizen-App mit Markdown-Unterstützung (Write/Preview), Kategorien (Personal/Work/Ideas), Volltextsuche, Auto-Save und Persistenz im lokalen Speicher.
 
 ### PDF Viewer
 PDF-Betrachter mit Datei-Upload, Zoom (In/Out/Fit), Seiten-Navigation, und Vollbildmodus.
