@@ -1,6 +1,6 @@
 const appCategories = {
     system: ['terminal', 'file-explorer', 'task-manager', 'system-monitor', 'system-center', 'settings', 'about', 'clock', 'wine', 'calculator', 'printer', 'recyclebin'],
-    productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter'],
+    productivity: ['notepad', 'code-editor', 'spreadsheet', 'markdown-editor', 'pdf-viewer', 'pomodoro', 'calendar', 'sticky-notes', 'email', 'unit-converter', 'notes'],
     games: ['snake', 'minesweeper', '2048', 'tetris', 'solitaire', 'sudoku', 'pong', 'memory', 'tictactoe'],
     creative: ['paint', 'piano', 'voice-recorder', 'camera', 'music-player', 'video-player', 'speak', 'photo-gallery', 'color-picker'],
     internet: ['browser', 'weather', 'chat']
@@ -76,7 +76,8 @@ const appData = {
     printer: { name: 'Printer Settings', icon: '🖨️', bg: '#7f8c8d', color: 'white' },
     wine: { name: 'Wine', icon: '🍷', bg: '#8b0000', color: 'white' },
     recyclebin: { name: 'Recycle Bin', icon: '🗑️', bg: '#16a085', color: 'white' },
-    'color-picker': { name: 'Color Picker', icon: '🎨', bg: '#8e44ad', color: 'white' }
+    'color-picker': { name: 'Color Picker', icon: '🎨', bg: '#8e44ad', color: 'white' },
+    notes: { name: 'Notes', icon: '📝', bg: '#4a90d9', color: 'white' }
 };
 
 let currentCategory = 'all';
@@ -240,8 +241,16 @@ function updateClock() {
         if (lockWriteable && lockDate) lockDate.textContent = dateStr;
     }
 }
-setInterval(updateClock, 1000);
+let _clockTimer = setInterval(updateClock, 1000);
 updateClock();
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        if (_clockTimer) { clearInterval(_clockTimer); _clockTimer = null; }
+    } else if (!_clockTimer) {
+        updateClock();
+        _clockTimer = setInterval(updateClock, 1000);
+    }
+});
 
 // Settings Logic
 function setBackground(bg) {
@@ -1346,6 +1355,36 @@ function openApp(appName, arg = null, restoreData = null) {
             <textarea class="notepad-area" id="notepad-area-${windowId}"></textarea>
             <div id="notepad-status-${windowId}" class="notepad-status" style="padding: 2px 5px; font-size: 11px; background: #eee; border-top: 1px solid #ccc; text-align: right;">Ln 1, Col 1</div>
         `;
+    } else if (appName === 'notes') {
+        title = "Notes";
+        win.classList.add('notes-window');
+        content = `
+            <div class="notes-toolbar">
+                <button class="notes-btn notes-btn-primary" onclick="createNote('${windowId}')">+ New</button>
+                <button class="notes-btn notes-btn-danger" onclick="deleteNote('${windowId}', notesStates['${windowId}'].selectedId)">Delete</button>
+                <select id="notes-cat-select-${windowId}" onchange="setNoteCategory('${windowId}', notesStates['${windowId}'].selectedId, this.value)">
+                    <option value="Personal">Personal</option>
+                    <option value="Work">Work</option>
+                    <option value="Ideas">Ideas</option>
+                </select>
+                <select id="notes-filter-select-${windowId}" onchange="filterNotes('${windowId}')">
+                    <option value="All">All</option>
+                    <option value="Personal">Personal</option>
+                    <option value="Work">Work</option>
+                    <option value="Ideas">Ideas</option>
+                </select>
+                <input type="text" id="notes-search-${windowId}" class="notes-search" placeholder="Search notes..." oninput="filterNotes('${windowId}')">
+            </div>
+            <div class="notes-body">
+                <div class="notes-sidebar" id="notes-sidebar-${windowId}"></div>
+                <div class="notes-editor" id="notes-editor-${windowId}">
+                    <div class="notes-empty">Select a note or create a new one</div>
+                </div>
+            </div>
+        `;
+        win.style.width = '780px';
+        win.style.height = '540px';
+        safeInit(windowId, initNotes);
     } else if (appName === 'file-explorer') {
         title = "File Explorer";
         content = `
@@ -2065,7 +2104,7 @@ function openApp(appName, arg = null, restoreData = null) {
                 <div class="pomodoro-controls">
                     <button onclick="togglePomodoro('${windowId}')" id="pomodoro-toggle-${windowId}">Start</button>
                     <button onclick="resetPomodoro('${windowId}')">Reset</button>
-                    <button onclick="switchPomodoroMode('${windowId}')" id="pomodoro-mode-${windowId}">Break</button>
+                    <button onclick="switchPomodoroMode('${windowId}')" id="pomodoro-mode-${windowId}">Zur Pause wechseln</button>
                 </div>
                 <div class="pomodoro-presets">
                     <button onclick="setPomodoroPreset('${windowId}', 25, 5)">25/5</button>
@@ -2716,6 +2755,11 @@ function performWindowCleanup(windowId) {
         delete terminalStates[windowId];
     }
 
+    // Cleanup Notes state
+    if (typeof notesStates !== 'undefined' && notesStates[windowId]) {
+        delete notesStates[windowId];
+    }
+
     // Cleanup Calendar state
     if (calendarStates[windowId]) {
         delete calendarStates[windowId];
@@ -3068,19 +3112,23 @@ rescheduleNotificationPoll();
 // before the first lazy timer fires.
 checkScheduledNotifications();
 
+let _focusedWindowEl = null;
 function focusWindow(windowId) {
     const win = document.getElementById(windowId);
     if (win) {
         win.style.zIndex = ++zIndex;
 
-        // Update taskbar
-        document.querySelectorAll('.taskbar-item').forEach(el => el.classList.remove('active'));
-        const taskbarItem = document.getElementById(`taskbar-${windowId}`);
-        if (taskbarItem) taskbarItem.classList.add('active');
+        if (win !== _focusedWindowEl) {
+            // Update taskbar
+            document.querySelectorAll('.taskbar-item').forEach(el => el.classList.remove('active'));
+            const taskbarItem = document.getElementById(`taskbar-${windowId}`);
+            if (taskbarItem) taskbarItem.classList.add('active');
 
-        // Update title bars
-        document.querySelectorAll('.window').forEach(w => w.classList.add('inactive'));
-        win.classList.remove('inactive');
+            // Update title bars
+            document.querySelectorAll('.window').forEach(w => w.classList.add('inactive'));
+            win.classList.remove('inactive');
+            _focusedWindowEl = win;
+        }
     }
 }
 
@@ -3695,6 +3743,14 @@ document.addEventListener('keydown', (e) => {
         if (typeof closeWorkspaceMenu === 'function') closeWorkspaceMenu();
         if (typeof hideSnapLayoutMenu === 'function') hideSnapLayoutMenu();
         altTabWindowList = null;
+        return;
+    }
+
+    // Screenshot tool: Ctrl+Shift+S
+    if (e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        if (isTypingInField()) return;
+        e.preventDefault();
+        if (typeof openScreenshotTool === 'function') openScreenshotTool();
         return;
     }
 
@@ -8490,7 +8546,7 @@ function renderPomodoro(windowId) {
     timeEl.textContent = `${minutes}:${seconds}`;
     phaseEl.textContent = state.mode === 'focus' ? 'Focus' : 'Break';
     toggleEl.textContent = state.running ? 'Pause' : 'Start';
-    modeEl.textContent = state.mode === 'focus' ? 'Break' : 'Focus';
+    modeEl.textContent = state.mode === 'focus' ? 'Zur Pause wechseln' : 'Zum Fokus wechseln';
 }
 
 function togglePomodoro(windowId) {
@@ -8929,6 +8985,650 @@ function handlePdfFile(windowId) {
 
         container.innerHTML = `<iframe src="${url}" style="width: 100%; height: 100%; border: none;"></iframe>`;
     }
+}
+
+// Screenshot Tool Logic
+const screenshotState = {
+    active: false,
+    overlay: null,
+    selection: null,
+    info: null,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
+    dragging: false,
+    pointerId: null,
+    onMove: null,
+    onUp: null,
+    onKey: null
+};
+
+function openScreenshotTool() {
+    startScreenshotSelection();
+}
+
+function startScreenshotSelection() {
+    if (screenshotState.active) return;
+    try {
+        const overlay = document.createElement('div');
+        overlay.id = 'screenshot-overlay';
+        overlay.innerHTML = `
+            <div class="screenshot-selection" style="display:none;"></div>
+            <div class="screenshot-info" style="display:none;"></div>
+            <div class="screenshot-hint">Ziehe ein Rechteck zum Auswählen · Esc zum Abbrechen</div>
+        `;
+        document.body.appendChild(overlay);
+
+        screenshotState.overlay = overlay;
+        screenshotState.selection = overlay.querySelector('.screenshot-selection');
+        screenshotState.info = overlay.querySelector('.screenshot-info');
+        screenshotState.active = true;
+
+        screenshotState.onMove = (e) => handleScreenshotPointerMove(e);
+        screenshotState.onUp = (e) => handleScreenshotPointerUp(e);
+        screenshotState.onKey = (e) => handleScreenshotKeydown(e);
+
+        overlay.addEventListener('pointerdown', handleScreenshotPointerDown);
+        overlay.addEventListener('pointermove', screenshotState.onMove);
+        overlay.addEventListener('pointerup', screenshotState.onUp);
+        overlay.addEventListener('pointercancel', screenshotState.onUp);
+        document.addEventListener('keydown', screenshotState.onKey, true);
+
+        overlay.style.cursor = 'crosshair';
+    } catch (err) {
+        console.error('Screenshot: failed to start selection', err);
+        cancelScreenshot();
+    }
+}
+
+function handleScreenshotPointerDown(e) {
+    if (!screenshotState.active) return;
+    if (screenshotState.dragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    screenshotState.dragging = true;
+    screenshotState.pointerId = e.pointerId;
+    screenshotState.startX = e.clientX;
+    screenshotState.startY = e.clientY;
+    screenshotState.currentX = e.clientX;
+    screenshotState.currentY = e.clientY;
+    try {
+        screenshotState.overlay.setPointerCapture(e.pointerId);
+    } catch (err) { /* pointer capture is optional */ }
+    updateScreenshotSelection();
+}
+
+function handleScreenshotPointerMove(e) {
+    if (!screenshotState.active || !screenshotState.dragging) return;
+    if (screenshotState.pointerId !== null && e.pointerId !== screenshotState.pointerId) return;
+    e.preventDefault();
+    screenshotState.currentX = e.clientX;
+    screenshotState.currentY = e.clientY;
+    updateScreenshotSelection();
+}
+
+function handleScreenshotPointerUp(e) {
+    if (!screenshotState.active || !screenshotState.dragging) return;
+    if (screenshotState.pointerId !== null && e.pointerId !== screenshotState.pointerId) return;
+    e.preventDefault();
+    screenshotState.dragging = false;
+    screenshotState.pointerId = null;
+    try {
+        if (screenshotState.overlay.hasPointerCapture && e.pointerId) {
+            screenshotState.overlay.releasePointerCapture(e.pointerId);
+        }
+    } catch (err) { /* ignore */ }
+
+    const rect = getScreenshotRect();
+    if (rect.w < 4 || rect.h < 4) {
+        cancelScreenshot();
+        return;
+    }
+    finishScreenshotSelection(rect.x, rect.y, rect.w, rect.h);
+}
+
+function handleScreenshotKeydown(e) {
+    if (!screenshotState.active) return;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelScreenshot();
+    }
+}
+
+function getScreenshotRect() {
+    const overlay = screenshotState.overlay;
+    const maxX = overlay ? overlay.clientWidth : window.innerWidth;
+    const maxY = overlay ? overlay.clientHeight : window.innerHeight;
+    const x = Math.max(0, Math.min(screenshotState.startX, screenshotState.currentX));
+    const y = Math.max(0, Math.min(screenshotState.startY, screenshotState.currentY));
+    const x2 = Math.max(0, Math.min(Math.max(screenshotState.startX, screenshotState.currentX), maxX));
+    const y2 = Math.max(0, Math.min(Math.max(screenshotState.startY, screenshotState.currentY), maxY));
+    return { x, y, w: x2 - x, h: y2 - y };
+}
+
+function updateScreenshotSelection() {
+    if (!screenshotState.selection || !screenshotState.info) return;
+    const rect = getScreenshotRect();
+    const sel = screenshotState.selection;
+    sel.style.display = 'block';
+    sel.style.left = rect.x + 'px';
+    sel.style.top = rect.y + 'px';
+    sel.style.width = rect.w + 'px';
+    sel.style.height = rect.h + 'px';
+
+    const info = screenshotState.info;
+    info.style.display = 'block';
+    info.textContent = `${Math.round(rect.w)} × ${Math.round(rect.h)} px  ·  (${Math.round(rect.x)}, ${Math.round(rect.y)})`;
+    let infoLeft = rect.x + rect.w + 8;
+    let infoTop = rect.y + rect.h + 8;
+    if (infoLeft + info.offsetWidth > window.innerWidth) infoLeft = rect.x - info.offsetWidth - 8;
+    if (infoTop + info.offsetHeight > window.innerHeight) infoTop = rect.y - info.offsetHeight - 8;
+    info.style.left = Math.max(0, infoLeft) + 'px';
+    info.style.top = Math.max(0, infoTop) + 'px';
+}
+
+async function finishScreenshotSelection(x, y, w, h) {
+    try {
+        const canvas = await captureRegionToCanvas(x, y, w, h);
+        if (!canvas) {
+            showScreenshotError('Der Bildschirmausschnitt konnte nicht erfasst werden.');
+            return;
+        }
+        downloadScreenshot(canvas);
+    } catch (err) {
+        console.error('Screenshot: capture failed', err);
+        showScreenshotError('Beim Erfassen ist ein Fehler aufgetreten.');
+    } finally {
+        cancelScreenshot();
+    }
+}
+
+function captureRegionToCanvas(x, y, w, h) {
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return Promise.resolve(null);
+
+    const rootEl = document.documentElement;
+    let html = '';
+    try {
+        const clone = rootEl.cloneNode(true);
+        inlineScreenshotStyles(clone);
+        html = new XMLSerializer().serializeToString(clone);
+    } catch (err) {
+        console.warn('Screenshot: DOM serialization failed, using fallback', err);
+    }
+
+    const svg = buildScreenshotSvg(html, w, h);
+    return drawScreenshotSvgToCanvas(svg, canvas, ctx, x, y, w, h, dpr);
+}
+
+function inlineScreenshotStyles(root) {
+    const CRITICAL_PROPS = [
+        'background-color', 'background-image', 'background-size', 'background-position',
+        'background-repeat', 'color', 'font-family', 'font-size', 'font-weight',
+        'line-height', 'text-align', 'border', 'border-radius', 'box-shadow',
+        'padding', 'margin', 'display', 'visibility', 'opacity', 'overflow',
+        'white-space', 'word-wrap', 'text-overflow', 'transform', 'position',
+        'top', 'left', 'right', 'bottom', 'width', 'height', 'flex',
+        'align-items', 'justify-content', 'gap', 'z-index', 'cursor'
+    ];
+    const all = root.querySelectorAll('*');
+    for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (!(el instanceof HTMLElement)) continue;
+        let cs;
+        try {
+            cs = window.getComputedStyle(el);
+        } catch (err) {
+            continue;
+        }
+        const style = el.style;
+        for (let p = 0; p < CRITICAL_PROPS.length; p++) {
+            const prop = CRITICAL_PROPS[p];
+            const val = cs.getPropertyValue(prop);
+            if (val && val !== 'none' && val !== 'normal' && val !== '0px' && val !== 'auto') {
+                try {
+                    style.setProperty(prop, val);
+                } catch (err) { /* ignore unsettable props */ }
+            }
+        }
+        if (el.tagName === 'SCRIPT' || el.tagName === 'IFRAME' || el.tagName === 'EMBED' || el.tagName === 'OBJECT') {
+            el.remove();
+        }
+    }
+}
+
+function buildScreenshotSvg(html, w, h) {
+    const docW = Math.max(1, document.documentElement.scrollWidth || window.innerWidth);
+    const docH = Math.max(1, document.documentElement.scrollHeight || window.innerHeight);
+    const escaped = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${docW}" height="${docH}">
+        <foreignObject width="100%" height="100%" x="0" y="0">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="width:${docW}px;height:${docH}px;">
+                ${escaped}
+            </div>
+        </foreignObject>
+    </svg>`;
+}
+
+function loadSvgImage(svg) {
+    return new Promise((resolve, reject) => {
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG image failed to load')); };
+        img.src = url;
+    });
+}
+
+async function drawScreenshotSvgToCanvas(svg, canvas, ctx, x, y, w, h, dpr) {
+    const img = await loadSvgImage(svg);
+    const sx = Math.max(0, Math.min(x + window.scrollX, img.naturalWidth));
+    const sy = Math.max(0, Math.min(y + window.scrollY, img.naturalHeight));
+    const sw = Math.max(1, Math.min(w, img.naturalWidth - sx));
+    const sh = Math.max(1, Math.min(h, img.naturalHeight - sy));
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    try {
+        canvas.toDataURL('image/png');
+    } catch (taintErr) {
+        console.warn('Screenshot: canvas tainted, retrying without cross-origin images', taintErr);
+        try {
+            const cleanCanvas = await captureCleanedRegion(x, y, w, h);
+            return cleanCanvas;
+        } catch (cleanErr) {
+            console.warn('Screenshot: cleaned capture failed, using solid background', cleanErr);
+            const solidCanvas = document.createElement('canvas');
+            solidCanvas.width = canvas.width;
+            solidCanvas.height = canvas.height;
+            const solidCtx = solidCanvas.getContext('2d');
+            if (!solidCtx) throw new Error('no 2d context for fallback');
+            solidCtx.fillStyle = screenshotSolidBackground();
+            solidCtx.fillRect(0, 0, solidCanvas.width, solidCanvas.height);
+            return solidCanvas;
+        }
+    }
+    return canvas;
+}
+
+function screenshotSolidBackground() {
+    try {
+        const desktop = document.getElementById('desktop');
+        if (desktop) {
+            const bg = window.getComputedStyle(desktop).backgroundColor;
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
+        }
+    } catch (err) { /* ignore */ }
+    return '#ffffff';
+}
+
+async function captureCleanedRegion(x, y, w, h) {
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.max(1, Math.round(h * dpr));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+
+    const clone = document.documentElement.cloneNode(true);
+    inlineScreenshotStyles(clone);
+    const all = clone.querySelectorAll('*');
+    for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        if (el instanceof HTMLElement) {
+            el.style.backgroundImage = 'none';
+            el.style.setProperty('background-image', 'none', 'important');
+        }
+    }
+    const html = new XMLSerializer().serializeToString(clone);
+    const svg = buildScreenshotSvg(html, w, h);
+    const img = await loadSvgImage(svg);
+
+    const sx = Math.max(0, Math.min(x + window.scrollX, img.naturalWidth));
+    const sy = Math.max(0, Math.min(y + window.scrollY, img.naturalHeight));
+    const sw = Math.max(1, Math.min(w, img.naturalWidth - sx));
+    const sh = Math.max(1, Math.min(h, img.naturalHeight - sy));
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    canvas.toDataURL('image/png');
+    return canvas;
+}
+
+function downloadScreenshot(canvas) {
+    try {
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.download = `screenshot-${stamp}.png`;
+        a.href = dataUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showScreenshotToast('Screenshot gespeichert');
+    } catch (err) {
+        console.error('Screenshot: download failed', err);
+        showScreenshotError('Der Screenshot konnte nicht gespeichert werden.');
+    }
+}
+
+function cancelScreenshot() {
+    if (!screenshotState.active) return;
+    const overlay = screenshotState.overlay;
+    if (overlay) {
+        overlay.removeEventListener('pointerdown', handleScreenshotPointerDown);
+        if (screenshotState.onMove) overlay.removeEventListener('pointermove', screenshotState.onMove);
+        if (screenshotState.onUp) overlay.removeEventListener('pointerup', screenshotState.onUp);
+        overlay.removeEventListener('pointercancel', screenshotState.onUp);
+        if (screenshotState.onKey) document.removeEventListener('keydown', screenshotState.onKey, true);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    screenshotState.overlay = null;
+    screenshotState.selection = null;
+    screenshotState.info = null;
+    screenshotState.onMove = null;
+    screenshotState.onUp = null;
+    screenshotState.onKey = null;
+    screenshotState.dragging = false;
+    screenshotState.pointerId = null;
+    screenshotState.active = false;
+}
+
+function showScreenshotToast(message) {
+    try {
+        const toast = document.createElement('div');
+        toast.className = 'screenshot-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 2500);
+    } catch (err) { /* ignore */ }
+}
+
+function showScreenshotError(message) {
+    try {
+        const toast = document.createElement('div');
+        toast.className = 'screenshot-toast screenshot-toast-error';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 3500);
+    } catch (err) { /* ignore */ }
+}
+
+// Notes Logic
+const notesStates = {};
+
+let notesSaveTimer = null;
+
+function loadNotes() {
+    const data = safeJsonParse('webos-notes', null);
+    if (Array.isArray(data)) return data;
+    return [];
+}
+
+function saveNotes() {
+    const all = [];
+    Object.keys(notesStates).forEach(id => {
+        const s = notesStates[id];
+        if (s && Array.isArray(s.notes)) all.push(...s.notes);
+    });
+    try {
+        localStorage.setItem('webos-notes', JSON.stringify(all));
+    } catch (e) {
+        console.error('Notes: failed to save (quota?)', e);
+    }
+}
+
+function scheduleNotesSave() {
+    if (notesSaveTimer) clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(() => {
+        notesSaveTimer = null;
+        saveNotes();
+    }, 400);
+}
+
+function initNotes(windowId) {
+    const state = {
+        notes: loadNotes(),
+        selectedId: null,
+        filter: 'All',
+        search: '',
+        category: 'Personal'
+    };
+    notesStates[windowId] = state;
+    if (state.notes.length > 0) {
+        state.selectedId = state.notes[0].id;
+    }
+    renderNotes(windowId);
+}
+
+function renderNotesSidebar(windowId) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    const sidebar = document.getElementById(`notes-sidebar-${windowId}`);
+    if (!sidebar) return;
+
+    const filtered = state.notes.filter(n => {
+        if (state.filter !== 'All' && n.category !== state.filter) return false;
+        if (state.search) {
+            const q = state.search.toLowerCase();
+            const hay = (n.title + ' ' + n.content).toLowerCase();
+            if (hay.indexOf(q) === -1) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        sidebar.innerHTML = `<div class="notes-sidebar-empty">No notes found</div>`;
+    } else {
+        sidebar.innerHTML = filtered.map(n => {
+            const active = n.id === state.selectedId ? ' active' : '';
+            const title = n.title || 'Untitled';
+            const preview = (n.content || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+            return `<div class="notes-sidebar-item${active}" onclick="selectNote('${windowId}', '${n.id}')">
+                <div class="notes-sidebar-title">${escapeHtml(title)}</div>
+                <div class="notes-sidebar-preview">${escapeHtml(preview)}</div>
+                <span class="notes-tag">${escapeHtml(n.category || 'Personal')}</span>
+            </div>`;
+        }).join('');
+    }
+}
+
+function renderNotes(windowId) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    renderNotesSidebar(windowId);
+
+    const editor = document.getElementById(`notes-editor-${windowId}`);
+    if (!editor) return;
+    const selected = state.notes.find(n => n.id === state.selectedId);
+    if (!selected) {
+        editor.innerHTML = `<div class="notes-empty">Select a note or create a new one</div>`;
+        return;
+    }
+
+    editor.innerHTML = `
+        <input type="text" class="notes-title-input" id="notes-title-${windowId}" value="${escapeHtml(selected.title)}" placeholder="Note title" oninput="updateNoteText('${windowId}', '${selected.id}')">
+        <div class="notes-editor-tabs">
+            <button class="notes-tab notes-tab-active" id="notes-tab-write-${windowId}" onclick="toggleNotesPreview('${windowId}', false)">Write</button>
+            <button class="notes-tab" id="notes-tab-preview-${windowId}" onclick="toggleNotesPreview('${windowId}', true)">Preview</button>
+        </div>
+        <textarea class="notes-textarea" id="notes-textarea-${windowId}" placeholder="Write in markdown..." oninput="updateNoteText('${windowId}', '${selected.id}')">${escapeHtml(selected.content)}</textarea>
+        <div class="notes-preview" id="notes-preview-${windowId}" style="display:none;"></div>
+    `;
+
+    const catSel = document.getElementById(`notes-cat-select-${windowId}`);
+    if (catSel) catSel.value = selected.category || 'Personal';
+}
+
+function createNote(windowId) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    const note = {
+        id: 'note-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        title: '',
+        content: '',
+        category: state.category || 'Personal',
+        updated: Date.now()
+    };
+    state.notes.unshift(note);
+    state.selectedId = note.id;
+    renderNotes(windowId);
+    saveNotes();
+    const ta = document.getElementById(`notes-textarea-${windowId}`);
+    if (ta) ta.focus();
+}
+
+function deleteNote(windowId, id) {
+    const state = notesStates[windowId];
+    if (!state || !id) return;
+    if (!confirm('Delete this note?')) return;
+    state.notes = state.notes.filter(n => n.id !== id);
+    if (state.selectedId === id) {
+        state.selectedId = state.notes.length ? state.notes[0].id : null;
+    }
+    renderNotes(windowId);
+    saveNotes();
+}
+
+function selectNote(windowId, id) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    state.selectedId = id;
+    renderNotes(windowId);
+}
+
+function updateNoteText(windowId, id) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    const note = state.notes.find(n => n.id === id);
+    if (!note) return;
+    const title = document.getElementById(`notes-title-${windowId}`);
+    const ta = document.getElementById(`notes-textarea-${windowId}`);
+    if (title) note.title = title.value;
+    if (ta) note.content = ta.value;
+    note.updated = Date.now();
+    renderNotesSidebar(windowId);
+    scheduleNotesSave();
+}
+
+function filterNotes(windowId) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    const filterSel = document.getElementById(`notes-filter-select-${windowId}`);
+    const search = document.getElementById(`notes-search-${windowId}`);
+    if (filterSel) state.filter = filterSel.value;
+    if (search) state.search = search.value;
+    renderNotesSidebar(windowId);
+}
+
+function setNoteCategory(windowId, id, cat) {
+    const state = notesStates[windowId];
+    if (!state) return;
+    const note = state.notes.find(n => n.id === id);
+    if (note) {
+        note.category = cat;
+        note.updated = Date.now();
+    }
+    renderNotesSidebar(windowId);
+    saveNotes();
+}
+
+function toggleNotesPreview(windowId, showPreview) {
+    const ta = document.getElementById(`notes-textarea-${windowId}`);
+    const preview = document.getElementById(`notes-preview-${windowId}`);
+    const tabW = document.getElementById(`notes-tab-write-${windowId}`);
+    const tabP = document.getElementById(`notes-tab-preview-${windowId}`);
+    if (!ta || !preview) return;
+    if (showPreview) {
+        preview.innerHTML = renderMarkdown(ta.value);
+        ta.style.display = 'none';
+        preview.style.display = 'block';
+        tabW.classList.remove('notes-tab-active');
+        tabP.classList.add('notes-tab-active');
+    } else {
+        preview.style.display = 'none';
+        ta.style.display = 'block';
+        tabW.classList.add('notes-tab-active');
+        tabP.classList.remove('notes-tab-active');
+    }
+}
+
+function inlineMarkdown(text) {
+    let s = escapeHtml(text);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s;
+}
+
+function renderMarkdown(text) {
+    const src = String(text == null ? '' : text);
+    const lines = src.split('\n');
+    let html = '';
+    let inCode = false;
+    let listOpen = false;
+    const closeList = () => { if (listOpen) { html += '</ul>'; listOpen = false; } };
+
+    lines.forEach(line => {
+        if (/^```/.test(line)) {
+            closeList();
+            if (inCode) {
+                html += '</code></pre>';
+                inCode = false;
+            } else {
+                html += '<pre><code>';
+                inCode = true;
+            }
+            return;
+        }
+        if (inCode) {
+            html += escapeHtml(line) + '\n';
+            return;
+        }
+        let m = line.match(/^(#{1,6})\s+(.*)$/);
+        if (m) {
+            closeList();
+            const level = m[1].length;
+            html += `<h${level}>${inlineMarkdown(m[2])}</h${level}>`;
+            return;
+        }
+        m = line.match(/^\s*[-*+]\s+(.*)$/);
+        if (m) {
+            if (!listOpen) { html += '<ul>'; listOpen = true; }
+            html += `<li>${inlineMarkdown(m[1])}</li>`;
+            return;
+        }
+        m = line.match(/^\s*\d+\.\s+(.*)$/);
+        if (m) {
+            if (!listOpen) { html += '<ul>'; listOpen = true; }
+            html += `<li>${inlineMarkdown(m[1])}</li>`;
+            return;
+        }
+        closeList();
+        if (line.trim() === '') {
+            html += '<br>';
+        } else {
+            html += `<p>${inlineMarkdown(line)}</p>`;
+        }
+    });
+    if (inCode) html += '</code></pre>';
+    closeList();
+    return html;
 }
 
 // Piano Logic
@@ -10563,6 +11263,7 @@ function toggleQuickSettings() {
     switchQuickSettingsTab('toggles');
     updateQuickSettingsUI();
     renderNotificationHistory();
+    setQuickStatsPolling(true);
 }
 
 function closeQuickSettings() {
@@ -10570,6 +11271,18 @@ function closeQuickSettings() {
     const btn = document.getElementById('tray-button');
     if (panel) panel.classList.add('hidden');
     if (btn) btn.classList.remove('active');
+    setQuickStatsPolling(false);
+}
+
+let _qsStatsTimer = null;
+function setQuickStatsPolling(on) {
+    if (on && !_qsStatsTimer) {
+        updateQuickStats();
+        _qsStatsTimer = setInterval(updateQuickStats, 2000);
+    } else if (!on && _qsStatsTimer) {
+        clearInterval(_qsStatsTimer);
+        _qsStatsTimer = null;
+    }
 }
 
 function switchQuickSettingsTab(tab) {
@@ -11165,7 +11878,7 @@ function initWebosSystemFeatures() {
 
     initDragAndDrop();
 
-    setInterval(updateQuickStats, 2000);
+    setQuickStatsPolling(false);
 
     // Snap layout menu hover behaviour
     const snapMenu = document.getElementById('snap-layout-menu');

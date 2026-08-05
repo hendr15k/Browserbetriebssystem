@@ -13,6 +13,7 @@ Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nö
 - **Snap-Layouts (Win+Z-Stil)** — Fenster-Layout-Raster über den Maximieren-Button mit Live-Vorschau
 - **Quick Settings + Notification Center** — Schnelleinstellungen (WLAN, Bluetooth, Nicht-stören, Ton, Widgets, Hell/Dunkel, Akzentfarbe) plus Benachrichtigungsverlauf an der Taskleiste
 - **System Tray** — WLAN-, Lautstärke- und Akku-Indikatoren in der Taskleiste
+- **Screenshot-Tool** — Bildschirmbereich auswählen (Strg+Shift+S oder 📷-Button) und als PNG speichern
 - **Desktop-Widgets** — schwebende Karten für Uhr, Wetter und System-Statistiken
 - **Drag & Drop Upload** — Dateien aus dem lokalen Dateisystem direkt auf den Desktop ins virtuelle Dateisystem ziehen
 - **Startmenü-Suche** mit Tastatursteuerung (↑/↓/Enter/Escape)
@@ -21,14 +22,14 @@ Ein vollständiges Betriebssystem, das im Browser läuft. Keine Installation nö
 - **Tastatur-Shortcuts** — Alt+Tab (Fenster wechseln), Ctrl+Shift+D (Desktop anzeigen), Ctrl+Alt+W (Fokus-Fenster schließen), Ctrl+Alt+M (minimieren), Ctrl+Alt+X (maximieren), Esc (Menüs schließen)
 - **Touch-Support** — Fenster und Desktop-Icons per Touch verschieben/ändern (für Tablets)
 - **Virtuelles Dateisystem** — Dateien speichern, verwalten, durchsuchen
-- **43 integrierte Apps** — System, Produktivität, Spiele, Kreativ, Internet
+- **44 integrierte Apps** — System, Produktivität, Spiele, Kreativ, Internet
 
-## 📱 43 Apps in 5 Kategorien
+## 📱 44 Apps in 5 Kategorien
 
 | Kategorie | Apps | Beispiele |
 |-----------|------|-----------|
 | 🖥️ System (12) | terminal, file-explorer, task-manager, system-monitor, system-center, settings, about, clock, recycle-bin, calculator, printer, wine |
-| 💼 Produktivität (10) | notepad, code-editor, spreadsheet, markdown-editor, pdf-viewer, pomodoro, calendar, sticky-notes, email, unit-converter |
+| 💼 Produktivität (11) | notepad, code-editor, spreadsheet, markdown-editor, pdf-viewer, pomodoro, calendar, sticky-notes, email, unit-converter, notes |
 | 🎮 Spiele (9) | snake, minesweeper, 2048, tetris, solitaire, sudoku, pong, memory, tictactoe |
 | 🎨 Kreativ & Medien (9) | paint, piano, voice-recorder, camera, music-player, video-player, speak, photo-gallery, color-picker |
 | 📡 Internet & Daten (3) | browser, weather, chat |

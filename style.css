@@ -719,6 +719,22 @@ button {
     transform: rotate(15deg);
 }
 
+#screenshot-button {
+    background: transparent;
+    border: none;
+    color: var(--text-mid);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 5px 9px;
+    border-radius: var(--r-sm);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+#screenshot-button:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--text-hi);
+}
+
 #power-menu {
     position: absolute;
     right: 40px;
@@ -7323,4 +7339,293 @@ html[data-theme="light"] .panel-pop,
 html[data-theme="light"] #quick-settings,
 html[data-theme="light"] #snap-layout-menu {
     background: var(--glass-strong);
+}
+
+/* ===== Notes App ===== */
+.notes-window .window-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+.notes-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #f0f4f8;
+    border-bottom: 1px solid #d8dee6;
+    flex-shrink: 0;
+}
+.notes-btn {
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    border: 1px solid #b8c2cc;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+}
+.notes-btn:hover {
+    background: #eef2f6;
+}
+.notes-btn-primary {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    color: #fff;
+}
+.notes-btn-primary:hover {
+    background: #3a80c9;
+}
+.notes-btn-danger {
+    background: #fff;
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+.notes-btn-danger:hover {
+    background: #fdecea;
+}
+.notes-toolbar select {
+    font-size: 12px;
+    padding: 3px 4px;
+    border: 1px solid #b8c2cc;
+    border-radius: 4px;
+    background: #fff;
+}
+.notes-search {
+    flex: 1;
+    min-width: 120px;
+    font-size: 12px;
+    padding: 4px 6px;
+    border: 1px solid #b8c2cc;
+    border-radius: 4px;
+}
+.notes-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+.notes-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid #d8dee6;
+    overflow-y: auto;
+    background: #fafbfc;
+    padding: 6px;
+}
+.notes-sidebar-empty {
+    font-size: 12px;
+    color: #999;
+    padding: 12px 6px;
+    text-align: center;
+}
+.notes-sidebar-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+}
+.notes-sidebar-item:hover {
+    background: #eef2f6;
+}
+.notes-sidebar-item.active {
+    background: #e3edf8;
+    border-color: #bcd3ec;
+}
+.notes-sidebar-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #222;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.notes-sidebar-preview {
+    font-size: 11px;
+    color: #777;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+.notes-tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: #4a90d9;
+    color: #fff;
+    margin-top: 4px;
+}
+.notes-editor {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    overflow: hidden;
+}
+.notes-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    font-size: 14px;
+}
+.notes-title-input {
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 4px 2px 8px;
+    margin-bottom: 8px;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    color: inherit;
+}
+.notes-editor-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.notes-tab {
+    font-size: 12px;
+    padding: 3px 12px;
+    cursor: pointer;
+    border: 1px solid #b8c2cc;
+    border-radius: 4px;
+    background: #fff;
+    color: #555;
+}
+.notes-tab-active {
+    background: #4a90d9;
+    border-color: #4a90d9;
+    color: #fff;
+}
+.notes-textarea {
+    flex: 1;
+    min-height: 0;
+    resize: none;
+    border: 1px solid #d8dee6;
+    border-radius: 4px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    outline: none;
+    box-sizing: border-box;
+    background: #fff;
+    color: #222;
+}
+.notes-preview {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid #d8dee6;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    background: #fff;
+    color: #222;
+}
+.notes-preview h1, .notes-preview h2, .notes-preview h3,
+.notes-preview h4, .notes-preview h5, .notes-preview h6 {
+    margin: 0 0 8px;
+}
+.notes-preview p {
+    margin: 0 0 8px;
+}
+.notes-preview ul {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+.notes-preview code {
+    background: #f0f0f0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+.notes-preview pre {
+    background: #f6f8fa;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0 0 8px;
+}
+.notes-preview pre code {
+    background: transparent;
+    padding: 0;
+}
+.notes-preview a {
+    color: #4a90d9;
+}
+
+/* ===== Screenshot Tool ===== */
+#screenshot-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999999;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.screenshot-selection {
+    position: absolute;
+    border: 2px solid #00a8e8;
+    background: rgba(0, 168, 232, 0.15);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+.screenshot-info {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font: 12px/1.4 monospace;
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 2;
+}
+.screenshot-hint {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font: 13px/1.4 system-ui, sans-serif;
+    padding: 8px 14px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 2;
+}
+.screenshot-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font: 13px/1.4 system-ui, sans-serif;
+    padding: 10px 16px;
+    border-radius: 6px;
+    z-index: 1000000;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.screenshot-toast-error {
+    background: rgba(180, 40, 40, 0.9);
 }
