@@ -145,6 +145,7 @@ const sandbox = {
   ...global,
   document,
   window,
+  navigator: { userAgent: 'node-test', clipboard: { writeText: () => Promise.resolve() } },
   localStorage: storage,
   console,
   setTimeout, clearTimeout, setInterval, clearInterval,
@@ -372,6 +373,170 @@ test('dragdrop: binary files are stored as data URLs', async () => {
   get('handleDroppedFiles')(files);
   await new Promise(r => setTimeout(r, 25));
   assert(String(vfs['img.bin']).startsWith('data:'), 'binary file stored as data URL');
+});
+
+// =================================================================
+// Section 6 — Clipboard history (Win+V)
+// =================================================================
+section('Clipboard history (Win+V)');
+
+test('clipboard: pushClipboardHistory stores recent copies', () => {
+  storage.clear();
+  get('pushClipboardHistory')('alpha');
+  get('pushClipboardHistory')('beta');
+  const items = get('getClipboardHistory')();
+  assert(Array.isArray(items) && items.length === 2, 'history holds 2 entries');
+  assert(items[0] === 'beta' && items[1] === 'alpha', 'most recent copy is first');
+});
+
+test('clipboard: consecutive duplicate copies are collapsed', () => {
+  storage.clear();
+  get('pushClipboardHistory')('dup');
+  get('pushClipboardHistory')('dup');
+  get('pushClipboardHistory')('other');
+  const items = get('getClipboardHistory')();
+  assert(items.length === 2, `duplicates collapsed, got ${items.length}`);
+});
+
+test('clipboard: history is capped to CLIPBOARD_HISTORY_MAX', () => {
+  storage.clear();
+  for (let i = 0; i < 20; i++) get('pushClipboardHistory')('item-' + i);
+  const items = get('getClipboardHistory')();
+  assert(items.length === 12, `history capped at 12, got ${items.length}`);
+});
+
+test('clipboard: getLastClipboardText returns newest entry', () => {
+  storage.clear();
+  get('pushClipboardHistory')('first');
+  get('pushClipboardHistory')('second');
+  assert(get('getLastClipboardText')() === 'second', 'last clipped text is newest');
+});
+
+test('clipboard: clearClipboardHistory empties the store', () => {
+  storage.clear();
+  get('pushClipboardHistory')('x');
+  get('clearClipboardHistory')();
+  assert(get('getClipboardHistory')().length === 0, 'history cleared');
+});
+
+test('clipboard: copyTextToClipboard records into history', () => {
+  storage.clear();
+  get('copyTextToClipboard')('copied via copyText');
+  assert(get('getClipboardHistory')()[0] === 'copied via copyText', 'copyTextToClipboard records history');
+});
+
+// =================================================================
+// Section 7 — Run dialog (Win+R) + global file search (Win+S)
+// =================================================================
+section('Run dialog + file search (Win+R / Win+S)');
+
+test('search: searchCommands returns app results for a query', () => {
+  const results = get('searchCommands')('calculator');
+  assert(results.length > 0, 'search found calculator');
+  const hit = results.find(c => c.id === 'app:calculator');
+  assert(hit, 'search exposes the calculator app command');
+});
+
+test('search: searchCommands surfaces VFS files', () => {
+  storage.clear();
+  vm.runInContext('fileSystem["/docs/plan.txt"] = "the plan"; fileSystem["/photos/summer.png"] = "data:image/png;base64,AAAA";', sandbox);
+  get('saveFileSystem')();
+  const results = get('searchCommands')('plan');
+  const hit = results.find(c => c.id === 'file:/docs/plan.txt');
+  assert(hit, 'VFS file /docs/plan.txt is searchable');
+  assert(hit.category === 'Datei', 'file results carry category "Datei"');
+  const dirs = get('searchCommands')('summer');
+  const dirHit = dirs.find(c => c.id === 'file:/photos/summer.png');
+  assert(dirHit, 'VFS image is searchable too');
+});
+
+test('search: vfs search index invalidates when files change', () => {
+  storage.clear();
+  vm.runInContext('fileSystem["/idx-new-file.txt"] = "x";', sandbox);
+  get('saveFileSystem')();
+  const entries = get('getVfsSearchIndex')();
+  assert(entries.some(e => e.p === '/idx-new-file.txt'), 'search index sees newly added file');
+  vm.runInContext('delete fileSystem["/idx-new-file.txt"];', sandbox);
+  get('saveFileSystem')();
+  const entries2 = get('getVfsSearchIndex')();
+  assert(!entries2.some(e => e.p === '/idx-new-file.txt'), 'search index drops removed file');
+});
+
+test('search: empty query lists top apps without crashing', () => {
+  const results = get('searchCommands')('');
+  assert(Array.isArray(results) && results.length > 0, 'empty query returns default list');
+});
+
+test('run: togglePalette exists and toggles the palette', () => {
+  assert(typeof get('togglePalette') === 'function', 'togglePalette defined');
+});
+
+// =================================================================
+// Section 8 — Lock screen security (rate limiting)
+// =================================================================
+section('Lock screen security');
+
+test('lock: unlockSystem rejects wrong PIN and clears input', () => {
+  storage.setItem('systemPin', '9999');
+  const pinEl = makeEl('input', 'unlock-pin');
+  pinEl.value = '0000';
+  const errEl = makeEl('div', 'lock-error');
+  const lsEl = makeEl('div', 'lock-screen');
+  reg(pinEl); reg(errEl); reg(lsEl);
+  get('unlockSystem')();
+  assert(pinEl.value === '', 'wrong pin input cleared');
+  assert(errEl.textContent.length > 0, 'wrong pin shows error text');
+  Object.keys(registry).forEach(k => delete registry[k]);
+});
+
+test('lock: unlockSystem succeeds with correct PIN', () => {
+  storage.setItem('systemPin', '1234');
+  const pinEl = makeEl('input', 'unlock-pin');
+  pinEl.value = '1234';
+  const errEl = makeEl('div', 'lock-error');
+  const lsEl = makeEl('div', 'lock-screen');
+  let hiddenAdded = false;
+  lsEl.classList = {
+    add(c) { if (c === 'hidden') hiddenAdded = true; },
+    remove() {},
+    contains() { return false; }
+  };
+  reg(pinEl); reg(errEl); reg(lsEl);
+  get('unlockSystem')();
+  assert(hiddenAdded, 'correct pin hides the lock screen');
+  assert(pinEl.value === '', 'correct pin clears input');
+  Object.keys(registry).forEach(k => delete registry[k]);
+});
+
+test('lock: repeated failures trigger a cooldown', () => {
+  storage.setItem('systemPin', '1234');
+  const pinEl = makeEl('input', 'unlock-pin');
+  const errEl = makeEl('div', 'lock-error');
+  const lsEl = makeEl('div', 'lock-screen');
+  reg(pinEl); reg(errEl); reg(lsEl);
+  for (let i = 0; i < 5; i++) {
+    pinEl.value = 'wrong';
+    get('unlockSystem')();
+  }
+  assert(/Warte/.test(errEl.textContent), 'cooldown message after 5 attempts: ' + errEl.textContent);
+  Object.keys(registry).forEach(k => delete registry[k]);
+});
+
+// =================================================================
+// Section 9 — System monitoring extensions (tab title)
+// =================================================================
+section('System monitoring extensions');
+
+test('monitor: updateDocumentTitle writes CPU/RAM into title', () => {
+  get('updateDocumentTitle')();
+  assert(/^WebOS · CPU \d+% · RAM \d+%$/.test(sandbox.document.title),
+    'document.title carries CPU/RAM: ' + sandbox.document.title);
+});
+
+test('monitor: getSystemUptime increases over time', () => {
+  const t1 = get('getSystemUptime')();
+  const t2 = get('getSystemUptime')();
+  assert(typeof t1 === 'number' && t2 >= t1, 'uptime is a monotonic number');
 });
 
 // =================================================================

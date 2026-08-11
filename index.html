@@ -213,6 +213,19 @@
         </div>
     </div>
 
+    <!-- Clipboard History (Win+V) -->
+    <div id="clipboard-history" class="hidden" role="dialog" aria-label="Zwischenablage-Verlauf">
+        <div class="clipboard-pop">
+            <div class="clipboard-pop-header">
+                <span class="clipboard-pop-title">📋 Zwischenablage-Verlauf</span>
+                <button class="clipboard-clear-btn" onclick="clearClipboardHistory()">Leeren</button>
+            </div>
+            <div class="clipboard-list" id="clipboard-list"></div>
+            <div class="clipboard-empty" id="clipboard-empty">Keine kopierten Texte.</div>
+            <div class="clipboard-hint">Win+V öffnet, Escape schließt</div>
+        </div>
+    </div>
+
     <div id="lock-screen" class="hidden">
         <div class="lock-card">
             <div id="lock-time">00:00</div>
