@@ -4,7 +4,7 @@
   "description": "Ein vollständiges Betriebssystem, das im Browser läuft",
   "private": true,
   "scripts": {
-    "test": "node tests/smoke.js && node tests/round5-fixes.js && node tests/round6-fixes.js && node tests/color-picker.js && node tests/mobile-ui.js && node tests/pwa.js && node tests/system-features.js && node tests/notes-screenshot.js",
+    "test": "node tests/smoke.js && node tests/round5-fixes.js && node tests/round6-fixes.js && node tests/round7-fixes.js && node tests/color-picker.js && node tests/mobile-ui.js && node tests/pwa.js && node tests/system-features.js && node tests/notes-screenshot.js",
     "test:smoke": "node tests/smoke.js",
     "test:round5": "node tests/round5-fixes.js",
     "test:round6": "node tests/round6-fixes.js",

@@ -1021,7 +1021,32 @@ function stopDragIcon() {
     document.removeEventListener('touchcancel', stopDragIcon);
 }
 
+// Clipboard history (Win+V): keep a small, quota-safe ring of copied texts.
+const CLIPBOARD_HISTORY_MAX = 12;
+
+function pushClipboardHistory(text) {
+    if (typeof text !== 'string' || !text.trim()) return;
+    const items = safeJsonParse('webos-clipboard-history', []);
+    if (!Array.isArray(items)) return;
+    // De-duplicate consecutive copies (most common pattern when copying the
+    // same selection twice) but keep non-consecutive duplicates.
+    if (items[0] === text) return;
+    items.unshift(text);
+    safeStorageSet('webos-clipboard-history', JSON.stringify(items.slice(0, CLIPBOARD_HISTORY_MAX)));
+}
+
+function getClipboardHistory() {
+    const items = safeJsonParse('webos-clipboard-history', []);
+    return Array.isArray(items) ? items : [];
+}
+
+function getLastClipboardText() {
+    const items = getClipboardHistory();
+    return items.length > 0 ? items[0] : null;
+}
+
 function copyTextToClipboard(text) {
+    pushClipboardHistory(text);
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
             showNotification('Clipboard', 'Text copied to clipboard.');
@@ -1033,6 +1058,58 @@ function copyTextToClipboard(text) {
         fallbackCopyText(text);
     }
 }
+
+function clearClipboardHistory() {
+    safeStorageSet('webos-clipboard-history', '[]');
+    renderClipboardHistory();
+}
+
+function toggleClipboardHistory(force) {
+    const panel = document.getElementById('clipboard-history');
+    if (!panel) return;
+    const open = force !== undefined ? force : panel.classList.contains('hidden');
+    if (open) {
+        renderClipboardHistory();
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+    return open;
+}
+
+function renderClipboardHistory() {
+    const panel = document.getElementById('clipboard-history');
+    const listEl = document.getElementById('clipboard-list');
+    const emptyEl = document.getElementById('clipboard-empty');
+    if (!panel || !listEl) return;
+
+    const items = getClipboardHistory();
+    listEl.innerHTML = '';
+    if (items.length === 0) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    items.forEach((text) => {
+        const btn = document.createElement('button');
+        btn.className = 'clipboard-item';
+        btn.textContent = text;
+        btn.onclick = () => {
+            copyTextToClipboard(text);
+            toggleClipboardHistory(false);
+        };
+        listEl.appendChild(btn);
+    });
+}
+
+// Track OS-level copy events (Ctrl+C / Cmd+C) so the history also catches
+// text copied from outside this app's own copyTextToClipboard() calls.
+document.addEventListener('copy', () => {
+    try {
+        const sel = window.getSelection();
+        if (sel && sel.toString()) pushClipboardHistory(sel.toString());
+    } catch (e) { /* ignore */ }
+});
 
 function fallbackCopyText(text) {
     const textArea = document.createElement("textarea");
@@ -1233,12 +1310,34 @@ function togglePowerMenu() {
     menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
 }
 
+// Lock-screen security: rate-limit PIN attempts and support Enter to unlock.
+let lockAttempts = 0;
+let lockLockedUntil = 0;
+
 function lockSystem() {
     const lockScreen = document.getElementById('lock-screen');
     const powerMenu = document.getElementById('power-menu');
     if (powerMenu) powerMenu.style.display = 'none';
-    if (lockScreen) lockScreen.classList.remove('hidden');
+    if (lockScreen) {
+        lockScreen.classList.remove('hidden');
+        // Show current time/date on the lock screen.
+        const now = new Date();
+        const timeEl = document.getElementById('lock-time');
+        const dateEl = document.getElementById('lock-date');
+        if (timeEl) timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (dateEl) dateEl.textContent = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+        const pinInput = document.getElementById('unlock-pin');
+        if (pinInput) setTimeout(() => pinInput.focus(), 50);
+    }
 }
+
+// Enter on the PIN field unlocks without reaching for the button.
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && document.getElementById('unlock-pin') === document.activeElement) {
+        e.preventDefault();
+        unlockSystem();
+    }
+});
 
 function unlockSystem() {
     const pinInput = document.getElementById('unlock-pin');
@@ -1248,12 +1347,29 @@ function unlockSystem() {
 
     if (!pinInput || !error || !lockScreen) return;
 
+    // Enforce a short cooldown after repeated failures.
+    const now = Date.now();
+    if (now < lockLockedUntil) {
+        const secs = Math.ceil((lockLockedUntil - now) / 1000);
+        error.textContent = `Zu viele Versuche. Warte ${secs}s.`;
+        return;
+    }
+
     if (pinInput.value === correctPin) {
         lockScreen.classList.add('hidden');
         pinInput.value = '';
         error.textContent = '';
+        lockAttempts = 0;
     } else {
-        error.textContent = 'Falscher PIN. Bitte erneut versuchen.';
+        lockAttempts++;
+        pinInput.value = '';
+        if (lockAttempts >= 5) {
+            lockAttempts = 0;
+            lockLockedUntil = now + 30000;
+            error.textContent = 'Zu viele Fehlversuche. Warte 30s.';
+        } else {
+            error.textContent = 'Falscher PIN. Bitte erneut versuchen.';
+        }
     }
 }
 
@@ -2755,8 +2871,22 @@ function performWindowCleanup(windowId) {
         delete terminalStates[windowId];
     }
 
-    // Cleanup Notes state
+    // Cleanup Browser and File Explorer per-window state (history/paths)
+    if (typeof browserStates !== 'undefined' && browserStates[windowId]) {
+        delete browserStates[windowId];
+    }
+    if (typeof explorerStates !== 'undefined' && explorerStates[windowId]) {
+        delete explorerStates[windowId];
+    }
+
+    // Cleanup Notes state + flush pending save timer
     if (typeof notesStates !== 'undefined' && notesStates[windowId]) {
+        if (notesSaveTimer) {
+            clearTimeout(notesSaveTimer);
+            notesSaveTimer = null;
+            // Flush any pending save before window state is deleted
+            saveNotes();
+        }
         delete notesStates[windowId];
     }
 
@@ -3606,6 +3736,7 @@ function buildPaletteCommands() {
         { id: 'sys:restart', title: 'Neustarten', subtitle: 'System neu starten', icon: '🔄', category: 'Power', keywords: 'restart reboot neustart', run: () => restartSystem() },
         { id: 'sys:shutdown', title: 'Herunterfahren', subtitle: 'System ausschalten', icon: '⏻', category: 'Power', keywords: 'shutdown off aus', run: () => shutdownSystem() },
         { id: 'sys:desktop', title: 'Desktop anzeigen', subtitle: 'Alle Fenster minimieren', icon: '▭', category: 'Power', keywords: 'show desktop windows', run: () => toggleDesktop() },
+        { id: 'sys:run', title: 'Ausführen (Win+R)', subtitle: 'App starten oder Shell-Befehl', icon: '💻', category: 'Power', keywords: 'run öffnen starten exec', run: () => { const q = prompt('Befehl oder App-Name:'); if (q) { const cmd = searchCommands(q)[0]; if (cmd) cmd.run(); } }},
         { id: 'sys:search', title: 'Hilfe & Suche', subtitle: 'Tastenkombinationen (F1)', icon: '?', category: 'System', keywords: 'help hilfe shortcuts', run: () => openApp('about') }
     );
     return cmds;
@@ -3624,6 +3755,29 @@ function fuzzyPaletteScore(query, target) {
     return qi === q.length ? score : 0;
 }
 
+// Win+S file search: building {p,name,isDir} entries walks the whole VFS on
+// every keystroke, which is wasteful. Cache the derived list and invalidate
+// it whenever the file system is persisted (saveFileSystem/loadFileSystem).
+let _vfsSearchIndex = null;
+
+function getVfsSearchIndex() {
+    if (_vfsSearchIndex) return _vfsSearchIndex;
+    const entries = [];
+    for (const p in fileSystem) {
+        const name = p.split('/').filter(Boolean).pop();
+        if (!name) continue;
+        const isDir = fileSystem[p] === 'directory';
+        const lowerName = name.toLowerCase();
+        entries.push({ p, name, lowerName, isDir });
+    }
+    _vfsSearchIndex = entries;
+    return entries;
+}
+
+function invalidateVfsSearchIndex() {
+    _vfsSearchIndex = null;
+}
+
 function searchCommands(query) {
     if (!paletteCommands) paletteCommands = buildPaletteCommands();
     const q = (query || '').trim();
@@ -3635,7 +3789,49 @@ function searchCommands(query) {
         return { cmd, score };
     }).filter(x => x.score > 0);
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 8).map(x => x.cmd);
+    const results = scored.slice(0, 8).map(x => x.cmd);
+
+    // Win+S: also surface files in the virtual filesystem.
+    if (typeof fileSystem === 'object' && fileSystem) {
+        const ql = q.toLowerCase();
+        const fileMatches = [];
+        for (const entry of getVfsSearchIndex()) {
+            if (entry.lowerName.includes(ql)) {
+                fileMatches.push(entry);
+            }
+        }
+        fileMatches.sort((a, b) => a.lowerName.indexOf(ql) - b.lowerName.indexOf(ql));
+        const parent = p => {
+            const parts = p.split('/').filter(Boolean);
+            parts.pop();
+            return parts.length === 0 ? '/' : '/' + parts.join('/');
+        };
+        fileMatches.slice(0, 5).forEach(fm => {
+            results.push({
+                id: 'file:' + fm.p,
+                title: fm.name + (fm.isDir ? '/' : ''),
+                subtitle: 'Datei · ' + fm.p,
+                icon: fm.isDir ? '📁' : '📄',
+                category: 'Datei',
+                keywords: fm.p.toLowerCase(),
+                run: () => {
+                    openApp('file-explorer');
+                    // Navigate the freshly opened explorer to the parent dir.
+                    setTimeout(() => {
+                        const windows = document.querySelectorAll('.window[data-appname="file-explorer"]');
+                        const lastWin = windows[windows.length - 1];
+                        if (lastWin) {
+                            const wid = lastWin.id;
+                            if (!explorerStates[wid]) explorerStates[wid] = { path: '/' };
+                            explorerStates[wid].path = parent(fm.p);
+                            renderFileExplorer(wid);
+                        }
+                    }, 80);
+                }
+            });
+        });
+    }
+    return results;
 }
 
 function renderPalette(commandList) {
@@ -3739,6 +3935,7 @@ document.addEventListener('keydown', (e) => {
         hideSnapPreview();
         hideTaskSwitcher();
         togglePalette(false);
+        toggleClipboardHistory(false);
         if (typeof closeQuickSettings === 'function') closeQuickSettings();
         if (typeof closeWorkspaceMenu === 'function') closeWorkspaceMenu();
         if (typeof hideSnapLayoutMenu === 'function') hideSnapLayoutMenu();
@@ -3837,6 +4034,38 @@ document.addEventListener('keydown', (e) => {
         if (isTypingInField()) return;
         e.preventDefault();
         switchWorkspace(currentWorkspace + (e.key === 'ArrowRight' ? 1 : -1), true);
+        return;
+    }
+
+    // Run dialog: Win+R (open execute palette with custom search)
+    if (e.metaKey && e.key === 'r') {
+        e.preventDefault();
+        document.getElementById('command-input').value = '';
+        togglePalette(true);
+        setTimeout(() => {
+            const input = document.getElementById('command-input');
+            if (input) input.focus();
+        }, 30);
+        return;
+    }
+
+    // Global search: Win+S (finds apps, commands AND files in the VFS)
+    if (e.metaKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        document.getElementById('command-input').value = '';
+        togglePalette(true);
+        setTimeout(() => {
+            const input = document.getElementById('command-input');
+            if (input) input.focus();
+        }, 30);
+        return;
+    }
+
+    // Clipboard history: Win+V (open clipboard history panel)
+    if (e.metaKey && e.key === 'v') {
+        e.preventDefault();
+        if (isTypingInField()) return;
+        toggleClipboardHistory();
         return;
     }
 });
@@ -5227,12 +5456,20 @@ function maximizeWindow(windowId) {
     if (!win) return;
 
     if (win.classList.contains('maximized')) {
-        // Restore
+        // Restore. A top-snap (`applySnap(zone='top')`) stores the previous
+        // geometry under `snapPrev*`, a plain maximize under `prev*`. Use the
+        // `prev*` keys when present and fall back to `snapPrev*` so that
+        // un-snapping via the maximize button restores the original geometry.
         win.classList.remove('maximized');
-        win.style.left = win.dataset.prevLeft;
-        win.style.top = win.dataset.prevTop;
-        win.style.width = win.dataset.prevWidth || '';
-        win.style.height = win.dataset.prevHeight || '';
+        win.style.left = (win.dataset.prevLeft !== undefined) ? win.dataset.prevLeft : win.dataset.snapPrevLeft;
+        win.style.top = (win.dataset.prevTop !== undefined) ? win.dataset.prevTop : win.dataset.snapPrevTop;
+        win.style.width = (win.dataset.prevWidth || win.dataset.snapPrevWidth) || '';
+        win.style.height = (win.dataset.prevHeight || win.dataset.snapPrevHeight) || '';
+        // Consume snap-restore keys so a later maximize stores fresh geometry
+        delete win.dataset.snapPrevLeft;
+        delete win.dataset.snapPrevTop;
+        delete win.dataset.snapPrevWidth;
+        delete win.dataset.snapPrevHeight;
     } else {
         // Maximize
         win.dataset.prevLeft = win.style.left;
@@ -5425,6 +5662,7 @@ function saveFileSystem() {
     // a quota exception would otherwise leave storage and memory out of sync).
     try {
         localStorage.setItem('webos-filesystem', JSON.stringify(fileSystem));
+        invalidateVfsSearchIndex();
         return true;
     } catch (e) {
         console.error('Failed to save file system (quota?):', e);
@@ -5451,6 +5689,7 @@ function loadFileSystem() {
             console.error('Failed to load file system:', e);
         }
     }
+    invalidateVfsSearchIndex();
 }
 
 // Window State Persistence
@@ -6933,7 +7172,7 @@ function addWorldCity(windowId) {
     if (!state.world) state.world = { cities: [] };
 
     state.world.cities.push(city);
-    localStorage.setItem('clockWorldCities', JSON.stringify(state.world.cities));
+    safeStorageSet('clockWorldCities', JSON.stringify(state.world.cities));
     renderWorldClock(windowId);
 }
 
@@ -6941,7 +7180,7 @@ function removeWorldCity(windowId, index) {
     const state = clockStates[windowId];
     if (!state.world) return;
     state.world.cities.splice(index, 1);
-    localStorage.setItem('clockWorldCities', JSON.stringify(state.world.cities));
+    safeStorageSet('clockWorldCities', JSON.stringify(state.world.cities));
     renderWorldClock(windowId);
 }
 
@@ -8198,7 +8437,7 @@ function moveGame2048(windowId, direction) {
         // Update Best Score
         const currentBest = parseInt(localStorage.getItem('2048-best') || 0);
         if (state.score > currentBest) {
-            localStorage.setItem('2048-best', state.score);
+            safeStorageSet('2048-best', String(state.score));
             const bestEl = document.getElementById(`game-2048-best-${windowId}`);
             if(bestEl) bestEl.textContent = state.score;
         }
@@ -10197,7 +10436,7 @@ function deleteEmail(windowId, emailId) {
 function saveEmails(windowId) {
     const state = emailStates[windowId];
     if (state) {
-        localStorage.setItem('webos-emails', JSON.stringify(state.emails));
+        safeStorageSet('webos-emails', JSON.stringify(state.emails));
     }
 }
 
@@ -10391,7 +10630,7 @@ function sendChatMessage(windowId) {
 function saveChatMessages(windowId) {
     const state = chatStates[windowId];
     if (state) {
-        localStorage.setItem('webos-chat-messages', JSON.stringify(state.messages));
+        safeStorageSet('webos-chat-messages', JSON.stringify(state.messages));
     }
 }
 
@@ -11033,11 +11272,13 @@ function restoreAllRecycleBinItems(windowId) {
         if (!ok) {
             quotaFail = true;
             snapshots.forEach(p => delete fileSystem[p]);
-            // Move everything back into the bin
-            while (remaining.length < state.items.length) {
-                const idx = state.items.length - 1 - remaining.length;
-                remaining.unshift(state.items[idx]);
-            }
+            // Move everything back into the bin. `remaining` currently holds
+            // only the conflict items; the in-memory FS rollback above removed
+            // every restored path, so ALL items must return to the bin. The
+            // old index-arithmetic loop produced duplicates and silently
+            // dropped items whenever at least one conflict existed.
+            remaining.length = 0;
+            for (const item of state.items) remaining.push(item);
             restored = 0;
             conflicts = state.items.length;
         }
@@ -11398,6 +11639,31 @@ function getPseudoRam() {
     }
     return Math.round(_lastRamValue);
 }
+
+// Browser tab title shows a lightweight system status (CPU · RAM), refreshed
+// on a slow timer only while the tab is visible — no extra work when hidden.
+let _bootStartTime = null;
+function getSystemUptime() {
+    if (_bootStartTime === null) _bootStartTime = Date.now();
+    return Math.floor((Date.now() - _bootStartTime) / 1000);
+}
+
+function updateDocumentTitle() {
+    if (document.hidden) return;
+    const cpu = getPseudoCpu();
+    const ram = getPseudoRam();
+    document.title = `WebOS · CPU ${cpu}% · RAM ${ram}%`;
+}
+
+let _titleTimer = setInterval(updateDocumentTitle, 15000);
+updateDocumentTitle();
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        updateDocumentTitle();
+        if (!_titleTimer) _titleTimer = setInterval(updateDocumentTitle, 15000);
+    }
+});
 
 // getStorageStats() walks the entire virtual file system, so cache the derived
 // percentage with a TTL — updateQuickStats calls this every 2 seconds.
